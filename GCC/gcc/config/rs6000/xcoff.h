@@ -1,12 +1,13 @@
 /* Definitions of target machine for GNU compiler,
    for some generic XCOFF file format
-   Copyright (C) 2001, 2002, 2003, 2004, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2001, 2002, 2003, 2004, 2007, 2008
+   Free Software Foundation, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published
-   by the Free Software Foundation; either version 2, or (at your
+   by the Free Software Foundation; either version 3, or (at your
    option) any later version.
 
    GCC is distributed in the hope that it will be useful, but WITHOUT
@@ -15,9 +16,8 @@
    License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the
-   Free Software Foundation, 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.  */
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 #define TARGET_OBJECT_FORMAT OBJECT_XCOFF
 
@@ -61,29 +61,31 @@
 
 #define MAX_OFILE_ALIGNMENT 32768
 
+/* Default alignment factor for csect directives, chosen to honor
+   BIGGEST_ALIGNMENT.  */
+#define XCOFF_CSECT_DEFAULT_ALIGNMENT_STR "4"
+
 /* Return nonzero if this entry is to be written into the constant
    pool in a special way.  We do so if this is a SYMBOL_REF, LABEL_REF
    or a CONST containing one of them.  If -mfp-in-toc (the default),
    we also do this for floating-point constants.  We actually can only
    do this if the FP formats of the target and host machines are the
-   same, but we can't check that since not every file that uses
-   GO_IF_LEGITIMATE_ADDRESS_P includes real.h.  We also do this when
-   we can write the entry into the TOC and the entry is not larger
-   than a TOC entry.  */
+   same, but we can't check that since not every file that uses these
+   target macros includes real.h.  We also do this when we can write the
+   entry into the TOC and the entry is not larger than a TOC entry.  */
 
-#define ASM_OUTPUT_SPECIAL_POOL_ENTRY_P(X, MODE)                        \
-  (TARGET_TOC                                                                \
-   && (GET_CODE (X) == SYMBOL_REF                                        \
-       || (GET_CODE (X) == CONST && GET_CODE (XEXP (X, 0)) == PLUS        \
-           && GET_CODE (XEXP (XEXP (X, 0), 0)) == SYMBOL_REF)                \
-       || GET_CODE (X) == LABEL_REF                                        \
-       || (GET_CODE (X) == CONST_INT                                         \
-           && GET_MODE_BITSIZE (MODE) <= GET_MODE_BITSIZE (Pmode))        \
-       || (GET_CODE (X) == CONST_DOUBLE                                        \
-           && (TARGET_POWERPC64                                                \
-               || TARGET_MINIMAL_TOC                                        \
-               || (SCALAR_FLOAT_MODE_P (GET_MODE (X))                        \
-                   && ! TARGET_NO_FP_IN_TOC)))))
+#define ASM_OUTPUT_SPECIAL_POOL_ENTRY_P(X, MODE)			\
+  (TARGET_TOC								\
+   && (GET_CODE (X) == SYMBOL_REF					\
+       || (GET_CODE (X) == CONST && GET_CODE (XEXP (X, 0)) == PLUS	\
+	   && GET_CODE (XEXP (XEXP (X, 0), 0)) == SYMBOL_REF)		\
+       || GET_CODE (X) == LABEL_REF					\
+       || (GET_CODE (X) == CONST_INT 					\
+	   && GET_MODE_BITSIZE (MODE) <= GET_MODE_BITSIZE (Pmode))	\
+       || (GET_CODE (X) == CONST_DOUBLE					\
+	   && (TARGET_MINIMAL_TOC					\
+	       || (SCALAR_FLOAT_MODE_P (GET_MODE (X))			\
+		   && ! TARGET_NO_FP_IN_TOC)))))
 
 #define TARGET_ASM_OUTPUT_ANCHOR  rs6000_xcoff_asm_output_anchor
 #define TARGET_ASM_GLOBALIZE_LABEL  rs6000_xcoff_asm_globalize_label
@@ -98,9 +100,9 @@
 #define TARGET_SECTION_TYPE_FLAGS  rs6000_xcoff_section_type_flags
 
 /* FP save and restore routines.  */
-#define        SAVE_FP_PREFIX "._savef"
+#define	SAVE_FP_PREFIX "._savef"
 #define SAVE_FP_SUFFIX ""
-#define        RESTORE_FP_PREFIX "._restf"
+#define	RESTORE_FP_PREFIX "._restf"
 #define RESTORE_FP_SUFFIX ""
 
 /* Function name to call to do profiling.  */
@@ -115,7 +117,7 @@
 /* This is how to output the definition of a user-level label named NAME,
    such as the label on a static function or variable NAME.  */
 
-#define ASM_OUTPUT_LABEL(FILE,NAME)        \
+#define ASM_OUTPUT_LABEL(FILE,NAME)	\
   do { RS6000_OUTPUT_BASENAME (FILE, NAME); fputs (":\n", FILE); } while (0)
 
 /* This is how to output a command to make the user-level label named NAME
@@ -133,6 +135,7 @@
 /* This macro produces the initial definition of a function name.
    On the RS/6000, we need to place an extra '.' in the function name and
    output the function descriptor.
+   Dollar signs are converted to underscores.
 
    The csect for the function will have already been created when
    text_section was selected.  We do have to go back to that csect, however.
@@ -140,37 +143,55 @@
    The third and fourth parameters to the .function pseudo-op (16 and 044)
    are placeholders which no longer have any use.  */
 
-#define ASM_DECLARE_FUNCTION_NAME(FILE,NAME,DECL)                \
-{ if (TREE_PUBLIC (DECL))                                        \
-    {                                                                \
-      if (!RS6000_WEAK || !DECL_WEAK (decl))                        \
-        {                                                        \
-          fputs ("\t.globl .", FILE);                                \
-          RS6000_OUTPUT_BASENAME (FILE, NAME);                        \
-          putc ('\n', FILE);                                        \
-        }                                                        \
-    }                                                                \
-  else                                                                \
-    {                                                                \
-      fputs ("\t.lglobl .", FILE);                                \
-      RS6000_OUTPUT_BASENAME (FILE, NAME);                        \
-      putc ('\n', FILE);                                        \
-    }                                                                \
-  fputs ("\t.csect ", FILE);                                        \
-  RS6000_OUTPUT_BASENAME (FILE, NAME);                                \
-  fputs (TARGET_32BIT ? "[DS]\n" : "[DS],3\n", FILE);                \
-  RS6000_OUTPUT_BASENAME (FILE, NAME);                                \
-  fputs (":\n", FILE);                                                \
-  fputs (TARGET_32BIT ? "\t.long ." : "\t.llong .", FILE);        \
-  RS6000_OUTPUT_BASENAME (FILE, NAME);                                \
-  fputs (", TOC[tc0], 0\n", FILE);                                \
-  in_section = NULL;                                                \
-  switch_to_section (function_section (DECL));                        \
-  putc ('.', FILE);                                                \
-  RS6000_OUTPUT_BASENAME (FILE, NAME);                                \
-  fputs (":\n", FILE);                                                \
-  if (write_symbols != NO_DEBUG)                                \
-    xcoffout_declare_function (FILE, DECL, NAME);                \
+#define ASM_DECLARE_FUNCTION_NAME(FILE,NAME,DECL)		\
+{ char *buffer = (char *) alloca (strlen (NAME) + 1);		\
+  char *p;							\
+  int dollar_inside = 0;					\
+  strcpy (buffer, NAME);					\
+  p = strchr (buffer, '$');					\
+  while (p) {							\
+    *p = '_';							\
+    dollar_inside++;						\
+    p = strchr (p + 1, '$');					\
+  }								\
+  if (TREE_PUBLIC (DECL))					\
+    {								\
+      if (!RS6000_WEAK || !DECL_WEAK (decl))			\
+	{							\
+          if (dollar_inside) {					\
+              fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);	\
+              fprintf(FILE, "\t.rename %s,\"%s\"\n", buffer, NAME);	\
+	    }							\
+	  fputs ("\t.globl .", FILE);				\
+	  RS6000_OUTPUT_BASENAME (FILE, buffer);		\
+	  putc ('\n', FILE);					\
+	}							\
+    }								\
+  else								\
+    {								\
+      if (dollar_inside) {					\
+          fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);	\
+          fprintf(FILE, "\t.rename %s,\"%s\"\n", buffer, NAME);	\
+	}							\
+      fputs ("\t.lglobl .", FILE);				\
+      RS6000_OUTPUT_BASENAME (FILE, buffer);			\
+      putc ('\n', FILE);					\
+    }								\
+  fputs ("\t.csect ", FILE);					\
+  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
+  fputs (TARGET_32BIT ? "[DS]\n" : "[DS],3\n", FILE);		\
+  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
+  fputs (":\n", FILE);						\
+  fputs (TARGET_32BIT ? "\t.long ." : "\t.llong .", FILE);	\
+  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
+  fputs (", TOC[tc0], 0\n", FILE);				\
+  in_section = NULL;						\
+  switch_to_section (function_section (DECL));			\
+  putc ('.', FILE);						\
+  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
+  fputs (":\n", FILE);						\
+  if (write_symbols != NO_DEBUG && !DECL_IGNORED_P (DECL))	\
+    xcoffout_declare_function (FILE, DECL, buffer);		\
 }
 
 /* Output a reference to SYM on FILE.  */
@@ -178,21 +199,44 @@
 #define ASM_OUTPUT_SYMBOL_REF(FILE, SYM) \
   rs6000_output_symbol_ref (FILE, SYM)
 
-/* This says how to output an external.  */
+/* This says how to output an external.
+   Dollar signs are converted to underscores.  */
 
 #undef  ASM_OUTPUT_EXTERNAL
-#define ASM_OUTPUT_EXTERNAL(FILE, DECL, NAME)                                \
-{ rtx _symref = XEXP (DECL_RTL (DECL), 0);                                \
-  if ((TREE_CODE (DECL) == VAR_DECL                                        \
-       || TREE_CODE (DECL) == FUNCTION_DECL)                                \
-      && (NAME)[strlen (NAME) - 1] != ']')                                \
-    {                                                                        \
-      XSTR (_symref, 0) = concat (XSTR (_symref, 0),                        \
-                                  (TREE_CODE (DECL) == FUNCTION_DECL        \
-                                   ? "[DS]" : "[RW]"),                        \
-                                  NULL);                                \
-    }                                                                        \
+#define ASM_OUTPUT_EXTERNAL(FILE, DECL, NAME)				\
+{ char *buffer = (char *) alloca (strlen (NAME) + 1);			\
+  char *p;								\
+  rtx _symref = XEXP (DECL_RTL (DECL), 0);				\
+  int dollar_inside = 0;						\
+  strcpy (buffer, NAME);						\
+  p = strchr (buffer, '$');						\
+  while (p) {								\
+    *p = '_';								\
+    dollar_inside++;							\
+    p = strchr (p + 1, '$');						\
+  }									\
+  if (dollar_inside) {							\
+      fputs ("\t.extern .", FILE);					\
+      RS6000_OUTPUT_BASENAME (FILE, buffer);				\
+      putc ('\n', FILE);						\
+      fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);		\
+    }									\
+  if ((TREE_CODE (DECL) == VAR_DECL					\
+       || TREE_CODE (DECL) == FUNCTION_DECL)				\
+      && (NAME)[strlen (NAME) - 1] != ']')				\
+    {									\
+      XSTR (_symref, 0) = concat (XSTR (_symref, 0),			\
+				  (TREE_CODE (DECL) == FUNCTION_DECL	\
+				   ? "[DS]" : "[RW]"),			\
+				  NULL);				\
+    }									\
 }
+
+/* This is how to output a reference to a user-level label named NAME.
+   `assemble_name' uses this.  */
+
+#define ASM_OUTPUT_LABELREF(FILE,NAME)	\
+  asm_fprintf ((FILE), "%U%s", rs6000_xcoff_strip_dollar (NAME));
 
 /* This is how to output an internal label prefix.  rs6000.c uses this
    when generating traceback tables.  */
@@ -204,7 +248,7 @@
    for (*targetm.asm_out.internal_label), except the insn for the jump table is
    passed.  */
 
-#define ASM_OUTPUT_CASE_LABEL(FILE,PREFIX,NUM,TABLEINSN)        \
+#define ASM_OUTPUT_CASE_LABEL(FILE,PREFIX,NUM,TABLEINSN)	\
 { ASM_OUTPUT_ALIGN (FILE, 2); (*targetm.asm_out.internal_label) (FILE, PREFIX, NUM); }
 
 /* This is how to store into the string LABEL
@@ -212,8 +256,8 @@
    PREFIX is the class of label and NUM is the number within the class.
    This is suitable for output with `assemble_name'.  */
 
-#define ASM_GENERATE_INTERNAL_LABEL(LABEL,PREFIX,NUM)        \
-  sprintf (LABEL, "*%s..%u", (PREFIX), (unsigned) (NUM))
+#define ASM_GENERATE_INTERNAL_LABEL(LABEL,PREFIX,NUM)	\
+  sprintf (LABEL, "*%s..%u", rs6000_xcoff_strip_dollar (PREFIX), (unsigned) (NUM))
 
 /* This is how to output an assembler line to define N characters starting
    at P to FILE.  */
@@ -232,16 +276,16 @@
 
 #define COMMON_ASM_OP "\t.comm "
 
-#define ASM_OUTPUT_ALIGNED_COMMON(FILE, NAME, SIZE, ALIGN)        \
-  do { fputs (COMMON_ASM_OP, (FILE));                        \
-       RS6000_OUTPUT_BASENAME ((FILE), (NAME));                \
-       if ((ALIGN) > 32)                                \
-         fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", (SIZE), \
-                  exact_log2 ((ALIGN) / BITS_PER_UNIT)); \
-       else if ((SIZE) > 4)                                \
+#define ASM_OUTPUT_ALIGNED_COMMON(FILE, NAME, SIZE, ALIGN)	\
+  do { fputs (COMMON_ASM_OP, (FILE));			\
+       RS6000_OUTPUT_BASENAME ((FILE), (NAME));		\
+       if ((ALIGN) > 32)				\
+	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", (SIZE), \
+		  exact_log2 ((ALIGN) / BITS_PER_UNIT)); \
+       else if ((SIZE) > 4)				\
          fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",3\n", (SIZE)); \
-       else                                                \
-         fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE)); \
+       else						\
+	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE)); \
   } while (0)
 
 /* This says how to output an assembler line
@@ -252,24 +296,24 @@
 
 #define LOCAL_COMMON_ASM_OP "\t.lcomm "
 
-#define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE, ROUNDED)        \
-  do { fputs (LOCAL_COMMON_ASM_OP, (FILE));                \
-       RS6000_OUTPUT_BASENAME ((FILE), (NAME));                \
+#define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE, ROUNDED)	\
+  do { fputs (LOCAL_COMMON_ASM_OP, (FILE));		\
+       RS6000_OUTPUT_BASENAME ((FILE), (NAME));		\
        fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%s\n", \
-                (TARGET_32BIT ? (SIZE) : (ROUNDED)),        \
-                xcoff_bss_section_name);                \
+		(TARGET_32BIT ? (SIZE) : (ROUNDED)),	\
+		xcoff_bss_section_name);		\
      } while (0)
 
 /* This is how we tell the assembler that two symbols have the same value.  */
 #define SET_ASM_OP "\t.set "
 
 /* This is how we tell the assembler to equate two values.  */
-#define ASM_OUTPUT_DEF(FILE,LABEL1,LABEL2)                                \
- do {        fprintf ((FILE), "%s", SET_ASM_OP);                                \
-        RS6000_OUTPUT_BASENAME (FILE, LABEL1);                                \
-        fprintf (FILE, ",");                                                \
-        RS6000_OUTPUT_BASENAME (FILE, LABEL2);                                \
-        fprintf (FILE, "\n");                                                \
+#define ASM_OUTPUT_DEF(FILE,LABEL1,LABEL2)				\
+ do {	fprintf ((FILE), "%s", SET_ASM_OP);				\
+	RS6000_OUTPUT_BASENAME (FILE, LABEL1);				\
+	fprintf (FILE, ",");						\
+	RS6000_OUTPUT_BASENAME (FILE, LABEL2);				\
+	fprintf (FILE, "\n");						\
   } while (0)
 
 /* Used by rs6000_assemble_integer, among others.  */
@@ -278,9 +322,10 @@
 /* Output before instructions.  */
 #define TEXT_SECTION_ASM_OP "\t.csect .text[PR]"
 
-/* Output before writable data.
-   Align entire section to BIGGEST_ALIGNMENT.  */
-#define DATA_SECTION_ASM_OP "\t.csect .data[RW],3"
+/* Output before writable data.  */
+#define DATA_SECTION_ASM_OP \
+  "\t.csect .data[RW]," XCOFF_CSECT_DEFAULT_ALIGNMENT_STR
+
 
 /* Define to prevent DWARF2 unwind info in the data section rather
    than in the .eh_frame section.  We do this because the AIX linker

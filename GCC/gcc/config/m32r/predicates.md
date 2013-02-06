@@ -1,11 +1,11 @@
 ;; Predicate definitions for Renesas M32R.
-;; Copyright (C) 2005 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2007 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,19 +14,18 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
 
 ;; Return true if OP is a register or the constant 0.
 
 (define_predicate "reg_or_zero_operand"
   (match_code "reg,subreg,const_int")
 {
-  if (GET_CODE (op) == REG || GET_CODE (op) == SUBREG)
+  if (REG_P (op) || GET_CODE (op) == SUBREG)
     return register_operand (op, mode);
 
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
 
   return INTVAL (op) == 0;
@@ -51,12 +50,12 @@
       return 1;
 
     case CONST_INT:
-      return INT8_P (INTVAL (op));
+      return satisfies_constraint_I (op);
 
     default:
 #if 0
       fprintf (stderr, "Test for cond move op of type: %s\n",
-               GET_RTX_NAME (GET_CODE (op)));
+	       GET_RTX_NAME (GET_CODE (op)));
 #endif
       return 0;
     }
@@ -76,11 +75,11 @@
     return FALSE;
 
   x = XEXP (op, 0);
-  if (GET_CODE (x) != REG || REGNO (x) != CARRY_REGNUM)
+  if (!REG_P (x) || REGNO (x) != CARRY_REGNUM)
     return FALSE;
 
   x = XEXP (op, 1);
-  if (GET_CODE (x) != CONST_INT || INTVAL (x) != 0)
+  if (!CONST_INT_P (x) || INTVAL (x) != 0)
     return FALSE;
 
   return TRUE;
@@ -104,8 +103,8 @@
   enum rtx_code code = GET_CODE (op);
 
   return (COMPARISON_P (op)
-            && (code == EQ || code == NE
-              || code == LT || code == LE || code == GT || code == GE));
+  	  && (code == EQ || code == NE
+	      || code == LT || code == LE || code == GT || code == GE));
 })
 
 ;; Return true if OP is an acceptable argument for a move destination.
@@ -119,14 +118,14 @@
       return register_operand (op, mode);
     case SUBREG :
       /* (subreg (mem ...) ...) can occur here if the inner part was once a
-         pseudo-reg and is now a stack slot.  */
-      if (GET_CODE (SUBREG_REG (op)) == MEM)
-        return address_operand (XEXP (SUBREG_REG (op), 0), mode);
+	 pseudo-reg and is now a stack slot.  */
+      if (MEM_P (SUBREG_REG (op)))
+	return address_operand (XEXP (SUBREG_REG (op), 0), mode);
       else
-        return register_operand (op, mode);
+	return register_operand (op, mode);
     case MEM :
       if (GET_CODE (XEXP (op, 0)) == POST_INC)
-        return 0;                /* stores can't do post inc */
+	return 0;		/* stores can't do post inc */
       return address_operand (XEXP (op, 0), mode);
     default :
       return 0;
@@ -147,43 +146,43 @@
       return addr24_operand (op, mode);
     case CONST_INT :
       /* ??? We allow more cse opportunities if we only allow constants
-         loadable with one insn, and split the rest into two.  The instances
-         where this would help should be rare and the current way is
-         simpler.  */
+	 loadable with one insn, and split the rest into two.  The instances
+	 where this would help should be rare and the current way is
+	 simpler.  */
       if (HOST_BITS_PER_WIDE_INT > 32)
-        {
-          HOST_WIDE_INT rest = INTVAL (op) >> 31;
-          return (rest == 0 || rest == -1);
-        }
+	{
+	  HOST_WIDE_INT rest = INTVAL (op) >> 31;
+	  return (rest == 0 || rest == -1);
+	}
       else
-        return 1;
+	return 1;
     case CONST_DOUBLE :
       if (mode == SFmode)
-        return 1;
+	return 1;
       else if (mode == SImode)
-        {
-          /* Large unsigned constants are represented as const_double's.  */
-          unsigned HOST_WIDE_INT low, high;
+	{
+	  /* Large unsigned constants are represented as const_double's.  */
+	  unsigned HOST_WIDE_INT low, high;
 
-          low = CONST_DOUBLE_LOW (op);
-          high = CONST_DOUBLE_HIGH (op);
-          return high == 0 && low <= (unsigned) 0xffffffff;
-        }
+	  low = CONST_DOUBLE_LOW (op);
+	  high = CONST_DOUBLE_HIGH (op);
+	  return high == 0 && low <= (unsigned) 0xffffffff;
+	}
       else
-        return 0;
+	return 0;
     case REG :
       return register_operand (op, mode);
     case SUBREG :
       /* (subreg (mem ...) ...) can occur here if the inner part was once a
-         pseudo-reg and is now a stack slot.  */
-      if (GET_CODE (SUBREG_REG (op)) == MEM)
-        return address_operand (XEXP (SUBREG_REG (op), 0), mode);
+	 pseudo-reg and is now a stack slot.  */
+      if (MEM_P (SUBREG_REG (op)))
+	return address_operand (XEXP (SUBREG_REG (op), 0), mode);
       else
-        return register_operand (op, mode);
+	return register_operand (op, mode);
     case MEM :
       if (GET_CODE (XEXP (op, 0)) == PRE_INC
-          || GET_CODE (XEXP (op, 0)) == PRE_DEC)
-        return 0;                /* loads can't do pre-{inc,dec} */
+	  || GET_CODE (XEXP (op, 0)) == PRE_DEC)
+	return 0;		/* loads can't do pre-{inc,dec} */
       return address_operand (XEXP (op, 0), mode);
     default :
       return 0;
@@ -205,16 +204,16 @@
       return register_operand (op, mode);
     case SUBREG :
       /* (subreg (mem ...) ...) can occur here if the inner part was once a
-         pseudo-reg and is now a stack slot.  */
-      if (GET_CODE (SUBREG_REG (op)) == MEM)
-        return move_double_src_operand (SUBREG_REG (op), mode);
+	 pseudo-reg and is now a stack slot.  */
+      if (MEM_P (SUBREG_REG (op)))
+	return move_double_src_operand (SUBREG_REG (op), mode);
       else
-        return register_operand (op, mode);
+	return register_operand (op, mode);
     case MEM :
       /* Disallow auto inc/dec for now.  */
       if (GET_CODE (XEXP (op, 0)) == PRE_DEC
-          || GET_CODE (XEXP (op, 0)) == PRE_INC)
-        return 0;
+	  || GET_CODE (XEXP (op, 0)) == PRE_INC)
+	return 0;
       return address_operand (XEXP (op, 0), mode);
     default :
       return 0;
@@ -227,11 +226,11 @@
 (define_predicate "two_insn_const_operand"
   (match_code "const_int")
 {
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
-  if (INT16_P (INTVAL (op))
-      || UINT24_P (INTVAL (op))
-      || UPPER16_P (INTVAL (op)))
+  if (satisfies_constraint_J (op)
+      || satisfies_constraint_M (op)
+      || satisfies_constraint_L (op))
     return 0;
   return 1;
 })
@@ -253,61 +252,61 @@
     }
 })
 
-;; Return true if OP is a signed 8 bit immediate value.
+;; Return true if OP is a signed 8-bit immediate value.
 
 (define_predicate "int8_operand"
   (match_code "const_int")
 {
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
-  return INT8_P (INTVAL (op));
+  return satisfies_constraint_I (op);
 })
 
-;; Return true if OP is an unsigned 16 bit immediate value.
+;; Return true if OP is an unsigned 16-bit immediate value.
 
 (define_predicate "uint16_operand"
   (match_code "const_int")
 {
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
-  return UINT16_P (INTVAL (op));
+  return satisfies_constraint_K (op);
 })
 
-;; Return true if OP is a register or signed 16 bit value.
+;; Return true if OP is a register or signed 16-bit value.
 
 (define_predicate "reg_or_int16_operand"
   (match_code "reg,subreg,const_int")
 {
-  if (GET_CODE (op) == REG || GET_CODE (op) == SUBREG)
+  if (REG_P (op) || GET_CODE (op) == SUBREG)
     return register_operand (op, mode);
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
-  return INT16_P (INTVAL (op));
+  return satisfies_constraint_J (op);
 })
 
-;; Return true if OP is a register or an unsigned 16 bit value.
+;; Return true if OP is a register or an unsigned 16-bit value.
 
 (define_predicate "reg_or_uint16_operand"
   (match_code "reg,subreg,const_int")
 {
-  if (GET_CODE (op) == REG || GET_CODE (op) == SUBREG)
+  if (REG_P (op) || GET_CODE (op) == SUBREG)
     return register_operand (op, mode);
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
-  return UINT16_P (INTVAL (op));
+  return satisfies_constraint_K (op);
 })
 
-;; Return true if OP is a register or signed 16 bit value for
+;; Return true if OP is a register or signed 16-bit value for
 ;; compares.
 
 (define_predicate "reg_or_cmp_int16_operand"
   (match_code "reg,subreg,const_int")
 {
-  if (GET_CODE (op) == REG || GET_CODE (op) == SUBREG)
+  if (REG_P (op) || GET_CODE (op) == SUBREG)
     return register_operand (op, mode);
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
-  return CMP_INT16_P (INTVAL (op));
+  return satisfies_constraint_P (op);
 })
 
 ;; Return true if OP is a register or an integer value that can be
@@ -320,25 +319,25 @@
 {
   HOST_WIDE_INT value;
 
-  if (GET_CODE (op) == REG || GET_CODE (op) == SUBREG)
+  if (REG_P (op) || GET_CODE (op) == SUBREG)
     return register_operand (op, mode);
 
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
 
   value = INTVAL (op);
   return (value != 0) && (UINT16_P (value) || CMP_INT16_P (-value));
 })
 
-;; Return true if OP is a signed 16 bit immediate value useful in
+;; Return true if OP is a signed 16-bit immediate value useful in
 ;; comparisons.
 
 (define_predicate "cmp_int16_operand"
   (match_code "const_int")
 {
-  if (GET_CODE (op) != CONST_INT)
+  if (!CONST_INT_P (op))
     return 0;
-  return CMP_INT16_P (INTVAL (op));
+  return satisfies_constraint_P (op);
 })
 
 ;; Acceptable arguments to the call insn.
@@ -369,7 +368,7 @@
     case MEM :
       addr = XEXP (op, 0);
       if (GET_CODE (addr) == PRE_INC || GET_CODE (addr) == PRE_DEC)
-        return 0;                /* loads can't do pre inc/pre dec */
+	return 0;		/* loads can't do pre inc/pre dec */
 
       return address_operand (addr, mode);
 
@@ -385,7 +384,7 @@
 (define_predicate "small_insn_p"
   (match_code "insn,call_insn,jump_insn")
 {
-  if (GET_CODE (op) == CONST_INT && INTVAL (op) == 0)
+  if (CONST_INT_P (op) && INTVAL (op) == 0)
     return 1;
 
   if (! INSN_P (op))
@@ -400,7 +399,7 @@
 (define_predicate "m32r_block_immediate_operand"
   (match_code "const_int")
 {
-  if (GET_CODE (op) != CONST_INT
+  if (!CONST_INT_P (op)
       || INTVAL (op) > MAX_MOVE_BYTES
       || INTVAL (op) <= 0)
     return 0;
@@ -434,8 +433,7 @@
   if (GET_CODE (op) == CONST
       && GET_CODE (XEXP (op, 0)) == PLUS
       && GET_CODE (XEXP (XEXP (op, 0), 0)) == SYMBOL_REF
-      && GET_CODE (XEXP (XEXP (op, 0), 1)) == CONST_INT
-      && INT16_P (INTVAL (XEXP (XEXP (op, 0), 1))))
+      && satisfies_constraint_J (XEXP (XEXP (op, 0), 1)))
     return 1;
 
   return 0;

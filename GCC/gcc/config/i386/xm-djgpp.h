@@ -1,12 +1,12 @@
 /* Configuration for GCC for Intel 80386 running DJGPP.
-   Copyright (C) 1988, 1996, 1998, 1999, 2000, 2001, 2004
+   Copyright (C) 1988, 1996, 1998, 1999, 2000, 2001, 2004, 2007
    Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -15,9 +15,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 /* Use semicolons to separate elements of a path.  */
 #define PATH_SEPARATOR ';'
@@ -27,8 +26,8 @@ Boston, MA 02110-1301, USA.  */
 /* System dependent initialization for collect2
    to tell system() to act like Unix.  */
 #define COLLECT2_HOST_INITIALIZATION \
-  do { __system_flags |= (__system_allow_multiple_cmds                        \
-                          | __system_emulate_chdir); } while (0)
+  do { __system_flags |= (__system_allow_multiple_cmds			\
+		          | __system_emulate_chdir); } while (0)
 
 /* Define a version appropriate for DOS.  */
 #undef XREF_FILE_NAME
@@ -76,10 +75,10 @@ Boston, MA 02110-1301, USA.  */
 /* We cannot free PATH below as it can point to string constant  */
 #define UPDATE_PATH_HOST_CANONICALIZE(PATH) \
   if (memcmp ((PATH), "/dev/env/", sizeof("/dev/env/") - 1) == 0) \
-    {                                                \
-      static char fixed_path[FILENAME_MAX + 1];        \
-                                                \
-      _fixpath ((PATH), fixed_path);                \
-      strcat (fixed_path, "/");                        \
-      (PATH) = xstrdup (fixed_path);                \
+    {						\
+      static char fixed_path[FILENAME_MAX + 1];	\
+						\
+      _fixpath ((PATH), fixed_path);		\
+      strcat (fixed_path, "/");			\
+      (PATH) = xstrdup (fixed_path);		\
     } 

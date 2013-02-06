@@ -1,13 +1,13 @@
 /* Generate from machine description:
    - some #define configuration flags.
-   Copyright (C) 1987, 1991, 1997, 1998, 1999, 2000, 2003, 2004
+   Copyright (C) 1987, 1991, 1997, 1998, 1999, 2000, 2003, 2004, 2007, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -16,9 +16,8 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 
 #include "bconfig.h"
@@ -58,7 +57,7 @@ static void gen_peephole (rtx);
 static void gen_peephole2 (rtx);
 
 /* RECOG_P will be nonzero if this pattern was seen in a context where it will
-   be used to recognize, rather than just generate an insn. 
+   be used to recognize, rather than just generate an insn.
 
    NON_PC_SET_SRC will be nonzero if this pattern was seen in a SET_SRC
    of a SET whose destination is not (pc).  */
@@ -82,7 +81,7 @@ walk_insn_part (rtx part, int recog_p, int non_pc_set_src)
 
     case MATCH_OPERAND:
       if (XINT (part, 0) > max_recog_operands)
-        max_recog_operands = XINT (part, 0);
+	max_recog_operands = XINT (part, 0);
       return;
 
     case MATCH_OP_DUP:
@@ -92,55 +91,55 @@ walk_insn_part (rtx part, int recog_p, int non_pc_set_src)
     case MATCH_PARALLEL:
     case MATCH_OPERATOR:
       if (XINT (part, 0) > max_recog_operands)
-        max_recog_operands = XINT (part, 0);
+	max_recog_operands = XINT (part, 0);
       /* Now scan the rtl's in the vector inside the MATCH_OPERATOR or
-         MATCH_PARALLEL.  */
+	 MATCH_PARALLEL.  */
       break;
 
     case LABEL_REF:
       if (GET_CODE (XEXP (part, 0)) == MATCH_OPERAND
-          || GET_CODE (XEXP (part, 0)) == MATCH_DUP)
-        break;
+	  || GET_CODE (XEXP (part, 0)) == MATCH_DUP)
+	break;
       return;
 
     case MATCH_DUP:
       ++dup_operands_seen_this_insn;
       if (XINT (part, 0) > max_recog_operands)
-        max_recog_operands = XINT (part, 0);
+	max_recog_operands = XINT (part, 0);
       return;
 
     case CC0:
       if (recog_p)
-        have_cc0_flag = 1;
+	have_cc0_flag = 1;
       return;
 
     case LO_SUM:
       if (recog_p)
-        have_lo_sum_flag = 1;
+	have_lo_sum_flag = 1;
       return;
 
     case SET:
       walk_insn_part (SET_DEST (part), 0, recog_p);
       walk_insn_part (SET_SRC (part), recog_p,
-                      GET_CODE (SET_DEST (part)) != PC);
+		      GET_CODE (SET_DEST (part)) != PC);
       return;
 
     case IF_THEN_ELSE:
       /* Only consider this machine as having a conditional move if the
-         two arms of the IF_THEN_ELSE are both MATCH_OPERAND.  Otherwise,
-         we have some specific IF_THEN_ELSE construct (like the doz
-         instruction on the RS/6000) that can't be used in the general
-         context we want it for.  */
+	 two arms of the IF_THEN_ELSE are both MATCH_OPERAND.  Otherwise,
+	 we have some specific IF_THEN_ELSE construct (like the doz
+	 instruction on the RS/6000) that can't be used in the general
+	 context we want it for.  */
 
       if (recog_p && non_pc_set_src
-          && GET_CODE (XEXP (part, 1)) == MATCH_OPERAND
-          && GET_CODE (XEXP (part, 2)) == MATCH_OPERAND)
-        have_cmove_flag = 1;
+	  && GET_CODE (XEXP (part, 1)) == MATCH_OPERAND
+	  && GET_CODE (XEXP (part, 2)) == MATCH_OPERAND)
+	have_cmove_flag = 1;
       break;
 
     case COND_EXEC:
       if (recog_p)
-        have_cond_exec_flag = 1;
+	have_cond_exec_flag = 1;
       break;
 
     case REG: case CONST_INT: case SYMBOL_REF:
@@ -158,13 +157,13 @@ walk_insn_part (rtx part, int recog_p, int non_pc_set_src)
       {
       case 'e':
       case 'u':
-        walk_insn_part (XEXP (part, i), recog_p, non_pc_set_src);
-        break;
+	walk_insn_part (XEXP (part, i), recog_p, non_pc_set_src);
+	break;
       case 'E':
-        if (XVEC (part, i) != NULL)
-          for (j = 0; j < XVECLEN (part, i); j++)
-            walk_insn_part (XVECEXP (part, i, j), recog_p, non_pc_set_src);
-        break;
+	if (XVEC (part, i) != NULL)
+	  for (j = 0; j < XVECLEN (part, i); j++)
+	    walk_insn_part (XVECEXP (part, i, j), recog_p, non_pc_set_src);
+	break;
       }
 }
 
@@ -200,15 +199,15 @@ gen_expand (rtx insn)
   if (XVEC (insn, 1) != 0)
     for (i = 0; i < XVECLEN (insn, 1); i++)
       {
-        /* Compute the maximum SETs and CLOBBERS
-           in any one of the sub-insns;
-           don't sum across all of them.  */
-        clobbers_seen_this_insn = 0;
+	/* Compute the maximum SETs and CLOBBERS
+	   in any one of the sub-insns;
+	   don't sum across all of them.  */
+	clobbers_seen_this_insn = 0;
 
-        walk_insn_part (XVECEXP (insn, 1, i), 0, 0);
+	walk_insn_part (XVECEXP (insn, 1, i), 0, 0);
 
-        if (clobbers_seen_this_insn > max_clobbers_per_insn)
-          max_clobbers_per_insn = clobbers_seen_this_insn;
+	if (clobbers_seen_this_insn > max_clobbers_per_insn)
+	  max_clobbers_per_insn = clobbers_seen_this_insn;
       }
 }
 
@@ -252,7 +251,7 @@ gen_peephole2 (rtx peep)
   /* Look at the number of insns this insn can be matched from.  */
   for (i = XVECLEN (peep, 0) - 1, n = 0; i >= 0; --i)
     if (GET_CODE (XVECEXP (peep, 0, i)) != MATCH_DUP
-        && GET_CODE (XVECEXP (peep, 0, i)) != MATCH_SCRATCH)
+	&& GET_CODE (XVECEXP (peep, 0, i)) != MATCH_SCRATCH)
       n++;
   if (n > max_insns_per_peep2)
     max_insns_per_peep2 = n;
@@ -263,13 +262,9 @@ main (int argc, char **argv)
 {
   rtx desc;
 
-/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-  gccxml_fix_printf();
-/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-
   progname = "genconfig";
 
-  if (init_md_reader_args (argc, argv) != SUCCESS_EXIT_CODE)
+  if (!init_rtx_reader_args (argc, argv))
     return (FATAL_EXIT_CODE);
 
   puts ("/* Generated automatically by the program `genconfig'");
@@ -291,35 +286,35 @@ main (int argc, char **argv)
 
       desc = read_md_rtx (&line_no, &insn_code_number);
       if (desc == NULL)
-        break;
-        
-      switch (GET_CODE (desc)) 
-        {
-            case DEFINE_INSN:
-            gen_insn (desc);
-            break;
-          
-          case DEFINE_EXPAND:
-            gen_expand (desc);
-            break;
+	break;
 
-          case DEFINE_SPLIT:
-            gen_split (desc);
-            break;
+      switch (GET_CODE (desc))
+	{
+  	  case DEFINE_INSN:
+	    gen_insn (desc);
+	    break;
 
-          case DEFINE_PEEPHOLE2:
-            have_peephole2_flag = 1;
-            gen_peephole2 (desc);
-            break;
+	  case DEFINE_EXPAND:
+	    gen_expand (desc);
+	    break;
 
-          case DEFINE_PEEPHOLE:
-            have_peephole_flag = 1;
-            gen_peephole (desc);
-            break;
+	  case DEFINE_SPLIT:
+	    gen_split (desc);
+	    break;
 
-          default:
-            break;
-        }
+	  case DEFINE_PEEPHOLE2:
+	    have_peephole2_flag = 1;
+	    gen_peephole2 (desc);
+	    break;
+
+	  case DEFINE_PEEPHOLE:
+	    have_peephole_flag = 1;
+	    gen_peephole (desc);
+	    break;
+
+	  default:
+	    break;
+	}
     }
 
   printf ("#define MAX_RECOG_OPERANDS %d\n", max_recog_operands + 1);
@@ -339,7 +334,7 @@ main (int argc, char **argv)
   else
     {
       /* We output CC0_P this way to make sure that X is declared
-         somewhere.  */
+	 somewhere.  */
       printf ("#define CC0_P(X) ((X) ? 0 : 0)\n");
     }
 

@@ -1,13 +1,13 @@
 /* Subroutines for insn-output.c for NEC V850 series
-   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005
-   Free Software Foundation, Inc.
+   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+   2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Jeff Law (law@cygnus.com).
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
    GCC is distributed in the hope that it will be useful, but WITHOUT
@@ -16,9 +16,8 @@
    for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the Free
-   Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-   02110-1301, USA.  */
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
@@ -28,7 +27,6 @@
 #include "rtl.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "output.h"
@@ -37,51 +35,20 @@
 #include "recog.h"
 #include "expr.h"
 #include "function.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "ggc.h"
 #include "integrate.h"
 #include "tm_p.h"
 #include "target.h"
 #include "target-def.h"
+#include "df.h"
+#include "opts.h"
 
 #ifndef streq
 #define streq(a,b) (strcmp (a, b) == 0)
 #endif
 
-/* Function prototypes for stupid compilers:  */
-static bool v850_handle_option       (size_t, const char *, int);
-static void const_double_split       (rtx, HOST_WIDE_INT *, HOST_WIDE_INT *);
-static int  const_costs_int          (HOST_WIDE_INT, int);
-static int  const_costs                     (rtx, enum rtx_code);
-static bool v850_rtx_costs             (rtx, int, int, int *);
-static void substitute_ep_register   (rtx, rtx, int, int, rtx *, rtx *);
-static void v850_reorg                     (void);
-static int  ep_memory_offset         (enum machine_mode, int);
-static void v850_set_data_area       (tree, v850_data_area);
-const struct attribute_spec v850_attribute_table[];
-static tree v850_handle_interrupt_attribute (tree *, tree, tree, int, bool *);
-static tree v850_handle_data_area_attribute (tree *, tree, tree, int, bool *);
-static void v850_insert_attributes   (tree, tree *);
-static void v850_asm_init_sections   (void);
-static section *v850_select_section (tree, int, unsigned HOST_WIDE_INT);
-static void v850_encode_data_area    (tree, rtx);
-static void v850_encode_section_info (tree, rtx, int);
-static bool v850_return_in_memory    (tree, tree);
-static void v850_setup_incoming_varargs (CUMULATIVE_ARGS *, enum machine_mode,
-                                         tree, int *, int);
-static bool v850_pass_by_reference (CUMULATIVE_ARGS *, enum machine_mode,
-                                    tree, bool);
-static int v850_arg_partial_bytes (CUMULATIVE_ARGS *, enum machine_mode,
-                                   tree, bool);
-
-/* Information about the various small memory areas.  */
-struct small_memory_info small_memory[ (int)SMALL_MEMORY_max ] =
-{
-  /* name        max        physical max */
-  { "tda",        0,                256 },
-  { "sda",        0,                65536 },
-  { "zda",        0,                32768 },
-};
+static void v850_print_operand_address (FILE *, rtx);
 
 /* Names of the various data areas used on the v850.  */
 tree GHS_default_section_names [(int) COUNT_OF_GHS_SECTION_KINDS];
@@ -95,136 +62,24 @@ data_area_stack_element * data_area_stack = NULL;
    function is an interrupt handler.  */
 static int v850_interrupt_cache_p = FALSE;
 
+rtx v850_compare_op0, v850_compare_op1;
+
 /* Whether current function is an interrupt handler.  */
 static int v850_interrupt_p = FALSE;
 
-static GTY(()) section *rosdata_section;
-static GTY(()) section *rozdata_section;
-static GTY(()) section *tdata_section;
-static GTY(()) section *zdata_section;
-static GTY(()) section *zbss_section;
+static GTY(()) section * rosdata_section;
+static GTY(()) section * rozdata_section;
+static GTY(()) section * tdata_section;
+static GTY(()) section * zdata_section;
+static GTY(()) section * zbss_section;
 
-/* Initialize the GCC target structure.  */
-#undef TARGET_ASM_ALIGNED_HI_OP
-#define TARGET_ASM_ALIGNED_HI_OP "\t.hword\t"
-
-#undef TARGET_ATTRIBUTE_TABLE
-#define TARGET_ATTRIBUTE_TABLE v850_attribute_table
-
-#undef TARGET_INSERT_ATTRIBUTES
-#define TARGET_INSERT_ATTRIBUTES v850_insert_attributes
-
-#undef  TARGET_ASM_SELECT_SECTION
-#define TARGET_ASM_SELECT_SECTION  v850_select_section
-
-/* The assembler supports switchable .bss sections, but
-   v850_select_section doesn't yet make use of them.  */
-#undef  TARGET_HAVE_SWITCHABLE_BSS_SECTIONS
-#define TARGET_HAVE_SWITCHABLE_BSS_SECTIONS false
-
-#undef TARGET_ENCODE_SECTION_INFO
-#define TARGET_ENCODE_SECTION_INFO v850_encode_section_info
-
-#undef TARGET_ASM_FILE_START_FILE_DIRECTIVE
-#define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
-
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS (MASK_DEFAULT | MASK_APP_REGS)
-#undef TARGET_HANDLE_OPTION
-#define TARGET_HANDLE_OPTION v850_handle_option
-
-#undef TARGET_RTX_COSTS
-#define TARGET_RTX_COSTS v850_rtx_costs
-
-#undef TARGET_ADDRESS_COST
-#define TARGET_ADDRESS_COST hook_int_rtx_0
-
-#undef TARGET_MACHINE_DEPENDENT_REORG
-#define TARGET_MACHINE_DEPENDENT_REORG v850_reorg
-
-#undef TARGET_PROMOTE_PROTOTYPES
-#define TARGET_PROMOTE_PROTOTYPES hook_bool_tree_true
-
-#undef TARGET_RETURN_IN_MEMORY
-#define TARGET_RETURN_IN_MEMORY v850_return_in_memory
-
-#undef TARGET_PASS_BY_REFERENCE
-#define TARGET_PASS_BY_REFERENCE v850_pass_by_reference
-
-#undef TARGET_CALLEE_COPIES
-#define TARGET_CALLEE_COPIES hook_bool_CUMULATIVE_ARGS_mode_tree_bool_true
-
-#undef TARGET_SETUP_INCOMING_VARARGS
-#define TARGET_SETUP_INCOMING_VARARGS v850_setup_incoming_varargs
-
-#undef TARGET_ARG_PARTIAL_BYTES
-#define TARGET_ARG_PARTIAL_BYTES v850_arg_partial_bytes
-
-struct gcc_target targetm = TARGET_INITIALIZER;
-
-/* Set the maximum size of small memory area TYPE to the value given
-   by VALUE.  Return true if VALUE was syntactically correct.  VALUE
-   starts with the argument separator: either "-" or "=".  */
+/* Handle the TARGET_PASS_BY_REFERENCE target hook.
+   Specify whether to pass the argument by reference.  */
 
 static bool
-v850_handle_memory_option (enum small_memory_type type, const char *value)
-{
-  int i, size;
-
-  if (*value != '-' && *value != '=')
-    return false;
-
-  value++;
-  for (i = 0; value[i]; i++)
-    if (!ISDIGIT (value[i]))
-      return false;
-
-  size = atoi (value);
-  if (size > small_memory[type].physical_max)
-    error ("value passed to %<-m%s%> is too large", small_memory[type].name);
-  else
-    small_memory[type].max = size;
-  return true;
-}
-
-/* Implement TARGET_HANDLE_OPTION.  */
-
-static bool
-v850_handle_option (size_t code, const char *arg, int value ATTRIBUTE_UNUSED)
-{
-  switch (code)
-    {
-    case OPT_mspace:
-      target_flags |= MASK_EP | MASK_PROLOG_FUNCTION;
-      return true;
-
-    case OPT_mv850:
-      target_flags &= ~(MASK_CPU ^ MASK_V850);
-      return true;
-
-    case OPT_mv850e:
-    case OPT_mv850e1:
-      target_flags &= ~(MASK_CPU ^ MASK_V850E);
-      return true;
-
-    case OPT_mtda:
-      return v850_handle_memory_option (SMALL_MEMORY_TDA, arg);
-
-    case OPT_msda:
-      return v850_handle_memory_option (SMALL_MEMORY_SDA, arg);
-
-    case OPT_mzda:
-      return v850_handle_memory_option (SMALL_MEMORY_ZDA, arg);
-
-    default:
-      return true;
-    }
-}
-
-static bool
-v850_pass_by_reference (CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED,
-                        enum machine_mode mode, tree type,
-                        bool named ATTRIBUTE_UNUSED)
+v850_pass_by_reference (cumulative_args_t cum ATTRIBUTE_UNUSED,
+			enum machine_mode mode, const_tree type,
+			bool named ATTRIBUTE_UNUSED)
 {
   unsigned HOST_WIDE_INT size;
 
@@ -236,19 +91,27 @@ v850_pass_by_reference (CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED,
   return size > 8;
 }
 
-/* Return an RTX to represent where a value with mode MODE will be returned
-   from a function.  If the result is 0, the argument is pushed.  */
+/* Implementing the Varargs Macros.  */
 
-rtx
-function_arg (CUMULATIVE_ARGS * cum,
-              enum machine_mode mode,
-              tree type,
-              int named)
+static bool
+v850_strict_argument_naming (cumulative_args_t ca ATTRIBUTE_UNUSED)
 {
-  rtx result = 0;
+  return !TARGET_GHS ? true : false;
+}
+
+/* Return an RTX to represent where an argument with mode MODE
+   and type TYPE will be passed to a function.  If the result
+   is NULL_RTX, the argument will be pushed.  */
+
+static rtx
+v850_function_arg (cumulative_args_t cum_v, enum machine_mode mode,
+		   const_tree type, bool named)
+{
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+  rtx result = NULL_RTX;
   int size, align;
 
-  if (TARGET_GHS && !named)
+  if (!named)
     return NULL_RTX;
 
   if (mode == BLKmode)
@@ -256,10 +119,16 @@ function_arg (CUMULATIVE_ARGS * cum,
   else
     size = GET_MODE_SIZE (mode);
 
-  if (size < 1)
-    return 0;
+  size = (size + UNITS_PER_WORD -1) & ~(UNITS_PER_WORD -1);
 
-  if (type)
+  if (size < 1)
+    {
+      /* Once we have stopped using argument registers, do not start up again.  */
+      cum->nbytes = 4 * UNITS_PER_WORD;
+      return NULL_RTX;
+    }
+
+  if (size <= UNITS_PER_WORD && type)
     align = TYPE_ALIGN (type) / BITS_PER_UNIT;
   else
     align = size;
@@ -267,11 +136,11 @@ function_arg (CUMULATIVE_ARGS * cum,
   cum->nbytes = (cum->nbytes + align - 1) &~(align - 1);
 
   if (cum->nbytes > 4 * UNITS_PER_WORD)
-    return 0;
+    return NULL_RTX;
 
   if (type == NULL_TREE
       && cum->nbytes + size > 4 * UNITS_PER_WORD)
-    return 0;
+    return NULL_RTX;
 
   switch (cum->nbytes / UNITS_PER_WORD)
     {
@@ -288,20 +157,19 @@ function_arg (CUMULATIVE_ARGS * cum,
       result = gen_rtx_REG (mode, 9);
       break;
     default:
-      result = 0;
+      result = NULL_RTX;
     }
 
   return result;
 }
 
-
 /* Return the number of bytes which must be put into registers
    for values which are part in registers and part in memory.  */
-
 static int
-v850_arg_partial_bytes (CUMULATIVE_ARGS * cum, enum machine_mode mode,
+v850_arg_partial_bytes (cumulative_args_t cum_v, enum machine_mode mode,
                         tree type, bool named)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   int size, align;
 
   if (TARGET_GHS && !named)
@@ -312,12 +180,15 @@ v850_arg_partial_bytes (CUMULATIVE_ARGS * cum, enum machine_mode mode,
   else
     size = GET_MODE_SIZE (mode);
 
+  if (size < 1)
+    size = 1;
+  
   if (type)
     align = TYPE_ALIGN (type) / BITS_PER_UNIT;
   else
     align = size;
 
-  cum->nbytes = (cum->nbytes + align - 1) &~(align - 1);
+  cum->nbytes = (cum->nbytes + align - 1) & ~ (align - 1);
 
   if (cum->nbytes > 4 * UNITS_PER_WORD)
     return 0;
@@ -332,7 +203,24 @@ v850_arg_partial_bytes (CUMULATIVE_ARGS * cum, enum machine_mode mode,
   return 4 * UNITS_PER_WORD - cum->nbytes;
 }
 
-
+/* Update the data in CUM to advance over an argument
+   of mode MODE and data type TYPE.
+   (TYPE is null for libcalls where that information may not be available.)  */
+
+static void
+v850_function_arg_advance (cumulative_args_t cum_v, enum machine_mode mode,
+			   const_tree type, bool named ATTRIBUTE_UNUSED)
+{
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+
+  cum->nbytes += (((type && int_size_in_bytes (type) > 8
+		    ? GET_MODE_SIZE (Pmode)
+		    : (mode != BLKmode
+		       ? GET_MODE_SIZE (mode)
+		       : int_size_in_bytes (type))) + UNITS_PER_WORD - 1)
+		  & -UNITS_PER_WORD);
+}
+
 /* Return the high and low words of a CONST_DOUBLE */
 
 static void
@@ -344,29 +232,29 @@ const_double_split (rtx x, HOST_WIDE_INT * p_high, HOST_WIDE_INT * p_low)
       REAL_VALUE_TYPE rv;
 
       switch (GET_MODE (x))
-        {
-        case DFmode:
-          REAL_VALUE_FROM_CONST_DOUBLE (rv, x);
-          REAL_VALUE_TO_TARGET_DOUBLE (rv, t);
-          *p_high = t[1];        /* since v850 is little endian */
-          *p_low = t[0];        /* high is second word */
-          return;
+	{
+	case DFmode:
+	  REAL_VALUE_FROM_CONST_DOUBLE (rv, x);
+	  REAL_VALUE_TO_TARGET_DOUBLE (rv, t);
+	  *p_high = t[1];	/* since v850 is little endian */
+	  *p_low = t[0];	/* high is second word */
+	  return;
 
-        case SFmode:
-          REAL_VALUE_FROM_CONST_DOUBLE (rv, x);
-          REAL_VALUE_TO_TARGET_SINGLE (rv, *p_high);
-          *p_low = 0;
-          return;
+	case SFmode:
+	  REAL_VALUE_FROM_CONST_DOUBLE (rv, x);
+	  REAL_VALUE_TO_TARGET_SINGLE (rv, *p_high);
+	  *p_low = 0;
+	  return;
 
-        case VOIDmode:
-        case DImode:
-          *p_high = CONST_DOUBLE_HIGH (x);
-          *p_low  = CONST_DOUBLE_LOW (x);
-          return;
+	case VOIDmode:
+	case DImode:
+	  *p_high = CONST_DOUBLE_HIGH (x);
+	  *p_low  = CONST_DOUBLE_LOW (x);
+	  return;
 
-        default:
-          break;
-        }
+	default:
+	  break;
+	}
     }
 
   fatal_insn ("const_double_split got a bad insn:", x);
@@ -401,9 +289,9 @@ const_costs (rtx r, enum rtx_code c)
     case CONST_DOUBLE:
       const_double_split (r, &high, &low);
       if (GET_MODE (r) == SFmode)
-        return const_costs_int (high, 1);
+	return const_costs_int (high, 1);
       else
-        return const_costs_int (high, 1) + const_costs_int (low, 1);
+	return const_costs_int (high, 1) + const_costs_int (low, 1);
 
     case SYMBOL_REF:
     case LABEL_REF:
@@ -420,10 +308,13 @@ const_costs (rtx r, enum rtx_code c)
 
 static bool
 v850_rtx_costs (rtx x,
-                int code,
+                int codearg,
                 int outer_code ATTRIBUTE_UNUSED,
-                int * total)
+		int opno ATTRIBUTE_UNUSED,
+                int * total, bool speed)
 {
+  enum rtx_code code = (enum rtx_code) codearg;
+
   switch (code)
     {
     case CONST_INT:
@@ -438,31 +329,36 @@ v850_rtx_costs (rtx x,
     case DIV:
     case UMOD:
     case UDIV:
-      if (TARGET_V850E && optimize_size)
+      if (TARGET_V850E && !speed)
         *total = 6;
       else
-        *total = 60;
+	*total = 60;
       return true;
 
     case MULT:
       if (TARGET_V850E
-          && (   GET_MODE (x) == SImode
-              || GET_MODE (x) == HImode
-              || GET_MODE (x) == QImode))
+	  && (   GET_MODE (x) == SImode
+	      || GET_MODE (x) == HImode
+	      || GET_MODE (x) == QImode))
         {
-          if (GET_CODE (XEXP (x, 1)) == REG)
-            *total = 4;
-          else if (GET_CODE (XEXP (x, 1)) == CONST_INT)
-            {
-              if (CONST_OK_FOR_O (INTVAL (XEXP (x, 1))))
-                *total = 6;
-              else if (CONST_OK_FOR_K (INTVAL (XEXP (x, 1))))
-                *total = 10;
-            }
+	  if (GET_CODE (XEXP (x, 1)) == REG)
+	    *total = 4;
+	  else if (GET_CODE (XEXP (x, 1)) == CONST_INT)
+	    {
+	      if (CONST_OK_FOR_O (INTVAL (XEXP (x, 1))))
+	        *total = 6;
+	      else if (CONST_OK_FOR_K (INTVAL (XEXP (x, 1))))
+	        *total = 10;
+	    }
         }
       else
-        *total = 20;
+	*total = 20;
       return true;
+
+    case ZERO_EXTRACT:
+      if (outer_code == COMPARE)
+	*total = 0;
+      return false;
 
     default:
       return false;
@@ -472,8 +368,8 @@ v850_rtx_costs (rtx x,
 /* Print operand X using operand code CODE to assembly language output file
    FILE.  */
 
-void
-print_operand (FILE * file, rtx x, int code)
+static void
+v850_print_operand (FILE * file, rtx x, int code)
 {
   HOST_WIDE_INT high, low;
 
@@ -491,79 +387,79 @@ print_operand (FILE * file, rtx x, int code)
     case 'B':
     case 'C':
       switch ((code == 'B' || code == 'C')
-              ? reverse_condition (GET_CODE (x)) : GET_CODE (x))
-        {
-          case NE:
-            if (code == 'c' || code == 'C')
-              fprintf (file, "nz");
-            else
-              fprintf (file, "ne");
-            break;
-          case EQ:
-            if (code == 'c' || code == 'C')
-              fprintf (file, "z");
-            else
-              fprintf (file, "e");
-            break;
-          case GE:
-            fprintf (file, "ge");
-            break;
-          case GT:
-            fprintf (file, "gt");
-            break;
-          case LE:
-            fprintf (file, "le");
-            break;
-          case LT:
-            fprintf (file, "lt");
-            break;
-          case GEU:
-            fprintf (file, "nl");
-            break;
-          case GTU:
-            fprintf (file, "h");
-            break;
-          case LEU:
-            fprintf (file, "nh");
-            break;
-          case LTU:
-            fprintf (file, "l");
-            break;
-          default:
-            gcc_unreachable ();
-        }
+	      ? reverse_condition (GET_CODE (x)) : GET_CODE (x))
+	{
+	  case NE:
+	    if (code == 'c' || code == 'C')
+	      fprintf (file, "nz");
+	    else
+	      fprintf (file, "ne");
+	    break;
+	  case EQ:
+	    if (code == 'c' || code == 'C')
+	      fprintf (file, "z");
+	    else
+	      fprintf (file, "e");
+	    break;
+	  case GE:
+	    fprintf (file, "ge");
+	    break;
+	  case GT:
+	    fprintf (file, "gt");
+	    break;
+	  case LE:
+	    fprintf (file, "le");
+	    break;
+	  case LT:
+	    fprintf (file, "lt");
+	    break;
+	  case GEU:
+	    fprintf (file, "nl");
+	    break;
+	  case GTU:
+	    fprintf (file, "h");
+	    break;
+	  case LEU:
+	    fprintf (file, "nh");
+	    break;
+	  case LTU:
+	    fprintf (file, "l");
+	    break;
+	  default:
+	    gcc_unreachable ();
+	}
       break;
-    case 'F':                        /* high word of CONST_DOUBLE */
+    case 'F':			/* high word of CONST_DOUBLE */
       switch (GET_CODE (x))
-        {
-        case CONST_INT:
-          fprintf (file, "%d", (INTVAL (x) >= 0) ? 0 : -1);
-          break;
-          
-        case CONST_DOUBLE:
-          const_double_split (x, &high, &low);
-          fprintf (file, "%ld", (long) high);
-          break;
+	{
+	case CONST_INT:
+	  fprintf (file, "%d", (INTVAL (x) >= 0) ? 0 : -1);
+	  break;
+	  
+	case CONST_DOUBLE:
+	  const_double_split (x, &high, &low);
+	  fprintf (file, "%ld", (long) high);
+	  break;
 
-        default:
-          gcc_unreachable ();
-        }
+	default:
+	  gcc_unreachable ();
+	}
       break;
-    case 'G':                        /* low word of CONST_DOUBLE */
+    case 'G':			/* low word of CONST_DOUBLE */
       switch (GET_CODE (x))
-        {
-        case CONST_INT:
-          fprintf (file, "%ld", (long) INTVAL (x));
-          break;
-          
-        case CONST_DOUBLE:
-          const_double_split (x, &high, &low);
-          fprintf (file, "%ld", (long) low);
-          break;
+	{
+	case CONST_INT:
+	  fprintf (file, "%ld", (long) INTVAL (x));
+	  break;
+	  
+	case CONST_DOUBLE:
+	  const_double_split (x, &high, &low);
+	  fprintf (file, "%ld", (long) low);
+	  break;
 
-        default:
-          gcc_unreachable ();
-        }
+	default:
+	  gcc_unreachable ();
+	}
       break;
     case 'L':
       fprintf (file, "%d\n", (int)(INTVAL (x) & 0xffff));
@@ -575,18 +471,18 @@ print_operand (FILE * file, rtx x, int code)
       gcc_assert (special_symbolref_operand (x, VOIDmode));
       
       if (GET_CODE (x) == CONST)
-        x = XEXP (XEXP (x, 0), 0);
+	x = XEXP (XEXP (x, 0), 0);
       else
-        gcc_assert (GET_CODE (x) == SYMBOL_REF);
+	gcc_assert (GET_CODE (x) == SYMBOL_REF);
       
       if (SYMBOL_REF_ZDA_P (x))
-        fprintf (file, "zdaoff");
+	fprintf (file, "zdaoff");
       else if (SYMBOL_REF_SDA_P (x))
-        fprintf (file, "sdaoff");
+	fprintf (file, "sdaoff");
       else if (SYMBOL_REF_TDA_P (x))
-        fprintf (file, "tdaoff");
+	fprintf (file, "tdaoff");
       else
-        gcc_unreachable ();
+	gcc_unreachable ();
       break;
     case 'P':
       gcc_assert (special_symbolref_operand (x, VOIDmode));
@@ -596,35 +492,35 @@ print_operand (FILE * file, rtx x, int code)
       gcc_assert (special_symbolref_operand (x, VOIDmode));
       
       if (GET_CODE (x) == CONST)
-        x = XEXP (XEXP (x, 0), 0);
+	x = XEXP (XEXP (x, 0), 0);
       else
-        gcc_assert (GET_CODE (x) == SYMBOL_REF);
+	gcc_assert (GET_CODE (x) == SYMBOL_REF);
       
       if (SYMBOL_REF_ZDA_P (x))
-        fprintf (file, "r0");
+	fprintf (file, "r0");
       else if (SYMBOL_REF_SDA_P (x))
-        fprintf (file, "gp");
+	fprintf (file, "gp");
       else if (SYMBOL_REF_TDA_P (x))
-        fprintf (file, "ep");
+	fprintf (file, "ep");
       else
-        gcc_unreachable ();
+	gcc_unreachable ();
       break;
-    case 'R':                /* 2nd word of a double.  */
+    case 'R':		/* 2nd word of a double.  */
       switch (GET_CODE (x))
-        {
-        case REG:
-          fprintf (file, reg_names[REGNO (x) + 1]);
-          break;
-        case MEM:
-          x = XEXP (adjust_address (x, SImode, 4), 0);
-          print_operand_address (file, x);
-          if (GET_CODE (x) == CONST_INT)
-            fprintf (file, "[r0]");
-          break;
-          
-        default:
-          break;
-        }
+	{
+	case REG:
+	  fprintf (file, reg_names[REGNO (x) + 1]);
+	  break;
+	case MEM:
+	  x = XEXP (adjust_address (x, SImode, 4), 0);
+	  v850_print_operand_address (file, x);
+	  if (GET_CODE (x) == CONST_INT)
+	    fprintf (file, "[r0]");
+	  break;
+	  
+	default:
+	  break;
+	}
       break;
     case 'S':
       {
@@ -636,63 +532,68 @@ print_operand (FILE * file, rtx x, int code)
       }
     case 'T':
       {
-        /* Like an 'S' operand above, but for unsigned loads only.  */
+	/* Like an 'S' operand above, but for unsigned loads only.  */
         if (GET_CODE (x) == MEM && ep_memory_operand (x, GET_MODE (x), TRUE))
           fputs ("s", file);
 
         break;
       }
-    case 'W':                        /* print the instruction suffix */
+    case 'W':			/* print the instruction suffix */
       switch (GET_MODE (x))
-        {
-        default:
-          gcc_unreachable ();
+	{
+	default:
+	  gcc_unreachable ();
 
-        case QImode: fputs (".b", file); break;
-        case HImode: fputs (".h", file); break;
-        case SImode: fputs (".w", file); break;
-        case SFmode: fputs (".w", file); break;
-        }
+	case QImode: fputs (".b", file); break;
+	case HImode: fputs (".h", file); break;
+	case SImode: fputs (".w", file); break;
+	case SFmode: fputs (".w", file); break;
+	}
       break;
-    case '.':                        /* register r0 */
+    case '.':			/* register r0 */
       fputs (reg_names[0], file);
       break;
-    case 'z':                        /* reg or zero */
+    case 'z':			/* reg or zero */
       if (GET_CODE (x) == REG)
-        fputs (reg_names[REGNO (x)], file);
+	fputs (reg_names[REGNO (x)], file);
+      else if ((GET_MODE(x) == SImode
+		|| GET_MODE(x) == DFmode
+		|| GET_MODE(x) == SFmode)
+		&& x == CONST0_RTX(GET_MODE(x)))
+      fputs (reg_names[0], file);
       else
-        {
-          gcc_assert (x == const0_rtx);
-          fputs (reg_names[0], file);
-        }
+	{
+	  gcc_assert (x == const0_rtx);
+	  fputs (reg_names[0], file);
+	}
       break;
     default:
       switch (GET_CODE (x))
-        {
-        case MEM:
-          if (GET_CODE (XEXP (x, 0)) == CONST_INT)
-            output_address (gen_rtx_PLUS (SImode, gen_rtx_REG (SImode, 0),
-                                          XEXP (x, 0)));
-          else
-            output_address (XEXP (x, 0));
-          break;
+	{
+	case MEM:
+	  if (GET_CODE (XEXP (x, 0)) == CONST_INT)
+	    output_address (gen_rtx_PLUS (SImode, gen_rtx_REG (SImode, 0),
+					  XEXP (x, 0)));
+	  else
+	    output_address (XEXP (x, 0));
+	  break;
 
-        case REG:
-          fputs (reg_names[REGNO (x)], file);
-          break;
-        case SUBREG:
-          fputs (reg_names[subreg_regno (x)], file);
-          break;
-        case CONST_INT:
-        case SYMBOL_REF:
-        case CONST:
-        case LABEL_REF:
-        case CODE_LABEL:
-          print_operand_address (file, x);
-          break;
-        default:
-          gcc_unreachable ();
-        }
+	case REG:
+	  fputs (reg_names[REGNO (x)], file);
+	  break;
+	case SUBREG:
+	  fputs (reg_names[subreg_regno (x)], file);
+	  break;
+	case CONST_INT:
+	case SYMBOL_REF:
+	case CONST:
+	case LABEL_REF:
+	case CODE_LABEL:
+	  v850_print_operand_address (file, x);
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
       break;
 
     }
@@ -701,50 +602,50 @@ print_operand (FILE * file, rtx x, int code)
 
 /* Output assembly language output for the address ADDR to FILE.  */
 
-void
-print_operand_address (FILE * file, rtx addr)
+static void
+v850_print_operand_address (FILE * file, rtx addr)
 {
   switch (GET_CODE (addr))
     {
     case REG:
       fprintf (file, "0[");
-      print_operand (file, addr, 0);
+      v850_print_operand (file, addr, 0);
       fprintf (file, "]");
       break;
     case LO_SUM:
       if (GET_CODE (XEXP (addr, 0)) == REG)
-        {
-          /* reg,foo */
-          fprintf (file, "lo(");
-          print_operand (file, XEXP (addr, 1), 0);
-          fprintf (file, ")[");
-          print_operand (file, XEXP (addr, 0), 0);
-          fprintf (file, "]");
-        }
+	{
+	  /* reg,foo */
+	  fprintf (file, "lo(");
+	  v850_print_operand (file, XEXP (addr, 1), 0);
+	  fprintf (file, ")[");
+	  v850_print_operand (file, XEXP (addr, 0), 0);
+	  fprintf (file, "]");
+	}
       break;
     case PLUS:
       if (GET_CODE (XEXP (addr, 0)) == REG
-          || GET_CODE (XEXP (addr, 0)) == SUBREG)
-        {
-          /* reg,foo */
-          print_operand (file, XEXP (addr, 1), 0);
-          fprintf (file, "[");
-          print_operand (file, XEXP (addr, 0), 0);
-          fprintf (file, "]");
-        }
+	  || GET_CODE (XEXP (addr, 0)) == SUBREG)
+	{
+	  /* reg,foo */
+	  v850_print_operand (file, XEXP (addr, 1), 0);
+	  fprintf (file, "[");
+	  v850_print_operand (file, XEXP (addr, 0), 0);
+	  fprintf (file, "]");
+	}
       else
-        {
-          print_operand (file, XEXP (addr, 0), 0);
-          fprintf (file, "+");
-          print_operand (file, XEXP (addr, 1), 0);
-        }
+	{
+	  v850_print_operand (file, XEXP (addr, 0), 0);
+	  fprintf (file, "+");
+	  v850_print_operand (file, XEXP (addr, 1), 0);
+	}
       break;
     case SYMBOL_REF:
       {
         const char *off_name = NULL;
         const char *reg_name = NULL;
 
-        if (SYMBOL_REF_ZDA_P (addr))
+	if (SYMBOL_REF_ZDA_P (addr))
           {
             off_name = "zdaoff";
             reg_name = "r0";
@@ -760,17 +661,17 @@ print_operand_address (FILE * file, rtx addr)
             reg_name = "ep";
           }
 
-        if (off_name)
+	if (off_name)
           fprintf (file, "%s(", off_name);
         output_addr_const (file, addr);
-        if (reg_name)
+	if (reg_name)
           fprintf (file, ")[%s]", reg_name);
       }
       break;
     case CONST:
       if (special_symbolref_operand (addr, VOIDmode))
         {
-          rtx x = XEXP (XEXP (addr, 0), 0);
+	  rtx x = XEXP (XEXP (addr, 0), 0);
           const char *off_name;
           const char *reg_name;
 
@@ -805,19 +706,25 @@ print_operand_address (FILE * file, rtx addr)
     }
 }
 
+static bool
+v850_print_operand_punct_valid_p (unsigned char code)
+{
+  return code == '.';
+}
+
 /* When assemble_integer is used to emit the offsets for a switch
    table it can encounter (TRUNCATE:HI (MINUS:SI (LABEL_REF:SI) (LABEL_REF:SI))).
    output_addr_const will normally barf at this, but it is OK to omit
    the truncate and just emit the difference of the two labels.  The
    .hword directive will automatically handle the truncation for us.
    
-   Returns 1 if rtx was handled, 0 otherwise.  */
+   Returns true if rtx was handled, false otherwise.  */
 
-int
+static bool
 v850_output_addr_const_extra (FILE * file, rtx x)
 {
   if (GET_CODE (x) != TRUNCATE)
-    return 0;
+    return false;
 
   x = XEXP (x, 0);
 
@@ -830,10 +737,10 @@ v850_output_addr_const_extra (FILE * file, rtx x)
       && GET_CODE (XEXP (x, 0)) == LABEL_REF
       && GET_CODE (XEXP (XEXP (x, 0), 0)) == CODE_LABEL
       && INSN_DELETED_P (XEXP (XEXP (x, 0), 0)))
-    return 1;
+    return true;
 
   output_addr_const (file, x);
-  return 1;
+  return true;
 }
 
 /* Return appropriate code to load up a 1, 2, or 4 integer/floating
@@ -848,174 +755,258 @@ output_move_single (rtx * operands)
   if (REG_P (dst))
     {
       if (REG_P (src))
-        return "mov %1,%0";
+	return "mov %1,%0";
 
       else if (GET_CODE (src) == CONST_INT)
-        {
-          HOST_WIDE_INT value = INTVAL (src);
+	{
+	  HOST_WIDE_INT value = INTVAL (src);
 
-          if (CONST_OK_FOR_J (value))                /* Signed 5 bit immediate.  */
-            return "mov %1,%0";
+	  if (CONST_OK_FOR_J (value))		/* Signed 5-bit immediate.  */
+	    return "mov %1,%0";
 
-          else if (CONST_OK_FOR_K (value))        /* Signed 16 bit immediate.  */
-            return "movea lo(%1),%.,%0";
+	  else if (CONST_OK_FOR_K (value))	/* Signed 16-bit immediate.  */
+	    return "movea %1,%.,%0";
 
-          else if (CONST_OK_FOR_L (value))        /* Upper 16 bits were set.  */
-            return "movhi hi(%1),%.,%0";
+	  else if (CONST_OK_FOR_L (value))	/* Upper 16 bits were set.  */
+	    return "movhi hi0(%1),%.,%0";
 
-          /* A random constant.  */
-          else if (TARGET_V850E)
-              return "mov %1,%0";
-          else
-            return "movhi hi(%1),%.,%0\n\tmovea lo(%1),%0,%0";
-        }
+	  /* A random constant.  */
+	  else if (TARGET_V850E || TARGET_V850E2_ALL)
+	      return "mov %1,%0";
+	  else
+	    return "movhi hi(%1),%.,%0\n\tmovea lo(%1),%0,%0";
+	}
 
       else if (GET_CODE (src) == CONST_DOUBLE && GET_MODE (src) == SFmode)
-        {
-          HOST_WIDE_INT high, low;
+	{
+	  HOST_WIDE_INT high, low;
 
-          const_double_split (src, &high, &low);
+	  const_double_split (src, &high, &low);
 
-          if (CONST_OK_FOR_J (high))                /* Signed 5 bit immediate.  */
-            return "mov %F1,%0";
+	  if (CONST_OK_FOR_J (high))		/* Signed 5-bit immediate.  */
+	    return "mov %F1,%0";
 
-          else if (CONST_OK_FOR_K (high))        /* Signed 16 bit immediate.  */
-            return "movea lo(%F1),%.,%0";
+	  else if (CONST_OK_FOR_K (high))	/* Signed 16-bit immediate.  */
+	    return "movea %F1,%.,%0";
 
-          else if (CONST_OK_FOR_L (high))        /* Upper 16 bits were set.  */
-            return "movhi hi(%F1),%.,%0";
+	  else if (CONST_OK_FOR_L (high))	/* Upper 16 bits were set.  */
+	    return "movhi hi0(%F1),%.,%0";
 
-          /* A random constant.  */
-          else if (TARGET_V850E)
-              return "mov %F1,%0";
+	  /* A random constant.  */
+	else if (TARGET_V850E || TARGET_V850E2_ALL)
+	      return "mov %F1,%0";
 
-          else
-            return "movhi hi(%F1),%.,%0\n\tmovea lo(%F1),%0,%0";
-        }
+	  else
+	    return "movhi hi(%F1),%.,%0\n\tmovea lo(%F1),%0,%0";
+	}
 
       else if (GET_CODE (src) == MEM)
-        return "%S1ld%W1 %1,%0";
+	return "%S1ld%W1 %1,%0";
 
       else if (special_symbolref_operand (src, VOIDmode))
-        return "movea %O1(%P1),%Q1,%0";
+	return "movea %O1(%P1),%Q1,%0";
 
       else if (GET_CODE (src) == LABEL_REF
-               || GET_CODE (src) == SYMBOL_REF
-               || GET_CODE (src) == CONST)
-        {
-          if (TARGET_V850E)
-            return "mov hilo(%1),%0";
-          else
-            return "movhi hi(%1),%.,%0\n\tmovea lo(%1),%0,%0";
-        }
+	       || GET_CODE (src) == SYMBOL_REF
+	       || GET_CODE (src) == CONST)
+	{
+	  if (TARGET_V850E || TARGET_V850E2_ALL) 
+	    return "mov hilo(%1),%0";
+	  else
+	    return "movhi hi(%1),%.,%0\n\tmovea lo(%1),%0,%0";
+	}
 
       else if (GET_CODE (src) == HIGH)
-        return "movhi hi(%1),%.,%0";
+	return "movhi hi(%1),%.,%0";
 
       else if (GET_CODE (src) == LO_SUM)
-        {
-          operands[2] = XEXP (src, 0);
-          operands[3] = XEXP (src, 1);
-          return "movea lo(%3),%2,%0";
-        }
+	{
+	  operands[2] = XEXP (src, 0);
+	  operands[3] = XEXP (src, 1);
+	  return "movea lo(%3),%2,%0";
+	}
     }
 
   else if (GET_CODE (dst) == MEM)
     {
       if (REG_P (src))
-        return "%S0st%W0 %1,%0";
+	return "%S0st%W0 %1,%0";
 
       else if (GET_CODE (src) == CONST_INT && INTVAL (src) == 0)
-        return "%S0st%W0 %.,%0";
+	return "%S0st%W0 %.,%0";
 
       else if (GET_CODE (src) == CONST_DOUBLE
-               && CONST0_RTX (GET_MODE (dst)) == src)
-        return "%S0st%W0 %.,%0";
+	       && CONST0_RTX (GET_MODE (dst)) == src)
+	return "%S0st%W0 %.,%0";
     }
 
   fatal_insn ("output_move_single:", gen_rtx_SET (VOIDmode, dst, src));
   return "";
 }
 
-
-/* Return appropriate code to load up an 8 byte integer or
-   floating point value */
-
-const char *
-output_move_double (rtx * operands)
+/* Generate comparison code.  */
+int
+v850_float_z_comparison_operator (rtx op, enum machine_mode mode)
 {
-  enum machine_mode mode = GET_MODE (operands[0]);
-  rtx dst = operands[0];
-  rtx src = operands[1];
+  enum rtx_code code = GET_CODE (op);
 
-  if (register_operand (dst, mode)
-      && register_operand (src, mode))
-    {
-      if (REGNO (src) + 1 == REGNO (dst))
-        return "mov %R1,%R0\n\tmov %1,%0";
-      else
-        return "mov %1,%0\n\tmov %R1,%R0";
-    }
+  if (GET_RTX_CLASS (code) != RTX_COMPARE
+      && GET_RTX_CLASS (code) != RTX_COMM_COMPARE)
+    return 0;
 
-  /* Storing 0 */
-  if (GET_CODE (dst) == MEM
-      && ((GET_CODE (src) == CONST_INT && INTVAL (src) == 0)
-          || (GET_CODE (src) == CONST_DOUBLE && CONST_DOUBLE_OK_FOR_G (src))))
-    return "st.w %.,%0\n\tst.w %.,%R0";
+  if (mode != GET_MODE (op) && mode != VOIDmode)
+    return 0;
 
-  if (GET_CODE (src) == CONST_INT || GET_CODE (src) == CONST_DOUBLE)
-    {
-      HOST_WIDE_INT high_low[2];
-      int i;
-      rtx xop[10];
+  if ((GET_CODE (XEXP (op, 0)) != REG
+       || REGNO (XEXP (op, 0)) != CC_REGNUM)
+      || XEXP (op, 1) != const0_rtx)
+    return 0;
 
-      if (GET_CODE (src) == CONST_DOUBLE)
-        const_double_split (src, &high_low[1], &high_low[0]);
-      else
-        {
-          high_low[0] = INTVAL (src);
-          high_low[1] = (INTVAL (src) >= 0) ? 0 : -1;
-        }
+  if (GET_MODE (XEXP (op, 0)) == CC_FPU_LTmode)
+    return code == LT;
+  if (GET_MODE (XEXP (op, 0)) == CC_FPU_LEmode)
+    return code == LE;
+  if (GET_MODE (XEXP (op, 0)) == CC_FPU_EQmode)
+    return code == EQ;
 
-      for (i = 0; i < 2; i++)
-        {
-          xop[0] = gen_rtx_REG (SImode, REGNO (dst)+i);
-          xop[1] = GEN_INT (high_low[i]);
-          output_asm_insn (output_move_single (xop), xop);
-        }
-
-      return "";
-    }
-
-  if (GET_CODE (src) == MEM)
-    {
-      int ptrreg = -1;
-      int dreg = REGNO (dst);
-      rtx inside = XEXP (src, 0);
-
-      if (GET_CODE (inside) == REG)
-         ptrreg = REGNO (inside);
-      else if (GET_CODE (inside) == SUBREG)
-        ptrreg = subreg_regno (inside);
-      else if (GET_CODE (inside) == PLUS)
-        ptrreg = REGNO (XEXP (inside, 0));
-      else if (GET_CODE (inside) == LO_SUM)
-        ptrreg = REGNO (XEXP (inside, 0));
-
-      if (dreg == ptrreg)
-        return "ld.w %R1,%R0\n\tld.w %1,%0";
-    }
-
-  if (GET_CODE (src) == MEM)
-    return "ld.w %1,%0\n\tld.w %R1,%R0";
-  
-  if (GET_CODE (dst) == MEM)
-    return "st.w %1,%0\n\tst.w %R1,%R0";
-
-  return "mov %1,%0\n\tmov %R1,%R0";
+  return 0;
 }
 
-
+int
+v850_float_nz_comparison_operator (rtx op, enum machine_mode mode)
+{
+  enum rtx_code code = GET_CODE (op);
+
+  if (GET_RTX_CLASS (code) != RTX_COMPARE
+      && GET_RTX_CLASS (code) != RTX_COMM_COMPARE)
+    return 0;
+
+  if (mode != GET_MODE (op) && mode != VOIDmode)
+    return 0;
+
+  if ((GET_CODE (XEXP (op, 0)) != REG
+       || REGNO (XEXP (op, 0)) != CC_REGNUM)
+      || XEXP (op, 1) != const0_rtx)
+    return 0;
+
+  if (GET_MODE (XEXP (op, 0)) == CC_FPU_GTmode)
+    return code == GT;
+  if (GET_MODE (XEXP (op, 0)) == CC_FPU_GEmode)
+    return code == GE;
+  if (GET_MODE (XEXP (op, 0)) == CC_FPU_NEmode)
+    return code == NE;
+
+  return 0;
+}
+
+enum machine_mode
+v850_select_cc_mode (enum rtx_code cond, rtx op0, rtx op1 ATTRIBUTE_UNUSED)
+{
+  if (GET_MODE_CLASS (GET_MODE (op0)) == MODE_FLOAT)
+    {
+      switch (cond)
+	{
+	case LE:
+	  return CC_FPU_LEmode;
+	case GE:
+	  return CC_FPU_GEmode;
+	case LT:
+	  return CC_FPU_LTmode;
+	case GT:
+	  return CC_FPU_GTmode;
+	case EQ:
+	  return CC_FPU_EQmode;
+	case NE:
+	  return CC_FPU_NEmode;
+	default:
+	  abort ();
+	}
+    }
+  return CCmode;
+}
+
+enum machine_mode
+v850_gen_float_compare (enum rtx_code cond, enum machine_mode mode ATTRIBUTE_UNUSED, rtx op0, rtx op1)
+{
+  if (GET_MODE(op0) == DFmode)
+    {
+      switch (cond)
+	{
+	case LE:
+	  emit_insn (gen_cmpdf_le_insn (op0, op1));
+	  break;
+	case GE:
+	  emit_insn (gen_cmpdf_ge_insn (op0, op1));
+	  break;
+	case LT:
+	  emit_insn (gen_cmpdf_lt_insn (op0, op1));
+	  break;
+	case GT:
+	  emit_insn (gen_cmpdf_gt_insn (op0, op1));
+	  break;
+	case EQ:
+	  emit_insn (gen_cmpdf_eq_insn (op0, op1));
+	  break;
+	case NE:
+	  emit_insn (gen_cmpdf_ne_insn (op0, op1));
+	  break;
+	default:
+	  abort ();
+	}
+    }
+  else if (GET_MODE(v850_compare_op0) == SFmode)
+    {
+      switch (cond)
+	{
+	case LE:
+	  emit_insn (gen_cmpsf_le_insn(op0, op1));
+	  break;
+	case GE:
+	  emit_insn (gen_cmpsf_ge_insn(op0, op1));
+	  break;
+	case LT:
+	  emit_insn (gen_cmpsf_lt_insn(op0, op1));
+	  break;
+	case GT:
+	  emit_insn (gen_cmpsf_gt_insn(op0, op1));
+	  break;
+	case EQ:
+	  emit_insn (gen_cmpsf_eq_insn(op0, op1));
+	  break;
+	case NE:
+	  emit_insn (gen_cmpsf_ne_insn(op0, op1));
+	  break;
+	default:
+	  abort ();
+	}
+    }
+  else
+    {
+      abort ();
+    }
+
+  return v850_select_cc_mode (cond, op0, op1);
+}
+
+rtx
+v850_gen_compare (enum rtx_code cond, enum machine_mode mode, rtx op0, rtx op1)
+{
+  if (GET_MODE_CLASS(GET_MODE (op0)) != MODE_FLOAT)
+    {
+      emit_insn (gen_cmpsi_insn (op0, op1));
+      return gen_rtx_fmt_ee (cond, mode, gen_rtx_REG(CCmode, CC_REGNUM), const0_rtx);
+    }
+  else
+    {
+      rtx cc_reg;
+      mode = v850_gen_float_compare (cond, mode, op0, op1);
+      cc_reg = gen_rtx_REG (mode, CC_REGNUM);
+      emit_insn (gen_rtx_SET(mode, cc_reg, gen_rtx_REG (mode, FCC_REGNUM)));  
+
+      return gen_rtx_fmt_ee (cond, mode, cc_reg, const0_rtx);
+    }
+}
+
 /* Return maximum offset supported for a short EP memory reference of mode
    MODE and signedness UNSIGNEDP.  */
 
@@ -1028,24 +1019,22 @@ ep_memory_offset (enum machine_mode mode, int unsignedp ATTRIBUTE_UNUSED)
     {
     case QImode:
       if (TARGET_SMALL_SLD)
-        max_offset = (1 << 4);
-      else if (TARGET_V850E 
-               && (   (  unsignedp && ! TARGET_US_BIT_SET)
-                   || (! unsignedp &&   TARGET_US_BIT_SET)))
-        max_offset = (1 << 4);
+	max_offset = (1 << 4);
+      else if ((TARGET_V850E || TARGET_V850E2_ALL)
+		&& unsignedp)
+	max_offset = (1 << 4);
       else
-        max_offset = (1 << 7);
+	max_offset = (1 << 7);
       break;
 
     case HImode:
       if (TARGET_SMALL_SLD)
-        max_offset = (1 << 5);
-      else if (TARGET_V850E
-               && (   (  unsignedp && ! TARGET_US_BIT_SET)
-                   || (! unsignedp &&   TARGET_US_BIT_SET)))
-        max_offset = (1 << 5);
+	max_offset = (1 << 5);
+      else if ((TARGET_V850E || TARGET_V850E2_ALL)
+		&& unsignedp)
+	max_offset = (1 << 5);
       else
-        max_offset = (1 << 8);
+	max_offset = (1 << 8);
       break;
 
     case SImode:
@@ -1102,16 +1091,16 @@ ep_memory_operand (rtx op, enum machine_mode mode, int unsigned_load)
       op0 = XEXP (addr, 0);
       op1 = XEXP (addr, 1);
       if (GET_CODE (op1) == CONST_INT
-          && INTVAL (op1) < max_offset
-          && INTVAL (op1) >= 0
-          && (INTVAL (op1) & mask) == 0)
-        {
-          if (GET_CODE (op0) == REG && REGNO (op0) == EP_REGNUM)
-            return TRUE;
+	  && INTVAL (op1) < max_offset
+	  && INTVAL (op1) >= 0
+	  && (INTVAL (op1) & mask) == 0)
+	{
+	  if (GET_CODE (op0) == REG && REGNO (op0) == EP_REGNUM)
+	    return TRUE;
 
-          if (GET_CODE (op0) == SYMBOL_REF && SYMBOL_REF_TDA_P (op0))
-            return TRUE;
-        }
+	  if (GET_CODE (op0) == SYMBOL_REF && SYMBOL_REF_TDA_P (op0))
+	    return TRUE;
+	}
       break;
     }
 
@@ -1134,7 +1123,7 @@ substitute_ep_register (rtx first_insn,
 
   if (!*p_r1)
     {
-      regs_ever_live[1] = 1;
+      df_set_regs_ever_live (1, true);
       *p_r1 = gen_rtx_REG (Pmode, 1);
       *p_ep = gen_rtx_REG (Pmode, 30);
     }
@@ -1142,9 +1131,9 @@ substitute_ep_register (rtx first_insn,
   if (TARGET_DEBUG)
     fprintf (stderr, "\
 Saved %d bytes (%d uses of register %s) in function %s, starting as insn %d, ending at %d\n",
-             2 * (uses - 3), uses, reg_names[regno],
-             IDENTIFIER_POINTER (DECL_NAME (current_function_decl)),
-             INSN_UID (first_insn), INSN_UID (last_insn));
+	     2 * (uses - 3), uses, reg_names[regno],
+	     IDENTIFIER_POINTER (DECL_NAME (current_function_decl)),
+	     INSN_UID (first_insn), INSN_UID (last_insn));
 
   if (GET_CODE (first_insn) == NOTE)
     first_insn = next_nonnote_insn (first_insn);
@@ -1153,61 +1142,61 @@ Saved %d bytes (%d uses of register %s) in function %s, starting as insn %d, end
   for (insn = first_insn; insn && insn != last_insn; insn = NEXT_INSN (insn))
     {
       if (GET_CODE (insn) == INSN)
-        {
-          rtx pattern = single_set (insn);
+	{
+	  rtx pattern = single_set (insn);
 
-          /* Replace the memory references.  */
-          if (pattern)
-            {
-              rtx *p_mem;
-              /* Memory operands are signed by default.  */
-              int unsignedp = FALSE;
+	  /* Replace the memory references.  */
+	  if (pattern)
+	    {
+	      rtx *p_mem;
+	      /* Memory operands are signed by default.  */
+	      int unsignedp = FALSE;
 
-              if (GET_CODE (SET_DEST (pattern)) == MEM
-                  && GET_CODE (SET_SRC (pattern)) == MEM)
-                p_mem = (rtx *)0;
+	      if (GET_CODE (SET_DEST (pattern)) == MEM
+		  && GET_CODE (SET_SRC (pattern)) == MEM)
+		p_mem = (rtx *)0;
 
-              else if (GET_CODE (SET_DEST (pattern)) == MEM)
-                p_mem = &SET_DEST (pattern);
+	      else if (GET_CODE (SET_DEST (pattern)) == MEM)
+		p_mem = &SET_DEST (pattern);
 
-              else if (GET_CODE (SET_SRC (pattern)) == MEM)
-                p_mem = &SET_SRC (pattern);
+	      else if (GET_CODE (SET_SRC (pattern)) == MEM)
+		p_mem = &SET_SRC (pattern);
 
-              else if (GET_CODE (SET_SRC (pattern)) == SIGN_EXTEND
-                       && GET_CODE (XEXP (SET_SRC (pattern), 0)) == MEM)
-                p_mem = &XEXP (SET_SRC (pattern), 0);
+	      else if (GET_CODE (SET_SRC (pattern)) == SIGN_EXTEND
+		       && GET_CODE (XEXP (SET_SRC (pattern), 0)) == MEM)
+		p_mem = &XEXP (SET_SRC (pattern), 0);
 
-              else if (GET_CODE (SET_SRC (pattern)) == ZERO_EXTEND
-                       && GET_CODE (XEXP (SET_SRC (pattern), 0)) == MEM)
-                {
-                  p_mem = &XEXP (SET_SRC (pattern), 0);
-                  unsignedp = TRUE;
-                }
-              else
-                p_mem = (rtx *)0;
+	      else if (GET_CODE (SET_SRC (pattern)) == ZERO_EXTEND
+		       && GET_CODE (XEXP (SET_SRC (pattern), 0)) == MEM)
+		{
+		  p_mem = &XEXP (SET_SRC (pattern), 0);
+		  unsignedp = TRUE;
+		}
+	      else
+		p_mem = (rtx *)0;
 
-              if (p_mem)
-                {
-                  rtx addr = XEXP (*p_mem, 0);
+	      if (p_mem)
+		{
+		  rtx addr = XEXP (*p_mem, 0);
 
-                  if (GET_CODE (addr) == REG && REGNO (addr) == (unsigned) regno)
-                    *p_mem = change_address (*p_mem, VOIDmode, *p_ep);
+		  if (GET_CODE (addr) == REG && REGNO (addr) == (unsigned) regno)
+		    *p_mem = change_address (*p_mem, VOIDmode, *p_ep);
 
-                  else if (GET_CODE (addr) == PLUS
-                           && GET_CODE (XEXP (addr, 0)) == REG
-                           && REGNO (XEXP (addr, 0)) == (unsigned) regno
-                           && GET_CODE (XEXP (addr, 1)) == CONST_INT
-                           && ((INTVAL (XEXP (addr, 1)))
-                               < ep_memory_offset (GET_MODE (*p_mem),
-                                                   unsignedp))
-                           && ((INTVAL (XEXP (addr, 1))) >= 0))
-                    *p_mem = change_address (*p_mem, VOIDmode,
-                                             gen_rtx_PLUS (Pmode,
-                                                           *p_ep,
-                                                           XEXP (addr, 1)));
-                }
-            }
-        }
+		  else if (GET_CODE (addr) == PLUS
+			   && GET_CODE (XEXP (addr, 0)) == REG
+			   && REGNO (XEXP (addr, 0)) == (unsigned) regno
+			   && GET_CODE (XEXP (addr, 1)) == CONST_INT
+			   && ((INTVAL (XEXP (addr, 1)))
+			       < ep_memory_offset (GET_MODE (*p_mem),
+						   unsignedp))
+			   && ((INTVAL (XEXP (addr, 1))) >= 0))
+		    *p_mem = change_address (*p_mem, VOIDmode,
+					     gen_rtx_PLUS (Pmode,
+							   *p_ep,
+							   XEXP (addr, 1)));
+		}
+	    }
+	}
     }
 
   /* Optimize back to back cases of ep <- r1 & r1 <- ep.  */
@@ -1261,196 +1250,193 @@ v850_reorg (void)
   for (insn = get_insns (); insn != NULL_RTX; insn = NEXT_INSN (insn))
     {
       switch (GET_CODE (insn))
-        {
-          /* End of basic block */
-        default:
-          if (!use_ep)
-            {
-              int max_uses = -1;
-              int max_regno = -1;
+	{
+	  /* End of basic block */
+	default:
+	  if (!use_ep)
+	    {
+	      int max_uses = -1;
+	      int max_regno = -1;
 
-              for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-                {
-                  if (max_uses < regs[i].uses)
-                    {
-                      max_uses = regs[i].uses;
-                      max_regno = i;
-                    }
-                }
+	      for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+		{
+		  if (max_uses < regs[i].uses)
+		    {
+		      max_uses = regs[i].uses;
+		      max_regno = i;
+		    }
+		}
 
-              if (max_uses > 3)
-                substitute_ep_register (regs[max_regno].first_insn,
-                                        regs[max_regno].last_insn,
-                                        max_uses, max_regno, &r1, &ep);
-            }
+	      if (max_uses > 3)
+		substitute_ep_register (regs[max_regno].first_insn,
+					regs[max_regno].last_insn,
+					max_uses, max_regno, &r1, &ep);
+	    }
 
-          use_ep = FALSE;
-          for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-            {
-              regs[i].uses = 0;
-              regs[i].first_insn = NULL_RTX;
-              regs[i].last_insn = NULL_RTX;
-            }
-          break;
+	  use_ep = FALSE;
+	  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+	    {
+	      regs[i].uses = 0;
+	      regs[i].first_insn = NULL_RTX;
+	      regs[i].last_insn = NULL_RTX;
+	    }
+	  break;
 
-        case NOTE:
-          break;
+	case NOTE:
+	  break;
 
-        case INSN:
-          pattern = single_set (insn);
+	case INSN:
+	  pattern = single_set (insn);
 
-          /* See if there are any memory references we can shorten */
-          if (pattern)
-            {
-              rtx src = SET_SRC (pattern);
-              rtx dest = SET_DEST (pattern);
-              rtx mem;
-              /* Memory operands are signed by default.  */
-              int unsignedp = FALSE;
+	  /* See if there are any memory references we can shorten */
+	  if (pattern)
+	    {
+	      rtx src = SET_SRC (pattern);
+	      rtx dest = SET_DEST (pattern);
+	      rtx mem;
+	      /* Memory operands are signed by default.  */
+	      int unsignedp = FALSE;
 
-              /* We might have (SUBREG (MEM)) here, so just get rid of the
-                 subregs to make this code simpler.  */
-              if (GET_CODE (dest) == SUBREG
-                  && (GET_CODE (SUBREG_REG (dest)) == MEM
-                      || GET_CODE (SUBREG_REG (dest)) == REG))
-                alter_subreg (&dest);
-              if (GET_CODE (src) == SUBREG
-                  && (GET_CODE (SUBREG_REG (src)) == MEM
-                      || GET_CODE (SUBREG_REG (src)) == REG))
-                alter_subreg (&src);
+	      /* We might have (SUBREG (MEM)) here, so just get rid of the
+		 subregs to make this code simpler.  */
+	      if (GET_CODE (dest) == SUBREG
+		  && (GET_CODE (SUBREG_REG (dest)) == MEM
+		      || GET_CODE (SUBREG_REG (dest)) == REG))
+		alter_subreg (&dest);
+	      if (GET_CODE (src) == SUBREG
+		  && (GET_CODE (SUBREG_REG (src)) == MEM
+		      || GET_CODE (SUBREG_REG (src)) == REG))
+		alter_subreg (&src);
 
-              if (GET_CODE (dest) == MEM && GET_CODE (src) == MEM)
-                mem = NULL_RTX;
+	      if (GET_CODE (dest) == MEM && GET_CODE (src) == MEM)
+		mem = NULL_RTX;
 
-              else if (GET_CODE (dest) == MEM)
-                mem = dest;
+	      else if (GET_CODE (dest) == MEM)
+		mem = dest;
 
-              else if (GET_CODE (src) == MEM)
-                mem = src;
+	      else if (GET_CODE (src) == MEM)
+		mem = src;
 
-              else if (GET_CODE (src) == SIGN_EXTEND
-                       && GET_CODE (XEXP (src, 0)) == MEM)
-                mem = XEXP (src, 0);
+	      else if (GET_CODE (src) == SIGN_EXTEND
+		       && GET_CODE (XEXP (src, 0)) == MEM)
+		mem = XEXP (src, 0);
 
-              else if (GET_CODE (src) == ZERO_EXTEND
-                       && GET_CODE (XEXP (src, 0)) == MEM)
-                {
-                  mem = XEXP (src, 0);
-                  unsignedp = TRUE;
-                }
-              else
-                mem = NULL_RTX;
+	      else if (GET_CODE (src) == ZERO_EXTEND
+		       && GET_CODE (XEXP (src, 0)) == MEM)
+		{
+		  mem = XEXP (src, 0);
+		  unsignedp = TRUE;
+		}
+	      else
+		mem = NULL_RTX;
 
-              if (mem && ep_memory_operand (mem, GET_MODE (mem), unsignedp))
-                use_ep = TRUE;
+	      if (mem && ep_memory_operand (mem, GET_MODE (mem), unsignedp))
+		use_ep = TRUE;
 
-              else if (!use_ep && mem
-                       && GET_MODE_SIZE (GET_MODE (mem)) <= UNITS_PER_WORD)
-                {
-                  rtx addr = XEXP (mem, 0);
-                  int regno = -1;
-                  int short_p;
+	      else if (!use_ep && mem
+		       && GET_MODE_SIZE (GET_MODE (mem)) <= UNITS_PER_WORD)
+		{
+		  rtx addr = XEXP (mem, 0);
+		  int regno = -1;
+		  int short_p;
 
-                  if (GET_CODE (addr) == REG)
-                    {
-                      short_p = TRUE;
-                      regno = REGNO (addr);
-                    }
+		  if (GET_CODE (addr) == REG)
+		    {
+		      short_p = TRUE;
+		      regno = REGNO (addr);
+		    }
 
-                  else if (GET_CODE (addr) == PLUS
-                           && GET_CODE (XEXP (addr, 0)) == REG
-                           && GET_CODE (XEXP (addr, 1)) == CONST_INT
-                           && ((INTVAL (XEXP (addr, 1)))
-                               < ep_memory_offset (GET_MODE (mem), unsignedp))
-                           && ((INTVAL (XEXP (addr, 1))) >= 0))
-                    {
-                      short_p = TRUE;
-                      regno = REGNO (XEXP (addr, 0));
-                    }
+		  else if (GET_CODE (addr) == PLUS
+			   && GET_CODE (XEXP (addr, 0)) == REG
+			   && GET_CODE (XEXP (addr, 1)) == CONST_INT
+			   && ((INTVAL (XEXP (addr, 1)))
+			       < ep_memory_offset (GET_MODE (mem), unsignedp))
+			   && ((INTVAL (XEXP (addr, 1))) >= 0))
+		    {
+		      short_p = TRUE;
+		      regno = REGNO (XEXP (addr, 0));
+		    }
 
-                  else
-                    short_p = FALSE;
+		  else
+		    short_p = FALSE;
 
-                  if (short_p)
-                    {
-                      regs[regno].uses++;
-                      regs[regno].last_insn = insn;
-                      if (!regs[regno].first_insn)
-                        regs[regno].first_insn = insn;
-                    }
-                }
+		  if (short_p)
+		    {
+		      regs[regno].uses++;
+		      regs[regno].last_insn = insn;
+		      if (!regs[regno].first_insn)
+			regs[regno].first_insn = insn;
+		    }
+		}
 
-              /* Loading up a register in the basic block zaps any savings
-                 for the register */
-              if (GET_CODE (dest) == REG)
-                {
-                  enum machine_mode mode = GET_MODE (dest);
-                  int regno;
-                  int endregno;
+	      /* Loading up a register in the basic block zaps any savings
+		 for the register */
+	      if (GET_CODE (dest) == REG)
+		{
+		  enum machine_mode mode = GET_MODE (dest);
+		  int regno;
+		  int endregno;
 
-                  regno = REGNO (dest);
-                  endregno = regno + HARD_REGNO_NREGS (regno, mode);
+		  regno = REGNO (dest);
+		  endregno = regno + HARD_REGNO_NREGS (regno, mode);
 
-                  if (!use_ep)
-                    {
-                      /* See if we can use the pointer before this
-                         modification.  */
-                      int max_uses = -1;
-                      int max_regno = -1;
+		  if (!use_ep)
+		    {
+		      /* See if we can use the pointer before this
+			 modification.  */
+		      int max_uses = -1;
+		      int max_regno = -1;
 
-                      for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-                        {
-                          if (max_uses < regs[i].uses)
-                            {
-                              max_uses = regs[i].uses;
-                              max_regno = i;
-                            }
-                        }
+		      for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+			{
+			  if (max_uses < regs[i].uses)
+			    {
+			      max_uses = regs[i].uses;
+			      max_regno = i;
+			    }
+			}
 
-                      if (max_uses > 3
-                          && max_regno >= regno
-                          && max_regno < endregno)
-                        {
-                          substitute_ep_register (regs[max_regno].first_insn,
-                                                  regs[max_regno].last_insn,
-                                                  max_uses, max_regno, &r1,
-                                                  &ep);
+		      if (max_uses > 3
+			  && max_regno >= regno
+			  && max_regno < endregno)
+			{
+			  substitute_ep_register (regs[max_regno].first_insn,
+						  regs[max_regno].last_insn,
+						  max_uses, max_regno, &r1,
+						  &ep);
 
-                          /* Since we made a substitution, zap all remembered
-                             registers.  */
-                          for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-                            {
-                              regs[i].uses = 0;
-                              regs[i].first_insn = NULL_RTX;
-                              regs[i].last_insn = NULL_RTX;
-                            }
-                        }
-                    }
+			  /* Since we made a substitution, zap all remembered
+			     registers.  */
+			  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+			    {
+			      regs[i].uses = 0;
+			      regs[i].first_insn = NULL_RTX;
+			      regs[i].last_insn = NULL_RTX;
+			    }
+			}
+		    }
 
-                  for (i = regno; i < endregno; i++)
-                    {
-                      regs[i].uses = 0;
-                      regs[i].first_insn = NULL_RTX;
-                      regs[i].last_insn = NULL_RTX;
-                    }
-                }
-            }
-        }
+		  for (i = regno; i < endregno; i++)
+		    {
+		      regs[i].uses = 0;
+		      regs[i].first_insn = NULL_RTX;
+		      regs[i].last_insn = NULL_RTX;
+		    }
+		}
+	    }
+	}
     }
 }
 
-
 /* # of registers saved by the interrupt handler.  */
-#define INTERRUPT_FIXED_NUM 4
+#define INTERRUPT_FIXED_NUM 5
 
 /* # of bytes for registers saved by the interrupt handler.  */
 #define INTERRUPT_FIXED_SAVE_SIZE (4 * INTERRUPT_FIXED_NUM)
 
-/* # of registers saved in register parameter area.  */
-#define INTERRUPT_REGPARM_NUM 4
 /* # of words saved for other registers.  */
 #define INTERRUPT_ALL_SAVE_NUM \
-  (30 - INTERRUPT_FIXED_NUM + INTERRUPT_REGPARM_NUM)
+  (30 - INTERRUPT_FIXED_NUM)
 
 #define INTERRUPT_ALL_SAVE_SIZE (4 * INTERRUPT_ALL_SAVE_NUM)
 
@@ -1460,96 +1446,100 @@ compute_register_save_size (long * p_reg_saved)
   int size = 0;
   int i;
   int interrupt_handler = v850_interrupt_function_p (current_function_decl);
-  int call_p = regs_ever_live [LINK_POINTER_REGNUM];
+  int call_p = df_regs_ever_live_p (LINK_POINTER_REGNUM);
   long reg_saved = 0;
 
   /* Count the return pointer if we need to save it.  */
-  if (current_function_profile && !call_p)
-    regs_ever_live [LINK_POINTER_REGNUM] = call_p = 1;
+  if (crtl->profile && !call_p)
+    {
+      df_set_regs_ever_live (LINK_POINTER_REGNUM, true);
+      call_p = 1;
+    }
  
   /* Count space for the register saves.  */
   if (interrupt_handler)
     {
       for (i = 0; i <= 31; i++)
-        switch (i)
-          {
-          default:
-            if (regs_ever_live[i] || call_p)
-              {
-                size += 4;
-                reg_saved |= 1L << i;
-              }
-            break;
+	switch (i)
+	  {
+	  default:
+	    if (df_regs_ever_live_p (i) || call_p)
+	      {
+		size += 4;
+		reg_saved |= 1L << i;
+	      }
+	    break;
 
-            /* We don't save/restore r0 or the stack pointer */
-          case 0:
-          case STACK_POINTER_REGNUM:
-            break;
+	    /* We don't save/restore r0 or the stack pointer */
+	  case 0:
+	  case STACK_POINTER_REGNUM:
+	    break;
 
-            /* For registers with fixed use, we save them, set them to the
-               appropriate value, and then restore them.
-               These registers are handled specially, so don't list them
-               on the list of registers to save in the prologue.  */
-          case 1:                /* temp used to hold ep */
-          case 4:                /* gp */
-          case 10:                /* temp used to call interrupt save/restore */
-          case EP_REGNUM:        /* ep */
-            size += 4;
-            break;
-          }
+	    /* For registers with fixed use, we save them, set them to the
+	       appropriate value, and then restore them.
+	       These registers are handled specially, so don't list them
+	       on the list of registers to save in the prologue.  */
+	  case 1:		/* temp used to hold ep */
+	  case 4:		/* gp */
+	  case 10:		/* temp used to call interrupt save/restore */
+	  case 11:		/* temp used to call interrupt save/restore (long call) */
+	  case EP_REGNUM:	/* ep */
+	    size += 4;
+	    break;
+	  }
     }
   else
     {
       /* Find the first register that needs to be saved.  */
       for (i = 0; i <= 31; i++)
-        if (regs_ever_live[i] && ((! call_used_regs[i])
-                                  || i == LINK_POINTER_REGNUM))
-          break;
+	if (df_regs_ever_live_p (i) && ((! call_used_regs[i])
+				  || i == LINK_POINTER_REGNUM))
+	  break;
 
       /* If it is possible that an out-of-line helper function might be
-         used to generate the prologue for the current function, then we
-         need to cover the possibility that such a helper function will
-         be used, despite the fact that there might be gaps in the list of
-         registers that need to be saved.  To detect this we note that the
-         helper functions always push at least register r29 (provided
-         that the function is not an interrupt handler).  */
-         
+	 used to generate the prologue for the current function, then we
+	 need to cover the possibility that such a helper function will
+	 be used, despite the fact that there might be gaps in the list of
+	 registers that need to be saved.  To detect this we note that the
+	 helper functions always push at least register r29 (provided
+	 that the function is not an interrupt handler).  */
+	 
       if (TARGET_PROLOG_FUNCTION
           && (i == 2 || ((i >= 20) && (i < 30))))
-        {
-          if (i == 2)
-            {
-              size += 4;
-              reg_saved |= 1L << i;
+	{
+	  if (i == 2)
+	    {
+	      size += 4;
+	      reg_saved |= 1L << i;
 
-              i = 20;
-            }
+	      i = 20;
+	    }
 
-          /* Helper functions save all registers between the starting
-             register and the last register, regardless of whether they
-             are actually used by the function or not.  */
-          for (; i <= 29; i++)
-            {
-              size += 4;
-              reg_saved |= 1L << i;
-            }
+	  /* Helper functions save all registers between the starting
+	     register and the last register, regardless of whether they
+	     are actually used by the function or not.  */
+	  for (; i <= 29; i++)
+	    {
+	      size += 4;
+	      reg_saved |= 1L << i;
+	    }
 
-          if (regs_ever_live [LINK_POINTER_REGNUM])
-            {
-              size += 4;
-              reg_saved |= 1L << LINK_POINTER_REGNUM;
-            }
-        }
+	  if (df_regs_ever_live_p (LINK_POINTER_REGNUM))
+	    {
+	      size += 4;
+	      reg_saved |= 1L << LINK_POINTER_REGNUM;
+	    }
+	}
       else
-        {
-          for (; i <= 31; i++)
-            if (regs_ever_live[i] && ((! call_used_regs[i])
-                                      || i == LINK_POINTER_REGNUM))
-              {
-                size += 4;
-                reg_saved |= 1L << i;
-              }
-        }
+	{
+	  for (; i <= 31; i++)
+	    if (df_regs_ever_live_p (i) && ((! call_used_regs[i])
+				      || i == LINK_POINTER_REGNUM))
+	      {
+		size += 4;
+		reg_saved |= 1L << i;
+	      }
+	}
     }
   
   if (p_reg_saved)
@@ -1562,23 +1552,54 @@ int
 compute_frame_size (int size, long * p_reg_saved)
 {
   return (size
-          + compute_register_save_size (p_reg_saved)
-          + current_function_outgoing_args_size);
+	  + compute_register_save_size (p_reg_saved)
+	  + crtl->outgoing_args_size);
 }
 
-
+static int
+use_prolog_function (int num_save, int frame_size)
+{
+  int alloc_stack = (4 * num_save);
+  int unalloc_stack = frame_size - alloc_stack;
+  int save_func_len, restore_func_len;
+  int save_normal_len, restore_normal_len;
+
+  if (! TARGET_DISABLE_CALLT)
+      save_func_len = restore_func_len = 2;
+  else
+      save_func_len = restore_func_len = TARGET_LONG_CALLS ? (4+4+4+2+2) : 4;
+
+  if (unalloc_stack)
+    {
+      save_func_len += CONST_OK_FOR_J (-unalloc_stack) ? 2 : 4;
+      restore_func_len += CONST_OK_FOR_J (-unalloc_stack) ? 2 : 4;
+    }
+
+  /* See if we would have used ep to save the stack.  */
+  if (TARGET_EP && num_save > 3 && (unsigned)frame_size < 255)
+    save_normal_len = restore_normal_len = (3 * 2) + (2 * num_save);
+  else
+    save_normal_len = restore_normal_len = 4 * num_save;
+
+  save_normal_len += CONST_OK_FOR_J (-frame_size) ? 2 : 4;
+  restore_normal_len += (CONST_OK_FOR_J (frame_size) ? 2 : 4) + 2;
+
+  /* Don't bother checking if we don't actually save any space.
+     This happens for instance if one register is saved and additional
+     stack space is allocated.  */
+  return ((save_func_len + restore_func_len) < (save_normal_len + restore_normal_len));
+}
+
 void
 expand_prologue (void)
 {
   unsigned int i;
-  int offset;
   unsigned int size = get_frame_size ();
   unsigned int actual_fsize;
   unsigned int init_stack_alloc = 0;
   rtx save_regs[32];
   rtx save_all;
   unsigned int num_save;
-  unsigned int default_stack;
   int code;
   int interrupt_handler = v850_interrupt_function_p (current_function_decl);
   long reg_saved = 0;
@@ -1588,130 +1609,79 @@ expand_prologue (void)
   /* Save/setup global registers for interrupt functions right now.  */
   if (interrupt_handler)
     {
-      if (TARGET_V850E && ! TARGET_DISABLE_CALLT)
-        emit_insn (gen_callt_save_interrupt ());
+      if (! TARGET_DISABLE_CALLT && (TARGET_V850E || TARGET_V850E2_ALL))
+	emit_insn (gen_callt_save_interrupt ());
       else
-        emit_insn (gen_save_interrupt ());
+	emit_insn (gen_save_interrupt ());
 
       actual_fsize -= INTERRUPT_FIXED_SAVE_SIZE;
       
       if (((1L << LINK_POINTER_REGNUM) & reg_saved) != 0)
-        actual_fsize -= INTERRUPT_ALL_SAVE_SIZE;
-    }
-
-  /* Save arg registers to the stack if necessary.  */
-  else if (current_function_args_info.anonymous_args)
-    {
-      if (TARGET_PROLOG_FUNCTION && TARGET_V850E && !TARGET_DISABLE_CALLT)
-        emit_insn (gen_save_r6_r9_v850e ());
-      else if (TARGET_PROLOG_FUNCTION && ! TARGET_LONG_CALLS)
-        emit_insn (gen_save_r6_r9 ());
-      else
-        {
-          offset = 0;
-          for (i = 6; i < 10; i++)
-            {
-              emit_move_insn (gen_rtx_MEM (SImode,
-                                           plus_constant (stack_pointer_rtx,
-                                                          offset)),
-                              gen_rtx_REG (SImode, i));
-              offset += 4;
-            }
-        }
+	actual_fsize -= INTERRUPT_ALL_SAVE_SIZE;
     }
 
   /* Identify all of the saved registers.  */
   num_save = 0;
-  default_stack = 0;
-  for (i = 1; i < 31; i++)
+  for (i = 1; i < 32; i++)
     {
       if (((1L << i) & reg_saved) != 0)
-        save_regs[num_save++] = gen_rtx_REG (Pmode, i);
-    }
-
-  /* If the return pointer is saved, the helper functions also allocate
-     16 bytes of stack for arguments to be saved in.  */
-  if (((1L << LINK_POINTER_REGNUM) & reg_saved) != 0)
-    {
-      save_regs[num_save++] = gen_rtx_REG (Pmode, LINK_POINTER_REGNUM);
-      default_stack = 16;
+	save_regs[num_save++] = gen_rtx_REG (Pmode, i);
     }
 
   /* See if we have an insn that allocates stack space and saves the particular
      registers we want to.  */
   save_all = NULL_RTX;
-  if (TARGET_PROLOG_FUNCTION && num_save > 0 && actual_fsize >= default_stack)
+  if (TARGET_PROLOG_FUNCTION && num_save > 0)
     {
-      int alloc_stack = (4 * num_save) + default_stack;
-      int unalloc_stack = actual_fsize - alloc_stack;
-      int save_func_len = 4;
-      int save_normal_len;
+      if (use_prolog_function (num_save, actual_fsize))
+	{
+	  int alloc_stack = 4 * num_save;
+	  int offset = 0;
 
-      if (unalloc_stack)
-        save_func_len += CONST_OK_FOR_J (unalloc_stack) ? 2 : 4;
+	  save_all = gen_rtx_PARALLEL
+	    (VOIDmode,
+	     rtvec_alloc (num_save + 1
+			  + (TARGET_DISABLE_CALLT ? (TARGET_LONG_CALLS ? 2 : 1) : 0)));
 
-      /* see if we would have used ep to save the stack */
-      if (TARGET_EP && num_save > 3 && (unsigned)actual_fsize < 255)
-        save_normal_len = (3 * 2) + (2 * num_save);
-      else
-        save_normal_len = 4 * num_save;
+	  XVECEXP (save_all, 0, 0)
+	    = gen_rtx_SET (VOIDmode,
+			   stack_pointer_rtx,
+			   gen_rtx_PLUS (Pmode,
+					 stack_pointer_rtx,
+					 GEN_INT(-alloc_stack)));
+	  for (i = 0; i < num_save; i++)
+	    {
+	      offset -= 4;
+	      XVECEXP (save_all, 0, i+1)
+		= gen_rtx_SET (VOIDmode,
+			       gen_rtx_MEM (Pmode,
+					    gen_rtx_PLUS (Pmode,
+							  stack_pointer_rtx,
+							  GEN_INT(offset))),
+			       save_regs[i]);
+	    }
 
-      save_normal_len += CONST_OK_FOR_J (actual_fsize) ? 2 : 4;
+	  if (TARGET_DISABLE_CALLT)
+	    {
+	      XVECEXP (save_all, 0, num_save + 1)
+		= gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (Pmode, 10));
 
-      /* Don't bother checking if we don't actually save any space.
-         This happens for instance if one register is saved and additional
-         stack space is allocated.  */
-      if (save_func_len < save_normal_len)
-        {
-          save_all = gen_rtx_PARALLEL
-            (VOIDmode,
-             rtvec_alloc (num_save + 1
-                          + (TARGET_V850 ? (TARGET_LONG_CALLS ? 2 : 1) : 0)));
+	      if (TARGET_LONG_CALLS)
+		XVECEXP (save_all, 0, num_save + 2)
+		  = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (Pmode, 11));
+	    }
 
-          XVECEXP (save_all, 0, 0)
-            = gen_rtx_SET (VOIDmode,
-                           stack_pointer_rtx,
-                           plus_constant (stack_pointer_rtx, -alloc_stack));
-
-          offset = - default_stack;
-          for (i = 0; i < num_save; i++)
-            {
-              XVECEXP (save_all, 0, i+1)
-                = gen_rtx_SET (VOIDmode,
-                               gen_rtx_MEM (Pmode,
-                                            plus_constant (stack_pointer_rtx,
-                                                           offset)),
-                               save_regs[i]);
-              offset -= 4;
-            }
-
-          if (TARGET_V850)
-            {
-              XVECEXP (save_all, 0, num_save + 1)
-                = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (Pmode, 10));
-
-              if (TARGET_LONG_CALLS)
-                XVECEXP (save_all, 0, num_save + 2)
-                  = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (Pmode, 11));
-            }
-
-          code = recog (save_all, NULL_RTX, NULL);
-          if (code >= 0)
-            {
-              rtx insn = emit_insn (save_all);
-              INSN_CODE (insn) = code;
-              actual_fsize -= alloc_stack;
-              
-              if (TARGET_DEBUG)
-                fprintf (stderr, "\
-Saved %d bytes via prologue function (%d vs. %d) for function %s\n",
-                         save_normal_len - save_func_len,
-                         save_normal_len, save_func_len,
-                         IDENTIFIER_POINTER (DECL_NAME (current_function_decl)));
-            }
-          else
-            save_all = NULL_RTX;
-        }
+	  code = recog (save_all, NULL_RTX, NULL);
+	  if (code >= 0)
+	    {
+	      rtx insn = emit_insn (save_all);
+	      INSN_CODE (insn) = code;
+	      actual_fsize -= alloc_stack;
+	      
+	    }
+	  else
+	    save_all = NULL_RTX;
+	}
     }
 
   /* If no prolog save function is available, store the registers the old
@@ -1720,49 +1690,50 @@ Saved %d bytes via prologue function (%d vs. %d) for function %s\n",
     {
       /* Special case interrupt functions that save all registers for a call.  */
       if (interrupt_handler && ((1L << LINK_POINTER_REGNUM) & reg_saved) != 0)
-        {
-          if (TARGET_V850E && ! TARGET_DISABLE_CALLT)
-            emit_insn (gen_callt_save_all_interrupt ());
-          else
-            emit_insn (gen_save_all_interrupt ());
-        }
+	{
+	  if (! TARGET_DISABLE_CALLT && (TARGET_V850E || TARGET_V850E2_ALL))
+	    emit_insn (gen_callt_save_all_interrupt ());
+	  else
+	    emit_insn (gen_save_all_interrupt ());
+	}
       else
-        {
-          /* If the stack is too big, allocate it in chunks so we can do the
-             register saves.  We use the register save size so we use the ep
-             register.  */
-          if (actual_fsize && !CONST_OK_FOR_K (-actual_fsize))
-            init_stack_alloc = compute_register_save_size (NULL);
-          else
-            init_stack_alloc = actual_fsize;
-              
-          /* Save registers at the beginning of the stack frame.  */
-          offset = init_stack_alloc - 4;
-          
-          if (init_stack_alloc)
-            emit_insn (gen_addsi3 (stack_pointer_rtx,
-                                   stack_pointer_rtx,
-                                   GEN_INT (-init_stack_alloc)));
-          
-          /* Save the return pointer first.  */
-          if (num_save > 0 && REGNO (save_regs[num_save-1]) == LINK_POINTER_REGNUM)
-            {
-              emit_move_insn (gen_rtx_MEM (SImode,
-                                           plus_constant (stack_pointer_rtx,
-                                                          offset)),
-                              save_regs[--num_save]);
-              offset -= 4;
-            }
-          
-          for (i = 0; i < num_save; i++)
-            {
-              emit_move_insn (gen_rtx_MEM (SImode,
-                                           plus_constant (stack_pointer_rtx,
-                                                          offset)),
-                              save_regs[i]);
-              offset -= 4;
-            }
-        }
+	{
+	  int offset;
+	  /* If the stack is too big, allocate it in chunks so we can do the
+	     register saves.  We use the register save size so we use the ep
+	     register.  */
+	  if (actual_fsize && !CONST_OK_FOR_K (-actual_fsize))
+	    init_stack_alloc = compute_register_save_size (NULL);
+	  else
+	    init_stack_alloc = actual_fsize;
+	      
+	  /* Save registers at the beginning of the stack frame.  */
+	  offset = init_stack_alloc - 4;
+	  
+	  if (init_stack_alloc)
+	    emit_insn (gen_addsi3 (stack_pointer_rtx,
+				   stack_pointer_rtx,
+				   GEN_INT (- (signed) init_stack_alloc)));
+	  
+	  /* Save the return pointer first.  */
+	  if (num_save > 0 && REGNO (save_regs[num_save-1]) == LINK_POINTER_REGNUM)
+	    {
+	      emit_move_insn (gen_rtx_MEM (SImode,
+					   plus_constant (stack_pointer_rtx,
+							  offset)),
+			      save_regs[--num_save]);
+	      offset -= 4;
+	    }
+	  
+	  for (i = 0; i < num_save; i++)
+	    {
+	      emit_move_insn (gen_rtx_MEM (SImode,
+					   plus_constant (stack_pointer_rtx,
+							  offset)),
+			      save_regs[i]);
+	      offset -= 4;
+	    }
+	}
     }
 
   /* Allocate the rest of the stack that was not allocated above (either it is
@@ -1771,16 +1742,16 @@ Saved %d bytes via prologue function (%d vs. %d) for function %s\n",
   if (actual_fsize > init_stack_alloc)
     {
       int diff = actual_fsize - init_stack_alloc;
-      if (CONST_OK_FOR_K (diff))
-        emit_insn (gen_addsi3 (stack_pointer_rtx,
-                               stack_pointer_rtx,
-                               GEN_INT (-diff)));
+      if (CONST_OK_FOR_K (-diff))
+	emit_insn (gen_addsi3 (stack_pointer_rtx,
+			       stack_pointer_rtx,
+			       GEN_INT (-diff)));
       else
-        {
-          rtx reg = gen_rtx_REG (Pmode, 12);
-          emit_move_insn (reg, GEN_INT (-diff));
-          emit_insn (gen_addsi3 (stack_pointer_rtx, stack_pointer_rtx, reg));
-        }
+	{
+	  rtx reg = gen_rtx_REG (Pmode, 12);
+	  emit_move_insn (reg, GEN_INT (-diff));
+	  emit_insn (gen_addsi3 (stack_pointer_rtx, stack_pointer_rtx, reg));
+	}
     }
 
   /* If we need a frame pointer, set it up now.  */
@@ -1793,15 +1764,12 @@ void
 expand_epilogue (void)
 {
   unsigned int i;
-  int offset;
   unsigned int size = get_frame_size ();
   long reg_saved = 0;
-  unsigned int actual_fsize = compute_frame_size (size, &reg_saved);
-  unsigned int init_stack_free = 0;
+  int actual_fsize = compute_frame_size (size, &reg_saved);
   rtx restore_regs[32];
   rtx restore_all;
   unsigned int num_restore;
-  unsigned int default_stack;
   int code;
   int interrupt_handler = v850_interrupt_function_p (current_function_decl);
 
@@ -1810,7 +1778,7 @@ expand_epilogue (void)
     {
       actual_fsize -= INTERRUPT_FIXED_SAVE_SIZE;
       if (((1L << LINK_POINTER_REGNUM) & reg_saved) != 0)
-        actual_fsize -= INTERRUPT_ALL_SAVE_SIZE;
+	actual_fsize -= INTERRUPT_ALL_SAVE_SIZE;
     }
 
   /* Cut off any dynamic stack created.  */
@@ -1819,203 +1787,177 @@ expand_epilogue (void)
 
   /* Identify all of the saved registers.  */
   num_restore = 0;
-  default_stack = 0;
-  for (i = 1; i < 31; i++)
+  for (i = 1; i < 32; i++)
     {
       if (((1L << i) & reg_saved) != 0)
-        restore_regs[num_restore++] = gen_rtx_REG (Pmode, i);
-    }
-
-  /* If the return pointer is saved, the helper functions also allocate
-     16 bytes of stack for arguments to be saved in.  */
-  if (((1L << LINK_POINTER_REGNUM) & reg_saved) != 0)
-    {
-      restore_regs[num_restore++] = gen_rtx_REG (Pmode, LINK_POINTER_REGNUM);
-      default_stack = 16;
+	restore_regs[num_restore++] = gen_rtx_REG (Pmode, i);
     }
 
   /* See if we have an insn that restores the particular registers we
      want to.  */
   restore_all = NULL_RTX;
-  
+
   if (TARGET_PROLOG_FUNCTION
       && num_restore > 0
-      && actual_fsize >= default_stack
       && !interrupt_handler)
     {
-      int alloc_stack = (4 * num_restore) + default_stack;
-      int unalloc_stack = actual_fsize - alloc_stack;
-      int restore_func_len = 4;
-      int restore_normal_len;
-
-      if (unalloc_stack)
-        restore_func_len += CONST_OK_FOR_J (unalloc_stack) ? 2 : 4;
-
-      /* See if we would have used ep to restore the registers.  */
-      if (TARGET_EP && num_restore > 3 && (unsigned)actual_fsize < 255)
-        restore_normal_len = (3 * 2) + (2 * num_restore);
-      else
-        restore_normal_len = 4 * num_restore;
-
-      restore_normal_len += (CONST_OK_FOR_J (actual_fsize) ? 2 : 4) + 2;
+      int alloc_stack = (4 * num_restore);
 
       /* Don't bother checking if we don't actually save any space.  */
-      if (restore_func_len < restore_normal_len)
-        {
-          restore_all = gen_rtx_PARALLEL (VOIDmode,
-                                          rtvec_alloc (num_restore + 2));
-          XVECEXP (restore_all, 0, 0) = gen_rtx_RETURN (VOIDmode);
-          XVECEXP (restore_all, 0, 1)
-            = gen_rtx_SET (VOIDmode, stack_pointer_rtx,
-                            gen_rtx_PLUS (Pmode,
-                                          stack_pointer_rtx,
-                                          GEN_INT (alloc_stack)));
+      if (use_prolog_function (num_restore, actual_fsize))
+	{
+	  int offset;
+	  restore_all = gen_rtx_PARALLEL (VOIDmode,
+					  rtvec_alloc (num_restore + 2));
+	  XVECEXP (restore_all, 0, 0) = ret_rtx;
+	  XVECEXP (restore_all, 0, 1)
+	    = gen_rtx_SET (VOIDmode, stack_pointer_rtx,
+			    gen_rtx_PLUS (Pmode,
+					  stack_pointer_rtx,
+					  GEN_INT (alloc_stack)));
 
-          offset = alloc_stack - 4;
-          for (i = 0; i < num_restore; i++)
-            {
-              XVECEXP (restore_all, 0, i+2)
-                = gen_rtx_SET (VOIDmode,
-                               restore_regs[i],
-                               gen_rtx_MEM (Pmode,
-                                            plus_constant (stack_pointer_rtx,
-                                                           offset)));
-              offset -= 4;
-            }
+	  offset = alloc_stack - 4;
+	  for (i = 0; i < num_restore; i++)
+	    {
+	      XVECEXP (restore_all, 0, i+2)
+		= gen_rtx_SET (VOIDmode,
+			       restore_regs[i],
+			       gen_rtx_MEM (Pmode,
+                                            gen_rtx_PLUS (Pmode,
+                                                          stack_pointer_rtx,
+                                                          GEN_INT(offset))));
+	      offset -= 4;
+	    }
 
-          code = recog (restore_all, NULL_RTX, NULL);
-          
-          if (code >= 0)
-            {
-              rtx insn;
+	  code = recog (restore_all, NULL_RTX, NULL);
+	  
+	  if (code >= 0)
+	    {
+	      rtx insn;
 
-              actual_fsize -= alloc_stack;
-              if (actual_fsize)
-                {
-                  if (CONST_OK_FOR_K (actual_fsize))
-                    emit_insn (gen_addsi3 (stack_pointer_rtx,
-                                           stack_pointer_rtx,
-                                           GEN_INT (actual_fsize)));
-                  else
-                    {
-                      rtx reg = gen_rtx_REG (Pmode, 12);
-                      emit_move_insn (reg, GEN_INT (actual_fsize));
-                      emit_insn (gen_addsi3 (stack_pointer_rtx,
-                                             stack_pointer_rtx,
-                                             reg));
-                    }
-                }
+	      actual_fsize -= alloc_stack;
+	      if (actual_fsize)
+		{
+		  if (CONST_OK_FOR_K (actual_fsize))
+		    emit_insn (gen_addsi3 (stack_pointer_rtx,
+					   stack_pointer_rtx,
+					   GEN_INT (actual_fsize)));
+		  else
+		    {
+		      rtx reg = gen_rtx_REG (Pmode, 12);
+		      emit_move_insn (reg, GEN_INT (actual_fsize));
+		      emit_insn (gen_addsi3 (stack_pointer_rtx,
+					     stack_pointer_rtx,
+					     reg));
+		    }
+		}
 
-              insn = emit_jump_insn (restore_all);
-              INSN_CODE (insn) = code;
+	      insn = emit_jump_insn (restore_all);
+	      INSN_CODE (insn) = code;
 
-              if (TARGET_DEBUG)
-                fprintf (stderr, "\
-Saved %d bytes via epilogue function (%d vs. %d) in function %s\n",
-                         restore_normal_len - restore_func_len,
-                         restore_normal_len, restore_func_len,
-                         IDENTIFIER_POINTER (DECL_NAME (current_function_decl)));
-            }
-          else
-            restore_all = NULL_RTX;
-        }
+	    }
+	  else
+	    restore_all = NULL_RTX;
+	}
     }
 
-  /* If no epilog save function is available, restore the registers the
+  /* If no epilogue save function is available, restore the registers the
      old fashioned way (one by one).  */
   if (!restore_all)
     {
+      unsigned int init_stack_free;
+
       /* If the stack is large, we need to cut it down in 2 pieces.  */
-      if (actual_fsize && !CONST_OK_FOR_K (-actual_fsize))
-        init_stack_free = 4 * num_restore;
+      if (interrupt_handler)
+       init_stack_free = 0;
+      else if (actual_fsize && !CONST_OK_FOR_K (-actual_fsize))
+	init_stack_free = 4 * num_restore;
       else
-        init_stack_free = actual_fsize;
+	init_stack_free = (signed) actual_fsize;
 
       /* Deallocate the rest of the stack if it is > 32K.  */
-      if (actual_fsize > init_stack_free)
-        {
-          int diff;
+      if ((unsigned int) actual_fsize > init_stack_free)
+	{
+	  int diff;
 
-          diff = actual_fsize - ((interrupt_handler) ? 0 : init_stack_free);
+	  diff = actual_fsize - init_stack_free;
 
-          if (CONST_OK_FOR_K (diff))
-            emit_insn (gen_addsi3 (stack_pointer_rtx,
-                                   stack_pointer_rtx,
-                                   GEN_INT (diff)));
-          else
-            {
-              rtx reg = gen_rtx_REG (Pmode, 12);
-              emit_move_insn (reg, GEN_INT (diff));
-              emit_insn (gen_addsi3 (stack_pointer_rtx,
-                                     stack_pointer_rtx,
-                                     reg));
-            }
-        }
+	  if (CONST_OK_FOR_K (diff))
+	    emit_insn (gen_addsi3 (stack_pointer_rtx,
+				   stack_pointer_rtx,
+				   GEN_INT (diff)));
+	  else
+	    {
+	      rtx reg = gen_rtx_REG (Pmode, 12);
+	      emit_move_insn (reg, GEN_INT (diff));
+	      emit_insn (gen_addsi3 (stack_pointer_rtx,
+				     stack_pointer_rtx,
+				     reg));
+	    }
+	}
 
       /* Special case interrupt functions that save all registers
-         for a call.  */
+	 for a call.  */
       if (interrupt_handler && ((1L << LINK_POINTER_REGNUM) & reg_saved) != 0)
-        {
-          if (TARGET_V850E && ! TARGET_DISABLE_CALLT)
-            emit_insn (gen_callt_restore_all_interrupt ());
-          else
-            emit_insn (gen_restore_all_interrupt ());
-        }
+	{
+	  if (! TARGET_DISABLE_CALLT)
+	    emit_insn (gen_callt_restore_all_interrupt ());
+	  else
+	    emit_insn (gen_restore_all_interrupt ());
+	}
       else
-        {
-          /* Restore registers from the beginning of the stack frame.  */
-          offset = init_stack_free - 4;
+	{
+	  /* Restore registers from the beginning of the stack frame.  */
+	  int offset = init_stack_free - 4;
 
-          /* Restore the return pointer first.  */
-          if (num_restore > 0
-              && REGNO (restore_regs [num_restore - 1]) == LINK_POINTER_REGNUM)
-            {
-              emit_move_insn (restore_regs[--num_restore],
-                              gen_rtx_MEM (SImode,
-                                           plus_constant (stack_pointer_rtx,
-                                                          offset)));
-              offset -= 4;
-            }
+	  /* Restore the return pointer first.  */
+	  if (num_restore > 0
+	      && REGNO (restore_regs [num_restore - 1]) == LINK_POINTER_REGNUM)
+	    {
+	      emit_move_insn (restore_regs[--num_restore],
+			      gen_rtx_MEM (SImode,
+					   plus_constant (stack_pointer_rtx,
+							  offset)));
+	      offset -= 4;
+	    }
 
-          for (i = 0; i < num_restore; i++)
-            {
-              emit_move_insn (restore_regs[i],
-                              gen_rtx_MEM (SImode,
-                                           plus_constant (stack_pointer_rtx,
-                                                          offset)));
+	  for (i = 0; i < num_restore; i++)
+	    {
+	      emit_move_insn (restore_regs[i],
+			      gen_rtx_MEM (SImode,
+					   plus_constant (stack_pointer_rtx,
+							  offset)));
 
-              emit_insn (gen_rtx_USE (VOIDmode, restore_regs[i]));
-              offset -= 4;
-            }
+	      emit_use (restore_regs[i]);
+	      offset -= 4;
+	    }
 
-          /* Cut back the remainder of the stack.  */
-          if (init_stack_free)
-            emit_insn (gen_addsi3 (stack_pointer_rtx,
-                                   stack_pointer_rtx,
-                                   GEN_INT (init_stack_free)));
-        }
+	  /* Cut back the remainder of the stack.  */
+	  if (init_stack_free)
+	    emit_insn (gen_addsi3 (stack_pointer_rtx,
+				   stack_pointer_rtx,
+				   GEN_INT (init_stack_free)));
+	}
 
       /* And return or use reti for interrupt handlers.  */
       if (interrupt_handler)
         {
-          if (TARGET_V850E && ! TARGET_DISABLE_CALLT)
+          if (! TARGET_DISABLE_CALLT && (TARGET_V850E || TARGET_V850E2_ALL))
             emit_insn (gen_callt_return_interrupt ());
           else
             emit_jump_insn (gen_return_interrupt ());
-         }
+	 }
       else if (actual_fsize)
-        emit_jump_insn (gen_return_internal ());
+	emit_jump_insn (gen_return_internal ());
       else
-        emit_jump_insn (gen_return ());
+	emit_jump_insn (gen_return_simple ());
     }
 
   v850_interrupt_cache_p = FALSE;
   v850_interrupt_p = FALSE;
 }
 
-
 /* Update the condition code from the insn.  */
-
 void
 notice_update_cc (rtx body, rtx insn)
 {
@@ -2028,13 +1970,13 @@ notice_update_cc (rtx body, rtx insn)
     case CC_NONE_0HIT:
       /* Insn does not change CC, but the 0'th operand has been changed.  */
       if (cc_status.value1 != 0
-          && reg_overlap_mentioned_p (recog_data.operand[0], cc_status.value1))
-        cc_status.value1 = 0;
+	  && reg_overlap_mentioned_p (recog_data.operand[0], cc_status.value1))
+	cc_status.value1 = 0;
       break;
 
     case CC_SET_ZN:
       /* Insn sets the Z,N flags of CC to recog_data.operand[0].
-         V,C is in an unusable state.  */
+	 V,C is in an unusable state.  */
       CC_STATUS_INIT;
       cc_status.flags |= CC_OVERFLOW_UNUSABLE | CC_NO_CARRY;
       cc_status.value1 = recog_data.operand[0];
@@ -2042,7 +1984,7 @@ notice_update_cc (rtx body, rtx insn)
 
     case CC_SET_ZNV:
       /* Insn sets the Z,N,V flags of CC to recog_data.operand[0].
-         C is in an unusable state.  */
+  	 C is in an unusable state.  */
       CC_STATUS_INIT;
       cc_status.flags |= CC_NO_CARRY;
       cc_status.value1 = recog_data.operand[0];
@@ -2058,9 +2000,12 @@ notice_update_cc (rtx body, rtx insn)
       /* Insn doesn't leave CC in a usable state.  */
       CC_STATUS_INIT;
       break;
+
+    default:
+      break;
     }
 }
-
+
 /* Retrieve the data area that has been chosen for the given decl.  */
 
 v850_data_area
@@ -2098,17 +2043,6 @@ v850_set_data_area (tree decl, v850_data_area data_area)
     (name, NULL, DECL_ATTRIBUTES (decl));
 }
 
-const struct attribute_spec v850_attribute_table[] =
-{
-  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler } */
-  { "interrupt_handler", 0, 0, true,  false, false, v850_handle_interrupt_attribute },
-  { "interrupt",         0, 0, true,  false, false, v850_handle_interrupt_attribute },
-  { "sda",               0, 0, true,  false, false, v850_handle_data_area_attribute },
-  { "tda",               0, 0, true,  false, false, v850_handle_data_area_attribute },
-  { "zda",               0, 0, true,  false, false, v850_handle_data_area_attribute },
-  { NULL,                0, 0, false, false, false, NULL }
-};
-
 /* Handle an "interrupt" attribute; arguments as in
    struct attribute_spec.handler.  */
 static tree
@@ -2120,8 +2054,8 @@ v850_handle_interrupt_attribute (tree * node,
 {
   if (TREE_CODE (*node) != FUNCTION_DECL)
     {
-      warning (OPT_Wattributes, "%qs attribute only applies to functions",
-               IDENTIFIER_POINTER (name));
+      warning (OPT_Wattributes, "%qE attribute only applies to functions",
+	       name);
       *no_add_attrs = true;
     }
 
@@ -2155,22 +2089,23 @@ v850_handle_data_area_attribute (tree* node,
     {
     case VAR_DECL:
       if (current_function_decl != NULL_TREE)
-        {
-          error ("%Jdata area attributes cannot be specified for "
-                 "local variables", decl);
-          *no_add_attrs = true;
-        }
+	{
+          error_at (DECL_SOURCE_LOCATION (decl),
+		    "data area attributes cannot be specified for "
+		    "local variables");
+	  *no_add_attrs = true;
+	}
 
       /* Drop through.  */
 
     case FUNCTION_DECL:
       area = v850_get_data_area (decl);
       if (area != DATA_AREA_NORMAL && data_area != area)
-        {
-          error ("data area of %q+D conflicts with previous declaration",
+	{
+	  error ("data area of %q+D conflicts with previous declaration",
                  decl);
-          *no_add_attrs = true;
-        }
+	  *no_add_attrs = true;
+	}
       break;
       
     default:
@@ -2224,38 +2159,38 @@ v850_encode_data_area (tree decl, rtx symbol)
   if (v850_get_data_area (decl) == DATA_AREA_NORMAL)
     {
       if (DECL_SECTION_NAME (decl))
-        {
-          const char *name = TREE_STRING_POINTER (DECL_SECTION_NAME (decl));
-          
-          if (streq (name, ".zdata") || streq (name, ".zbss"))
-            v850_set_data_area (decl, DATA_AREA_ZDA);
+	{
+	  const char *name = TREE_STRING_POINTER (DECL_SECTION_NAME (decl));
+	  
+	  if (streq (name, ".zdata") || streq (name, ".zbss"))
+	    v850_set_data_area (decl, DATA_AREA_ZDA);
 
-          else if (streq (name, ".sdata") || streq (name, ".sbss"))
-            v850_set_data_area (decl, DATA_AREA_SDA);
+	  else if (streq (name, ".sdata") || streq (name, ".sbss"))
+	    v850_set_data_area (decl, DATA_AREA_SDA);
 
-          else if (streq (name, ".tdata"))
-            v850_set_data_area (decl, DATA_AREA_TDA);
-        }
+	  else if (streq (name, ".tdata"))
+	    v850_set_data_area (decl, DATA_AREA_TDA);
+	}
 
       /* If no attribute, support -m{zda,sda,tda}=n */
       else
-        {
-          int size = int_size_in_bytes (TREE_TYPE (decl));
-          if (size <= 0)
-            ;
+	{
+	  int size = int_size_in_bytes (TREE_TYPE (decl));
+	  if (size <= 0)
+	    ;
 
-          else if (size <= small_memory [(int) SMALL_MEMORY_TDA].max)
-            v850_set_data_area (decl, DATA_AREA_TDA);
+	  else if (size <= small_memory_max [(int) SMALL_MEMORY_TDA])
+	    v850_set_data_area (decl, DATA_AREA_TDA);
 
-          else if (size <= small_memory [(int) SMALL_MEMORY_SDA].max)
-            v850_set_data_area (decl, DATA_AREA_SDA);
+	  else if (size <= small_memory_max [(int) SMALL_MEMORY_SDA])
+	    v850_set_data_area (decl, DATA_AREA_SDA);
 
-          else if (size <= small_memory [(int) SMALL_MEMORY_ZDA].max)
-            v850_set_data_area (decl, DATA_AREA_ZDA);
-        }
+	  else if (size <= small_memory_max [(int) SMALL_MEMORY_ZDA])
+	    v850_set_data_area (decl, DATA_AREA_ZDA);
+	}
       
       if (v850_get_data_area (decl) == DATA_AREA_NORMAL)
-        return;
+	return;
     }
 
   flags = SYMBOL_REF_FLAGS (symbol);
@@ -2284,6 +2219,7 @@ v850_encode_section_info (tree decl, rtx rtl, int first)
    pops registers off the stack and possibly releases some extra stack space
    as well.  The code has already verified that the RTL matches these
    requirements.  */
+
 char *
 construct_restore_jr (rtx op)
 {
@@ -2313,7 +2249,7 @@ construct_restore_jr (rtx op)
   stack_bytes -= (count - 2) * 4;
 
   /* Make sure that the amount we are popping either 0 or 16 bytes.  */
-  if (stack_bytes != 0 && stack_bytes != 16)
+  if (stack_bytes != 0)
     {
       error ("bad amount of stack space removal: %d", stack_bytes);
       return NULL;
@@ -2328,7 +2264,7 @@ construct_restore_jr (rtx op)
       gcc_assert (GET_CODE (vector_element) == SET);
       gcc_assert (GET_CODE (SET_DEST (vector_element)) == REG);
       gcc_assert (register_is_ok_for_epilogue (SET_DEST (vector_element),
-                                               SImode));
+					       SImode));
       
       mask |= 1 << REGNO (SET_DEST (vector_element));
     }
@@ -2337,7 +2273,7 @@ construct_restore_jr (rtx op)
   for (first = 0; first < 32; first++)
     {
       if (mask & (1 << first))
-        break;
+	break;
     }
 
   gcc_assert (first < 32);
@@ -2345,8 +2281,6 @@ construct_restore_jr (rtx op)
   /* Discover the last register to pop.  */
   if (mask & (1 << LINK_POINTER_REGNUM))
     {
-      gcc_assert (stack_bytes == 16);
-      
       last = LINK_POINTER_REGNUM;
     }
   else
@@ -2367,19 +2301,19 @@ construct_restore_jr (rtx op)
       char name[40];
       
       if (first == last)
-        sprintf (name, "__return_%s", reg_names [first]);
+	sprintf (name, "__return_%s", reg_names [first]);
       else
-        sprintf (name, "__return_%s_%s", reg_names [first], reg_names [last]);
+	sprintf (name, "__return_%s_%s", reg_names [first], reg_names [last]);
       
       sprintf (buff, "movhi hi(%s), r0, r6\n\tmovea lo(%s), r6, r6\n\tjmp r6",
-               name, name);
+	       name, name);
     }
   else
     {
       if (first == last)
-        sprintf (buff, "jr __return_%s", reg_names [first]);
+	sprintf (buff, "jr __return_%s", reg_names [first]);
       else
-        sprintf (buff, "jr __return_%s_%s", reg_names [first], reg_names [last]);
+	sprintf (buff, "jr __return_%s_%s", reg_names [first], reg_names [last]);
     }
   
   return buff;
@@ -2402,9 +2336,9 @@ construct_save_jarl (rtx op)
   int i;
   static char buff [100]; /* XXX */
   
-  if (count <= 2)
+  if (count <= (TARGET_LONG_CALLS ? 3 : 2)) 
     {
-      error ("bogus JARL construction: %d\n", count);
+      error ("bogus JARL construction: %d", count);
       return NULL;
     }
 
@@ -2422,7 +2356,7 @@ construct_save_jarl (rtx op)
   stack_bytes += (count - (TARGET_LONG_CALLS ? 3 : 2)) * 4;
 
   /* Make sure that the amount we are popping either 0 or 16 bytes.  */
-  if (stack_bytes != 0 && stack_bytes != -16)
+  if (stack_bytes != 0)
     {
       error ("bad amount of stack space removal: %d", stack_bytes);
       return NULL;
@@ -2437,7 +2371,7 @@ construct_save_jarl (rtx op)
       gcc_assert (GET_CODE (vector_element) == SET);
       gcc_assert (GET_CODE (SET_SRC (vector_element)) == REG);
       gcc_assert (register_is_ok_for_epilogue (SET_SRC (vector_element),
-                                               SImode));
+					       SImode));
       
       mask |= 1 << REGNO (SET_SRC (vector_element));
     }
@@ -2446,7 +2380,7 @@ construct_save_jarl (rtx op)
   for (first = 0; first < 32; first++)
     {
       if (mask & (1 << first))
-        break;
+	break;
     }
 
   gcc_assert (first < 32);
@@ -2454,8 +2388,6 @@ construct_save_jarl (rtx op)
   /* Discover the last register to push.  */
   if (mask & (1 << LINK_POINTER_REGNUM))
     {
-      gcc_assert (stack_bytes == -16);
-      
       last = LINK_POINTER_REGNUM;
     }
   else
@@ -2476,20 +2408,20 @@ construct_save_jarl (rtx op)
       char name[40];
       
       if (first == last)
-        sprintf (name, "__save_%s", reg_names [first]);
+	sprintf (name, "__save_%s", reg_names [first]);
       else
-        sprintf (name, "__save_%s_%s", reg_names [first], reg_names [last]);
+	sprintf (name, "__save_%s_%s", reg_names [first], reg_names [last]);
       
       sprintf (buff, "movhi hi(%s), r0, r11\n\tmovea lo(%s), r11, r11\n\tjarl .+4, r10\n\tadd 4, r10\n\tjmp r11",
-               name, name);
+	       name, name);
     }
   else
     {
       if (first == last)
-        sprintf (buff, "jarl __save_%s, r10", reg_names [first]);
+	sprintf (buff, "jarl __save_%s, r10", reg_names [first]);
       else
-        sprintf (buff, "jarl __save_%s_%s, r10", reg_names [first],
-                 reg_names [last]);
+	sprintf (buff, "jarl __save_%s_%s, r10", reg_names [first],
+		 reg_names [last]);
     }
 
   return buff;
@@ -2551,23 +2483,23 @@ v850_output_common (FILE * file,
   else
     {
       switch (v850_get_data_area (decl))
-        {
-        case DATA_AREA_ZDA:
-          fprintf (file, "%s", ZCOMMON_ASM_OP);
-          break;
+	{
+	case DATA_AREA_ZDA:
+	  fprintf (file, "%s", ZCOMMON_ASM_OP);
+	  break;
 
-        case DATA_AREA_SDA:
-          fprintf (file, "%s", SCOMMON_ASM_OP);
-          break;
+	case DATA_AREA_SDA:
+	  fprintf (file, "%s", SCOMMON_ASM_OP);
+	  break;
 
-        case DATA_AREA_TDA:
-          fprintf (file, "%s", TCOMMON_ASM_OP);
-          break;
+	case DATA_AREA_TDA:
+	  fprintf (file, "%s", TCOMMON_ASM_OP);
+	  break;
       
-        default:
-          fprintf (file, "%s", COMMON_ASM_OP);
-          break;
-        }
+	default:
+	  fprintf (file, "%s", COMMON_ASM_OP);
+	  break;
+	}
     }
   
   assemble_name (file, name);
@@ -2607,25 +2539,25 @@ v850_insert_attributes (tree decl, tree * attr_ptr ATTRIBUTE_UNUSED )
   if (GHS_default_section_names [(int) GHS_SECTION_KIND_SDATA] == NULL)
     {
       GHS_default_section_names [(int) GHS_SECTION_KIND_SDATA]
-        = build_string (sizeof (".sdata")-1, ".sdata");
+	= build_string (sizeof (".sdata")-1, ".sdata");
 
       GHS_default_section_names [(int) GHS_SECTION_KIND_ROSDATA]
-        = build_string (sizeof (".rosdata")-1, ".rosdata");
+	= build_string (sizeof (".rosdata")-1, ".rosdata");
 
       GHS_default_section_names [(int) GHS_SECTION_KIND_TDATA]
-        = build_string (sizeof (".tdata")-1, ".tdata");
+	= build_string (sizeof (".tdata")-1, ".tdata");
       
       GHS_default_section_names [(int) GHS_SECTION_KIND_ZDATA]
-        = build_string (sizeof (".zdata")-1, ".zdata");
+	= build_string (sizeof (".zdata")-1, ".zdata");
 
       GHS_default_section_names [(int) GHS_SECTION_KIND_ROZDATA]
-        = build_string (sizeof (".rozdata")-1, ".rozdata");
+	= build_string (sizeof (".rozdata")-1, ".rozdata");
     }
   
   if (current_function_decl == NULL_TREE
       && (TREE_CODE (decl) == VAR_DECL
-          || TREE_CODE (decl) == CONST_DECL
-          || TREE_CODE (decl) == FUNCTION_DECL)
+	  || TREE_CODE (decl) == CONST_DECL
+	  || TREE_CODE (decl) == FUNCTION_DECL)
       && (!DECL_EXTERNAL (decl) || DECL_INITIAL (decl))
       && !DECL_SECTION_NAME (decl))
     {
@@ -2633,40 +2565,40 @@ v850_insert_attributes (tree decl, tree * attr_ptr ATTRIBUTE_UNUSED )
       tree chosen_section;
 
       if (TREE_CODE (decl) == FUNCTION_DECL)
-        kind = GHS_SECTION_KIND_TEXT;
+	kind = GHS_SECTION_KIND_TEXT;
       else
-        {
-          /* First choose a section kind based on the data area of the decl.  */
-          switch (v850_get_data_area (decl))
-            {
-            default:
-              gcc_unreachable ();
-              
-            case DATA_AREA_SDA:
-              kind = ((TREE_READONLY (decl))
-                      ? GHS_SECTION_KIND_ROSDATA
-                      : GHS_SECTION_KIND_SDATA);
-              break;
-              
-            case DATA_AREA_TDA:
-              kind = GHS_SECTION_KIND_TDATA;
-              break;
-              
-            case DATA_AREA_ZDA:
-              kind = ((TREE_READONLY (decl))
-                      ? GHS_SECTION_KIND_ROZDATA
-                      : GHS_SECTION_KIND_ZDATA);
-              break;
-              
-            case DATA_AREA_NORMAL:                 /* default data area */
-              if (TREE_READONLY (decl))
-                kind = GHS_SECTION_KIND_RODATA;
-              else if (DECL_INITIAL (decl))
-                kind = GHS_SECTION_KIND_DATA;
-              else
-                kind = GHS_SECTION_KIND_BSS;
-            }
-        }
+	{
+	  /* First choose a section kind based on the data area of the decl.  */
+	  switch (v850_get_data_area (decl))
+	    {
+	    default:
+	      gcc_unreachable ();
+	      
+	    case DATA_AREA_SDA:
+	      kind = ((TREE_READONLY (decl))
+		      ? GHS_SECTION_KIND_ROSDATA
+		      : GHS_SECTION_KIND_SDATA);
+	      break;
+	      
+	    case DATA_AREA_TDA:
+	      kind = GHS_SECTION_KIND_TDATA;
+	      break;
+	      
+	    case DATA_AREA_ZDA:
+	      kind = ((TREE_READONLY (decl))
+		      ? GHS_SECTION_KIND_ROZDATA
+		      : GHS_SECTION_KIND_ZDATA);
+	      break;
+	      
+	    case DATA_AREA_NORMAL:		 /* default data area */
+	      if (TREE_READONLY (decl))
+		kind = GHS_SECTION_KIND_RODATA;
+	      else if (DECL_INITIAL (decl))
+		kind = GHS_SECTION_KIND_DATA;
+	      else
+		kind = GHS_SECTION_KIND_BSS;
+	    }
+	}
 
       /* Now, if the section kind has been explicitly renamed,
          then attach a section attribute.  */
@@ -2678,12 +2610,12 @@ v850_insert_attributes (tree decl, tree * attr_ptr ATTRIBUTE_UNUSED )
         chosen_section = GHS_default_section_names [(int) kind];
 
       if (chosen_section)
-        {
-          /* Only set the section name if specified by a pragma, because
-             otherwise it will force those variables to get allocated storage
-             in this module, rather than by the linker.  */
-          DECL_SECTION_NAME (decl) = chosen_section;
-        }
+	{
+	  /* Only set the section name if specified by a pragma, because
+	     otherwise it will force those variables to get allocated storage
+	     in this module, rather than by the linker.  */
+	  DECL_SECTION_NAME (decl) = chosen_section;
+	}
     }
 }
 
@@ -2697,7 +2629,7 @@ construct_dispose_instruction (rtx op)
   int                count = XVECLEN (op, 0);
   int                stack_bytes;
   unsigned long int  mask;
-  int                     i;
+  int		     i;
   static char        buff[ 100 ]; /* XXX */
   int                use_callt = 0;
   
@@ -2736,34 +2668,34 @@ construct_dispose_instruction (rtx op)
       gcc_assert (GET_CODE (vector_element) == SET);
       gcc_assert (GET_CODE (SET_DEST (vector_element)) == REG);
       gcc_assert (register_is_ok_for_epilogue (SET_DEST (vector_element),
-                                               SImode));
+					       SImode));
 
       if (REGNO (SET_DEST (vector_element)) == 2)
-        use_callt = 1;
+	use_callt = 1;
       else
         mask |= 1 << REGNO (SET_DEST (vector_element));
     }
 
   if (! TARGET_DISABLE_CALLT
-      && (use_callt || stack_bytes == 0 || stack_bytes == 16))
+      && (use_callt || stack_bytes == 0))
     {
       if (use_callt)
-        {
-          sprintf (buff, "callt ctoff(__callt_return_r2_r%d)", (mask & (1 << 31)) ? 31 : 29);
-          return buff;
-        }
+	{
+	  sprintf (buff, "callt ctoff(__callt_return_r2_r%d)", (mask & (1 << 31)) ? 31 : 29);
+	  return buff;
+	}
       else
-        {
-          for (i = 20; i < 32; i++)
-            if (mask & (1 << i))
-              break;
-          
-          if (i == 31)
-            sprintf (buff, "callt ctoff(__callt_return_r31c)");
-          else
-            sprintf (buff, "callt ctoff(__callt_return_r%d_r%d%s)",
-                     i, (mask & (1 << 31)) ? 31 : 29, stack_bytes ? "c" : "");
-        }
+	{
+	  for (i = 20; i < 32; i++)
+	    if (mask & (1 << i))
+	      break;
+	  
+	  if (i == 31)
+	    sprintf (buff, "callt ctoff(__callt_return_r31c)");
+	  else
+	    sprintf (buff, "callt ctoff(__callt_return_r%d_r%s)",
+		     i, (mask & (1 << 31)) ? "31c" : "29");
+	}
     }
   else
     {
@@ -2771,36 +2703,36 @@ construct_dispose_instruction (rtx op)
       int                done_one;
       
       /* Generate the DISPOSE instruction.  Note we could just issue the
-         bit mask as a number as the assembler can cope with this, but for
-         the sake of our readers we turn it into a textual description.  */
+	 bit mask as a number as the assembler can cope with this, but for
+	 the sake of our readers we turn it into a textual description.  */
       regs[0] = 0;
       done_one = 0;
       
       for (i = 20; i < 32; i++)
-        {
-          if (mask & (1 << i))
-            {
-              int first;
-              
-              if (done_one)
-                strcat (regs, ", ");
-              else
-                done_one = 1;
-              
-              first = i;
-              strcat (regs, reg_names[ first ]);
-              
-              for (i++; i < 32; i++)
-                if ((mask & (1 << i)) == 0)
-                  break;
-              
-              if (i > first + 1)
-                {
-                  strcat (regs, " - ");
-                  strcat (regs, reg_names[ i - 1 ] );
-                }
-            }
-        }
+	{
+	  if (mask & (1 << i))
+	    {
+	      int first;
+	      
+	      if (done_one)
+		strcat (regs, ", ");
+	      else
+		done_one = 1;
+	      
+	      first = i;
+	      strcat (regs, reg_names[ first ]);
+	      
+	      for (i++; i < 32; i++)
+		if ((mask & (1 << i)) == 0)
+		  break;
+	      
+	      if (i > first + 1)
+		{
+		  strcat (regs, " - ");
+		  strcat (regs, reg_names[ i - 1 ] );
+		}
+	    }
+	}
       
       sprintf (buff, "dispose %d {%s}, r31", stack_bytes / 4, regs);
     }
@@ -2815,16 +2747,16 @@ construct_dispose_instruction (rtx op)
 char *
 construct_prepare_instruction (rtx op)
 {
-  int                count = XVECLEN (op, 0);
+  int                count;
   int                stack_bytes;
   unsigned long int  mask;
-  int                     i;
+  int		     i;
   static char        buff[ 100 ]; /* XXX */
-  int                     use_callt = 0;
+  int		     use_callt = 0;
   
-  if (count <= 1)
+  if (XVECLEN (op, 0) <= 1)
     {
-      error ("bogus PREPEARE construction: %d", count);
+      error ("bogus PREPEARE construction: %d", XVECLEN (op, 0));
       return NULL;
     }
 
@@ -2836,8 +2768,6 @@ construct_prepare_instruction (rtx op)
     
   stack_bytes = INTVAL (XEXP (SET_SRC (XVECEXP (op, 0, 0)), 1));
 
-  /* Each push will put 4 bytes from the stack.  */
-  stack_bytes += (count - 1) * 4;
 
   /* Make sure that the amount we are popping
      will fit into the DISPOSE instruction.  */
@@ -2848,40 +2778,47 @@ construct_prepare_instruction (rtx op)
     }
 
   /* Now compute the bit mask of registers to push.  */
+  count = 0;
   mask = 0;
-  for (i = 1; i < count; i++)
+  for (i = 1; i < XVECLEN (op, 0); i++)
     {
       rtx vector_element = XVECEXP (op, 0, i);
+      
+      if (GET_CODE (vector_element) == CLOBBER)
+	continue;
       
       gcc_assert (GET_CODE (vector_element) == SET);
       gcc_assert (GET_CODE (SET_SRC (vector_element)) == REG);
       gcc_assert (register_is_ok_for_epilogue (SET_SRC (vector_element),
-                                               SImode));
+					       SImode));
 
       if (REGNO (SET_SRC (vector_element)) == 2)
-        use_callt = 1;
+	use_callt = 1;
       else
-        mask |= 1 << REGNO (SET_SRC (vector_element));
+	mask |= 1 << REGNO (SET_SRC (vector_element));
+      count++;
     }
 
+  stack_bytes += count * 4;
+
   if ((! TARGET_DISABLE_CALLT)
-      && (use_callt || stack_bytes == 0 || stack_bytes == -16))
+      && (use_callt || stack_bytes == 0))
     {
       if (use_callt)
-        {
-          sprintf (buff, "callt ctoff(__callt_save_r2_r%d)", (mask & (1 << 31)) ? 31 : 29 );
-          return buff;
-        }
+	{
+	  sprintf (buff, "callt ctoff(__callt_save_r2_r%d)", (mask & (1 << 31)) ? 31 : 29 );
+	  return buff;
+	}
       
       for (i = 20; i < 32; i++)
-        if (mask & (1 << i))
-          break;
+	if (mask & (1 << i))
+	  break;
 
       if (i == 31)
-        sprintf (buff, "callt ctoff(__callt_save_r31c)");
+	sprintf (buff, "callt ctoff(__callt_save_r31c)");
       else
-        sprintf (buff, "callt ctoff(__callt_save_r%d_r%d%s)",
-                 i, (mask & (1 << 31)) ? 31 : 29, stack_bytes ? "c" : "");
+	sprintf (buff, "callt ctoff(__callt_save_r%d_r%s)",
+		 i, (mask & (1 << 31)) ? "31c" : "29");
     }
   else
     {
@@ -2890,43 +2827,43 @@ construct_prepare_instruction (rtx op)
 
       
       /* Generate the PREPARE instruction.  Note we could just issue the
-         bit mask as a number as the assembler can cope with this, but for
-         the sake of our readers we turn it into a textual description.  */      
+	 bit mask as a number as the assembler can cope with this, but for
+	 the sake of our readers we turn it into a textual description.  */      
       regs[0] = 0;
       done_one = 0;
       
       for (i = 20; i < 32; i++)
-        {
-          if (mask & (1 << i))
-            {
-              int first;
-              
-              if (done_one)
-                strcat (regs, ", ");
-              else
-                done_one = 1;
-              
-              first = i;
-              strcat (regs, reg_names[ first ]);
-              
-              for (i++; i < 32; i++)
-                if ((mask & (1 << i)) == 0)
-                  break;
-              
-              if (i > first + 1)
-                {
-                  strcat (regs, " - ");
-                  strcat (regs, reg_names[ i - 1 ] );
-                }
-            }
-        }
-               
+	{
+	  if (mask & (1 << i))
+	    {
+	      int first;
+	      
+	      if (done_one)
+		strcat (regs, ", ");
+	      else
+		done_one = 1;
+	      
+	      first = i;
+	      strcat (regs, reg_names[ first ]);
+	      
+	      for (i++; i < 32; i++)
+		if ((mask & (1 << i)) == 0)
+		  break;
+	      
+	      if (i > first + 1)
+		{
+		  strcat (regs, " - ");
+		  strcat (regs, reg_names[ i - 1 ] );
+		}
+	    }
+	}
+      	 
       sprintf (buff, "prepare {%s}, %d", regs, (- stack_bytes) / 4);
     }
   
   return buff;
 }
-
+
 /* Return an RTX indicating where the return address to the
    calling function can be found.  */
 
@@ -2946,24 +2883,24 @@ v850_asm_init_sections (void)
 {
   rosdata_section
     = get_unnamed_section (0, output_section_asm_op,
-                           "\t.section .rosdata,\"a\"");
+			   "\t.section .rosdata,\"a\"");
 
   rozdata_section
     = get_unnamed_section (0, output_section_asm_op,
-                           "\t.section .rozdata,\"a\"");
+			   "\t.section .rozdata,\"a\"");
 
   tdata_section
     = get_unnamed_section (SECTION_WRITE, output_section_asm_op,
-                           "\t.section .tdata,\"aw\"");
+			   "\t.section .tdata,\"aw\"");
 
   zdata_section
     = get_unnamed_section (SECTION_WRITE, output_section_asm_op,
-                           "\t.section .zdata,\"aw\"");
+			   "\t.section .zdata,\"aw\"");
 
   zbss_section
     = get_unnamed_section (SECTION_WRITE | SECTION_BSS,
-                           output_section_asm_op,
-                           "\t.section .zbss,\"aw\"");
+			   output_section_asm_op,
+			   "\t.section .zbss,\"aw\"");
 }
 
 static section *
@@ -2975,10 +2912,10 @@ v850_select_section (tree exp,
     {
       int is_const;
       if (!TREE_READONLY (exp)
-          || TREE_SIDE_EFFECTS (exp)
-          || !DECL_INITIAL (exp)
-          || (DECL_INITIAL (exp) != error_mark_node
-              && !TREE_CONSTANT (DECL_INITIAL (exp))))
+	  || TREE_SIDE_EFFECTS (exp)
+	  || !DECL_INITIAL (exp)
+	  || (DECL_INITIAL (exp) != error_mark_node
+	      && !TREE_CONSTANT (DECL_INITIAL (exp))))
         is_const = FALSE;
       else
         is_const = TRUE;
@@ -2986,40 +2923,267 @@ v850_select_section (tree exp,
       switch (v850_get_data_area (exp))
         {
         case DATA_AREA_ZDA:
-          return is_const ? rozdata_section : zdata_section;
+	  return is_const ? rozdata_section : zdata_section;
 
         case DATA_AREA_TDA:
-          return tdata_section;
+	  return tdata_section;
 
         case DATA_AREA_SDA:
-          return is_const ? rosdata_section : sdata_section;
+	  return is_const ? rosdata_section : sdata_section;
 
         default:
-          return is_const ? readonly_data_section : data_section;
+	  return is_const ? readonly_data_section : data_section;
         }
     }
   return readonly_data_section;
 }
 
+/* Worker function for TARGET_FUNCTION_VALUE_REGNO_P.  */
+
+static bool
+v850_function_value_regno_p (const unsigned int regno)
+{
+  return (regno == 10);
+}
+
 /* Worker function for TARGET_RETURN_IN_MEMORY.  */
 
 static bool
-v850_return_in_memory (tree type, tree fntype ATTRIBUTE_UNUSED)
+v850_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 {
   /* Return values > 8 bytes in length in memory.  */
   return int_size_in_bytes (type) > 8 || TYPE_MODE (type) == BLKmode;
 }
+
+/* Worker function for TARGET_FUNCTION_VALUE.  */
+
+static rtx
+v850_function_value (const_tree valtype, 
+                    const_tree fn_decl_or_type ATTRIBUTE_UNUSED,
+                    bool outgoing ATTRIBUTE_UNUSED)
+{
+  return gen_rtx_REG (TYPE_MODE (valtype), 10);
+}
+
 
 /* Worker function for TARGET_SETUP_INCOMING_VARARGS.  */
 
 static void
-v850_setup_incoming_varargs (CUMULATIVE_ARGS *ca,
-                             enum machine_mode mode ATTRIBUTE_UNUSED,
-                             tree type ATTRIBUTE_UNUSED,
-                             int *pretend_arg_size ATTRIBUTE_UNUSED,
-                             int second_time ATTRIBUTE_UNUSED)
+v850_setup_incoming_varargs (cumulative_args_t ca,
+			     enum machine_mode mode ATTRIBUTE_UNUSED,
+			     tree type ATTRIBUTE_UNUSED,
+			     int *pretend_arg_size ATTRIBUTE_UNUSED,
+			     int second_time ATTRIBUTE_UNUSED)
 {
-  ca->anonymous_args = (!TARGET_GHS ? 1 : 0);
+  get_cumulative_args (ca)->anonymous_args = (!TARGET_GHS ? 1 : 0);
 }
+
+/* Worker function for TARGET_CAN_ELIMINATE.  */
+
+static bool
+v850_can_eliminate (const int from ATTRIBUTE_UNUSED, const int to)
+{
+  return (to == STACK_POINTER_REGNUM ? ! frame_pointer_needed : true);
+}
+
+/* Worker function for TARGET_CONDITIONAL_REGISTER_USAGE.
+
+   If TARGET_APP_REGS is not defined then add r2 and r5 to
+   the pool of fixed registers. See PR 14505.  */
+
+static void
+v850_conditional_register_usage (void)
+{
+  if (TARGET_APP_REGS)
+    {
+     fixed_regs[2] = 0;  call_used_regs[2] = 0;
+     fixed_regs[5] = 0;  call_used_regs[5] = 1;
+    }
+}
+
+/* Worker function for TARGET_ASM_TRAMPOLINE_TEMPLATE.  */
+
+static void
+v850_asm_trampoline_template (FILE *f)
+{
+  fprintf (f, "\tjarl .+4,r12\n");
+  fprintf (f, "\tld.w 12[r12],r20\n");
+  fprintf (f, "\tld.w 16[r12],r12\n");
+  fprintf (f, "\tjmp [r12]\n");
+  fprintf (f, "\tnop\n");
+  fprintf (f, "\t.long 0\n");
+  fprintf (f, "\t.long 0\n");
+}
+
+/* Worker function for TARGET_TRAMPOLINE_INIT.  */
+
+static void
+v850_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
+{
+  rtx mem, fnaddr = XEXP (DECL_RTL (fndecl), 0);
+
+  emit_block_move (m_tramp, assemble_trampoline_template (),
+		   GEN_INT (TRAMPOLINE_SIZE), BLOCK_OP_NORMAL);
+
+  mem = adjust_address (m_tramp, SImode, 16);
+  emit_move_insn (mem, chain_value);
+  mem = adjust_address (m_tramp, SImode, 20);
+  emit_move_insn (mem, fnaddr);
+}
+
+static int
+v850_issue_rate (void)
+{
+  return (TARGET_V850E2_ALL? 2 : 1);
+}
+
+/* Implement TARGET_LEGITIMATE_CONSTANT_P.  */
+
+static bool
+v850_legitimate_constant_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
+{
+  return (GET_CODE (x) == CONST_DOUBLE
+	  || !(GET_CODE (x) == CONST
+	       && GET_CODE (XEXP (x, 0)) == PLUS
+	       && GET_CODE (XEXP (XEXP (x, 0), 0)) == SYMBOL_REF
+	       && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT
+	       && !CONST_OK_FOR_K (INTVAL (XEXP (XEXP (x, 0), 1)))));
+}
+
+static int
+v850_memory_move_cost (enum machine_mode mode,
+		       reg_class_t reg_class ATTRIBUTE_UNUSED,
+		       bool in)
+{
+  switch (GET_MODE_SIZE (mode))
+    {
+    case 0:
+      return in ? 24 : 8;
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+      return in ? 6 : 2;
+    default:
+      return (GET_MODE_SIZE (mode) / 2) * (in ? 3 : 1);
+    }
+}
+
+/* V850 specific attributes.  */
+
+static const struct attribute_spec v850_attribute_table[] =
+{
+  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
+       affects_type_identity } */
+  { "interrupt_handler", 0, 0, true,  false, false,
+    v850_handle_interrupt_attribute, false },
+  { "interrupt",         0, 0, true,  false, false,
+    v850_handle_interrupt_attribute, false },
+  { "sda",               0, 0, true,  false, false,
+    v850_handle_data_area_attribute, false },
+  { "tda",               0, 0, true,  false, false,
+    v850_handle_data_area_attribute, false },
+  { "zda",               0, 0, true,  false, false,
+    v850_handle_data_area_attribute, false },
+  { NULL,                0, 0, false, false, false, NULL, false }
+};
+
+/* Initialize the GCC target structure.  */
+
+#undef  TARGET_MEMORY_MOVE_COST
+#define TARGET_MEMORY_MOVE_COST v850_memory_move_cost
+
+#undef  TARGET_ASM_ALIGNED_HI_OP
+#define TARGET_ASM_ALIGNED_HI_OP "\t.hword\t"
+
+#undef  TARGET_PRINT_OPERAND
+#define TARGET_PRINT_OPERAND v850_print_operand
+#undef  TARGET_PRINT_OPERAND_ADDRESS
+#define TARGET_PRINT_OPERAND_ADDRESS v850_print_operand_address
+#undef  TARGET_PRINT_OPERAND_PUNCT_VALID_P
+#define TARGET_PRINT_OPERAND_PUNCT_VALID_P v850_print_operand_punct_valid_p
+
+#undef TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
+#define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA v850_output_addr_const_extra
+
+#undef  TARGET_ATTRIBUTE_TABLE
+#define TARGET_ATTRIBUTE_TABLE v850_attribute_table
+
+#undef  TARGET_INSERT_ATTRIBUTES
+#define TARGET_INSERT_ATTRIBUTES v850_insert_attributes
+
+#undef  TARGET_ASM_SELECT_SECTION
+#define TARGET_ASM_SELECT_SECTION  v850_select_section
+
+/* The assembler supports switchable .bss sections, but
+   v850_select_section doesn't yet make use of them.  */
+#undef  TARGET_HAVE_SWITCHABLE_BSS_SECTIONS
+#define TARGET_HAVE_SWITCHABLE_BSS_SECTIONS false
+
+#undef  TARGET_ENCODE_SECTION_INFO
+#define TARGET_ENCODE_SECTION_INFO v850_encode_section_info
+
+#undef  TARGET_ASM_FILE_START_FILE_DIRECTIVE
+#define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
+
+#undef  TARGET_RTX_COSTS
+#define TARGET_RTX_COSTS v850_rtx_costs
+
+#undef  TARGET_ADDRESS_COST
+#define TARGET_ADDRESS_COST hook_int_rtx_bool_0
+
+#undef  TARGET_MACHINE_DEPENDENT_REORG
+#define TARGET_MACHINE_DEPENDENT_REORG v850_reorg
+
+#undef  TARGET_SCHED_ISSUE_RATE
+#define TARGET_SCHED_ISSUE_RATE v850_issue_rate
+
+#undef  TARGET_FUNCTION_VALUE_REGNO_P
+#define TARGET_FUNCTION_VALUE_REGNO_P v850_function_value_regno_p
+#undef  TARGET_FUNCTION_VALUE
+#define TARGET_FUNCTION_VALUE v850_function_value
+
+#undef  TARGET_PROMOTE_PROTOTYPES
+#define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
+
+#undef  TARGET_RETURN_IN_MEMORY
+#define TARGET_RETURN_IN_MEMORY v850_return_in_memory
+
+#undef  TARGET_PASS_BY_REFERENCE
+#define TARGET_PASS_BY_REFERENCE v850_pass_by_reference
+
+#undef  TARGET_CALLEE_COPIES
+#define TARGET_CALLEE_COPIES hook_bool_CUMULATIVE_ARGS_mode_tree_bool_true
+
+#undef  TARGET_SETUP_INCOMING_VARARGS
+#define TARGET_SETUP_INCOMING_VARARGS v850_setup_incoming_varargs
+
+#undef  TARGET_ARG_PARTIAL_BYTES
+#define TARGET_ARG_PARTIAL_BYTES v850_arg_partial_bytes
+
+#undef  TARGET_FUNCTION_ARG
+#define TARGET_FUNCTION_ARG v850_function_arg
+
+#undef  TARGET_FUNCTION_ARG_ADVANCE
+#define TARGET_FUNCTION_ARG_ADVANCE v850_function_arg_advance
+
+#undef  TARGET_CAN_ELIMINATE
+#define TARGET_CAN_ELIMINATE v850_can_eliminate
+
+#undef  TARGET_CONDITIONAL_REGISTER_USAGE
+#define TARGET_CONDITIONAL_REGISTER_USAGE v850_conditional_register_usage
+
+#undef  TARGET_ASM_TRAMPOLINE_TEMPLATE
+#define TARGET_ASM_TRAMPOLINE_TEMPLATE v850_asm_trampoline_template
+#undef  TARGET_TRAMPOLINE_INIT
+#define TARGET_TRAMPOLINE_INIT v850_trampoline_init
+
+#undef  TARGET_STRICT_ARGUMENT_NAMING
+#define TARGET_STRICT_ARGUMENT_NAMING v850_strict_argument_naming
+
+#undef  TARGET_LEGITIMATE_CONSTANT_P
+#define TARGET_LEGITIMATE_CONSTANT_P v850_legitimate_constant_p
+
+struct gcc_target targetm = TARGET_INITIALIZER;
 
 #include "gt-v850.h"

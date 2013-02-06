@@ -1,11 +1,11 @@
 /* Definitions for ELF assembler support.
-   Copyright (C) 1999, 2003, 2005 Free Software Foundation, Inc.
+   Copyright (C) 1999, 2003, 2005, 2007 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 /* So we can conditionalize small amounts of code in pa.c or pa.md.  */
 #define OBJ_ELF
@@ -24,9 +23,9 @@ Boston, MA 02110-1301, USA.  */
 #define ENDFILE_SPEC "crtend.o%s"
 
 #define STARTFILE_SPEC "%{!shared: \
-                         %{!symbolic: \
-                          %{pg:gcrt0.o%s}%{!pg:%{p:mcrt0.o%s}%{!p:crt0.o%s}}}}\
-                        crtbegin.o%s"
+			 %{!symbolic: \
+			  %{pg:gcrt0.o%s}%{!pg:%{p:mcrt0.o%s}%{!p:crt0.o%s}}}}\
+			crtbegin.o%s"
 
 #define TEXT_SECTION_ASM_OP "\t.text"
 #define DATA_SECTION_ASM_OP "\t.data"
@@ -61,12 +60,12 @@ do {  \
 #define ASM_OUTPUT_EXTERNAL(FILE, DECL, NAME) \
   pa_hpux_asm_output_external ((FILE), (DECL), (NAME))
 #define ASM_OUTPUT_EXTERNAL_REAL(FILE, DECL, NAME) \
-  do { fputs ("\t.IMPORT ", FILE);                                        \
-       assemble_name_raw (FILE, NAME);                                        \
-       if (FUNCTION_NAME_P (NAME))                                             \
-         fputs (",ENTRY\n", FILE);                                        \
-       else                                                                \
-         fputs (",DATA\n", FILE);                                        \
+  do { fputs ("\t.IMPORT ", FILE);					\
+       assemble_name_raw (FILE, NAME);					\
+       if (FUNCTION_NAME_P (NAME))     					\
+	 fputs (",ENTRY\n", FILE);					\
+       else								\
+	 fputs (",DATA\n", FILE);					\
      } while (0)
 
 /* The bogus HP assembler requires ALL external references to be
@@ -79,11 +78,11 @@ do {  \
 
 #undef ASM_OUTPUT_EXTERNAL_LIBCALL
 #define ASM_OUTPUT_EXTERNAL_LIBCALL(FILE, RTL) \
-  do { fputs ("\t.IMPORT ", FILE);                                        \
-       if (!function_label_operand (RTL, VOIDmode))                        \
-         hppa_encode_label (RTL);                                        \
-       assemble_name (FILE, XSTR ((RTL), 0));                                       \
-       fputs (",ENTRY\n", FILE);                                        \
+  do { fputs ("\t.IMPORT ", FILE);					\
+       if (!function_label_operand (RTL, VOIDmode))			\
+	 pa_encode_label (RTL);						\
+       assemble_name (FILE, XSTR ((RTL), 0));		       		\
+       fputs (",ENTRY\n", FILE);					\
      } while (0)
 
 /* Biggest alignment supported by the object file format of this

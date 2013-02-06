@@ -1,12 +1,13 @@
 /* Darwin support needed only by C/C++ frontends.
-   Copyright (C) 2001, 2003, 2004, 2005  Free Software Foundation, Inc.
+   Copyright (C) 2001, 2003, 2004, 2005, 2007, 2008, 2010, 2011
+   Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -15,9 +16,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
@@ -25,15 +25,17 @@ Boston, MA 02110-1301, USA.  */
 #include "tm.h"
 #include "cpplib.h"
 #include "tree.h"
-#include "c-pragma.h"
-#include "c-tree.h"
-#include "c-incpath.h"
-#include "c-common.h"
-#include "toplev.h"
+#include "incpath.h"
+#include "c-family/c-common.h"
+#include "c-family/c-pragma.h"
+#include "c-family/c-format.h"
+#include "diagnostic-core.h"
 #include "flags.h"
 #include "tm_p.h"
 #include "cppdefault.h"
 #include "prefix.h"
+#include "c-family/c-target.h"
+#include "c-family/c-target-def.h"
 
 /* Pragmas.  */
 
@@ -42,15 +44,8 @@ Boston, MA 02110-1301, USA.  */
 
 static bool using_frameworks = false;
 
-/* Maintain a small stack of alignments.  This is similar to pragma
-   pack's stack, but simpler.  */
-
-static void push_field_alignment (int);
-static void pop_field_alignment (void);
-static const char *find_subframework_file (const char *, const char *);
-static void add_system_framework_path (char *);
 static const char *find_subframework_header (cpp_reader *pfile, const char *header,
-                                             cpp_dir **dirp);
+					     cpp_dir **dirp);
 
 typedef struct align_stack
 {
@@ -59,6 +54,9 @@ typedef struct align_stack
 } align_stack;
 
 static struct align_stack * field_align_stack = NULL;
+
+/* Maintain a small stack of alignments.  This is similar to pragma
+   pack's stack, but simpler.  */
 
 static void
 push_field_alignment (int bit_alignment)
@@ -142,15 +140,18 @@ darwin_pragma_unused (cpp_reader *pfile ATTRIBUTE_UNUSED)
     {
       tok = pragma_lex (&decl);
       if (tok == CPP_NAME && decl)
-        {
-          tree local = lookup_name (decl);
-          if (local && (TREE_CODE (local) == PARM_DECL
-                        || TREE_CODE (local) == VAR_DECL))
-            TREE_USED (local) = 1;
-          tok = pragma_lex (&x);
-          if (tok != CPP_COMMA)
-            break;
-        }
+	{
+	  tree local = lookup_name (decl);
+	  if (local && (TREE_CODE (local) == PARM_DECL
+			|| TREE_CODE (local) == VAR_DECL))
+	    {
+	      TREE_USED (local) = 1;
+	      DECL_READ_P (local) = 1;
+	    }
+	  tok = pragma_lex (&x);
+	  if (tok != CPP_COMMA)
+	    break;
+	}
     }
 
   if (tok != CPP_CLOSE_PAREN)
@@ -182,7 +183,7 @@ darwin_pragma_ms_struct (cpp_reader *pfile ATTRIBUTE_UNUSED)
     BAD ("junk at end of '#pragma ms_struct'");
 }
 
-static struct {
+static struct frameworks_in_use {
   size_t len;
   const char *name;
   cpp_dir* dir;
@@ -205,17 +206,17 @@ add_framework (const char *name, size_t len, cpp_dir *dir)
   for (i = 0; i < num_frameworks; ++i)
     {
       if (len == frameworks_in_use[i].len
-          && strncmp (name, frameworks_in_use[i].name, len) == 0)
-        {
-          return;
-        }
+	  && strncmp (name, frameworks_in_use[i].name, len) == 0)
+	{
+	  return;
+	}
     }
   if (i >= max_frameworks)
     {
       max_frameworks = i*2;
       max_frameworks += i == 0;
-      frameworks_in_use = xrealloc (frameworks_in_use,
-                                    max_frameworks*sizeof(*frameworks_in_use));
+      frameworks_in_use = XRESIZEVEC (struct frameworks_in_use,
+				      frameworks_in_use, max_frameworks);
     }
   dir_name = XNEWVEC (char, len + 1);
   memcpy (dir_name, name, len);
@@ -237,10 +238,10 @@ find_framework (const char *name, size_t len)
   for (i = 0; i < num_frameworks; ++i)
     {
       if (len == frameworks_in_use[i].len
-          && strncmp (name, frameworks_in_use[i].name, len) == 0)
-        {
-          return frameworks_in_use[i].dir;
-        }
+	  && strncmp (name, frameworks_in_use[i].name, len) == 0)
+	{
+	  return frameworks_in_use[i].dir;
+	}
     }
   return 0;
 }
@@ -285,7 +286,7 @@ framework_construct_pathname (const char *fname, cpp_dir *dir)
     return 0;
 
   frname = XNEWVEC (char, strlen (fname) + dir->len + 2
-                    + strlen(".framework/") + strlen("PrivateHeaders"));
+		    + strlen(".framework/") + strlen("PrivateHeaders"));
   strncpy (&frname[0], dir->name, dir->len);
   frname_len = dir->len;
   if (frname_len && frname[frname_len-1] != '/')
@@ -299,19 +300,19 @@ framework_construct_pathname (const char *fname, cpp_dir *dir)
     {
       frname[frname_len-1] = 0;
       if (stat (frname, &st) == 0)
-        {
-          /* As soon as we find the first instance of the framework,
-             we stop and never use any later instance of that
-             framework.  */
-          add_framework (fname, fname_len, dir);
-        }
+	{
+	  /* As soon as we find the first instance of the framework,
+	     we stop and never use any later instance of that
+	     framework.  */
+	  add_framework (fname, fname_len, dir);
+	}
       else
-        {
-          /* If we can't find the parent directory, no point looking
-             further.  */
-          free (frname);
-          return 0;
-        }
+	{
+	  /* If we can't find the parent directory, no point looking
+	     further.  */
+	  free (frname);
+	  return 0;
+	}
       frname[frname_len-1] = '/';
     }
 
@@ -319,13 +320,13 @@ framework_construct_pathname (const char *fname, cpp_dir *dir)
   for (i = 0; framework_header_dirs[i].dirName; i++)
     {
       strncpy (&frname[frname_len],
-               framework_header_dirs[i].dirName,
-               framework_header_dirs[i].dirNameLen);
+	       framework_header_dirs[i].dirName,
+	       framework_header_dirs[i].dirNameLen);
       strcpy (&frname[frname_len + framework_header_dirs[i].dirNameLen],
-              &fname[fname_len]);
+	      &fname[fname_len]);
 
       if (stat (frname, &st) == 0)
-        return frname;
+	return frname;
     }
 
   free (frname);
@@ -373,8 +374,8 @@ find_subframework_file (const char *fname, const char *pname)
      sfrname = /System/Library/Frameworks/Foundation.framework/Frameworks/CarbonCore.framework/Headers/OSUtils.h */
 
   sfrname = XNEWVEC (char, strlen (pname) + strlen (fname) + 2 +
-                              strlen ("Frameworks/") + strlen (".framework/")
-                              + strlen ("PrivateHeaders"));
+			      strlen ("Frameworks/") + strlen (".framework/")
+			      + strlen ("PrivateHeaders"));
 
   bufptr += strlen (dot_framework);
 
@@ -395,24 +396,24 @@ find_subframework_file (const char *fname, const char *pname)
   for (i = 0; framework_header_dirs[i].dirName; i++)
     {
       strncpy (&sfrname[sfrname_len],
-               framework_header_dirs[i].dirName,
-               framework_header_dirs[i].dirNameLen);
+	       framework_header_dirs[i].dirName,
+	       framework_header_dirs[i].dirNameLen);
       strcpy (&sfrname[sfrname_len + framework_header_dirs[i].dirNameLen],
-              &fname[fname_len]);
+	      &fname[fname_len]);
 
       if (stat (sfrname, &st) == 0)
-        {
-          if (fast_dir != &subframe_dir)
-            {
-              if (fast_dir)
-                warning (0, "subframework include %s conflicts with framework include",
-                         fname);
-              else
-                add_framework (fname, fname_len, &subframe_dir);
-            }
+	{
+	  if (fast_dir != &subframe_dir)
+	    {
+	      if (fast_dir)
+		warning (0, "subframework include %s conflicts with framework include",
+			 fname);
+	      else
+		add_framework (fname, fname_len, &subframe_dir);
+	    }
 
-          return sfrname;
-        }
+	  return sfrname;
+	}
     }
   free (sfrname);
 
@@ -466,7 +467,7 @@ static const char *framework_defaults [] =
 
 void
 darwin_register_objc_includes (const char *sysroot, const char *iprefix,
-                               int stdinc)
+			       int stdinc)
 {
   const char *fname;
   size_t len;
@@ -483,21 +484,21 @@ darwin_register_objc_includes (const char *sysroot, const char *iprefix,
     {
       char *str;
       /* See if our directory starts with the standard prefix.
-         "Translate" them, i.e. replace /usr/local/lib/gcc... with
-         IPREFIX and search them first.  */
+	 "Translate" them, i.e. replace /usr/local/lib/gcc... with
+	 IPREFIX and search them first.  */
       if (iprefix && (len = cpp_GCC_INCLUDE_DIR_len) != 0 && !sysroot
-          && !strncmp (fname, cpp_GCC_INCLUDE_DIR, len))
-        {
-          str = concat (iprefix, fname + len, NULL);
+	  && !strncmp (fname, cpp_GCC_INCLUDE_DIR, len))
+	{
+	  str = concat (iprefix, fname + len, NULL);
           /* FIXME: wrap the headers for C++awareness.  */
-          add_path (str, SYSTEM, /*c++aware=*/false, false);
-        }
+	  add_path (str, SYSTEM, /*c++aware=*/false, false);
+	}
 
       /* Should this directory start with the sysroot?  */
       if (sysroot)
-        str = concat (sysroot, fname, NULL);
+	str = concat (sysroot, fname, NULL);
       else
-        str = update_path (fname, "");
+	str = update_path (fname, "");
 
       add_path (str, SYSTEM, /*c++aware=*/false, false);
     }
@@ -510,7 +511,7 @@ darwin_register_objc_includes (const char *sysroot, const char *iprefix,
 
 void
 darwin_register_frameworks (const char *sysroot,
-                            const char *iprefix ATTRIBUTE_UNUSED, int stdinc)
+			    const char *iprefix ATTRIBUTE_UNUSED, int stdinc)
 {
   if (stdinc)
     {
@@ -518,15 +519,15 @@ darwin_register_frameworks (const char *sysroot,
 
       /* Setup default search path for frameworks.  */
       for (i=0; i<sizeof (framework_defaults)/sizeof(const char *); ++i)
-        {
-          char *str;
-          if (sysroot)
-            str = concat (sysroot, xstrdup (framework_defaults [i]), NULL);
-          else
-            str = xstrdup (framework_defaults[i]);
-          /* System Framework headers are cxx aware.  */
-          add_system_framework_path (str);
-        }
+	{
+	  char *str;
+	  if (sysroot)
+	    str = concat (sysroot, xstrdup (framework_defaults [i]), NULL);
+	  else
+	    str = xstrdup (framework_defaults[i]);
+	  /* System Framework headers are cxx aware.  */
+	  add_system_framework_path (str);
+	}
     }
 
   if (using_frameworks)
@@ -554,14 +555,14 @@ find_subframework_header (cpp_reader *pfile, const char *header, cpp_dir **dirp)
     {
       n = find_subframework_file (fname, cpp_get_path (cpp_get_file (b)));
       if (n)
-        {
-          /* Logically, the place where we found the subframework is
-             the place where we found the Framework that contains the
-             subframework.  This is useful for tracking wether or not
-             we are in a system header.  */
-          *dirp = cpp_get_dir (cpp_get_file (b));
-          return n;
-        }
+	{
+	  /* Logically, the place where we found the subframework is
+	     the place where we found the Framework that contains the
+	     subframework.  This is useful for tracking wether or not
+	     we are in a system header.  */
+	  *dirp = cpp_get_dir (cpp_get_file (b));
+	  return n;
+	}
     }
 
   return 0;
@@ -569,8 +570,8 @@ find_subframework_header (cpp_reader *pfile, const char *header, cpp_dir **dirp)
 
 /* Return the value of darwin_macosx_version_min suitable for the
    __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ macro,
-   so '10.4.2' becomes 1042.
-   Print a warning if the version number is not known.  */
+   so '10.4.2' becomes 1040.  The lowest digit is always zero.
+   Print a warning if the version number can't be understood.  */
 static const char *
 version_as_macro (void)
 {
@@ -581,24 +582,15 @@ version_as_macro (void)
   if (! ISDIGIT (darwin_macosx_version_min[3]))
     goto fail;
   result[2] = darwin_macosx_version_min[3];
-  if (darwin_macosx_version_min[4] != '\0')
-    {
-      if (darwin_macosx_version_min[4] != '.')
-        goto fail;
-      if (! ISDIGIT (darwin_macosx_version_min[5]))
-        goto fail;
-      if (darwin_macosx_version_min[6] != '\0')
-        goto fail;
-      result[3] = darwin_macosx_version_min[5];
-    }
-  else
-    result[3] = '0';
+  if (darwin_macosx_version_min[4] != '\0'
+      && darwin_macosx_version_min[4] != '.')
+    goto fail;
 
   return result;
 
  fail:
-  error ("Unknown value %qs of -mmacosx-version-min",
-         darwin_macosx_version_min);
+  error ("unknown value %qs of -mmacosx-version-min",
+	 darwin_macosx_version_min);
   return "1000";
 }
 
@@ -616,7 +608,119 @@ darwin_cpp_builtins (cpp_reader *pfile)
      to be defined and won't work if it isn't.  */
   builtin_define_with_value ("__APPLE_CC__", "1", false);
 
-  if (darwin_macosx_version_min)
-    builtin_define_with_value ("__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",
-                               version_as_macro(), false);
+  if (darwin_constant_cfstrings)
+    builtin_define ("__CONSTANT_CFSTRINGS__");
+
+  builtin_define_with_value ("__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",
+			     version_as_macro(), false);
+
+  /* Since we do not (at 4.6) support ObjC gc for the NeXT runtime, the
+     following will cause a syntax error if one tries to compile gc attributed
+     items.  However, without this, NeXT system headers cannot be parsed 
+     properly (on systems >= darwin 9).  */
+  if (flag_objc_gc)
+    {
+      builtin_define ("__strong=__attribute__((objc_gc(strong)))");
+      builtin_define ("__weak=__attribute__((objc_gc(weak)))");
+      builtin_define ("__OBJC_GC__");
+    }
+  else
+    {
+      builtin_define ("__strong=");
+      builtin_define ("__weak=");
+    }
+
+  if (flag_objc_abi == 2)
+    builtin_define ("__OBJC2__");
 }
+
+/* Handle C family front-end options.  */
+
+static bool
+handle_c_option (size_t code,
+		 const char *arg,
+		 int value ATTRIBUTE_UNUSED)
+{
+  switch (code)
+    {
+    default:
+      /* Unrecognized options that we said we'd handle turn into
+	 errors if not listed here.  */
+      return false;
+
+    case OPT_iframework:
+      add_system_framework_path (xstrdup (arg));
+      break;
+
+    case OPT_fapple_kext:
+      ;
+    }
+
+  /* We recognized the option.  */
+  return true;
+}
+
+/* Allow ObjC* access to CFStrings.  */
+static tree
+darwin_objc_construct_string (tree str)
+{
+  if (!darwin_constant_cfstrings)
+    {
+    /* Even though we are not using CFStrings, place our literal
+       into the cfstring_htab hash table, so that the
+       darwin_constant_cfstring_p() function will see it.  */
+      darwin_enter_string_into_cfstring_table (str);
+      /* Fall back to NSConstantString.  */
+      return NULL_TREE;
+    }
+
+  return darwin_build_constant_cfstring (str);
+}
+
+/* The string ref type is created as CFStringRef by <CFBase.h> therefore, we
+   must match for it explicitly, since it's outside the gcc code.  */
+
+static bool
+darwin_cfstring_ref_p (const_tree strp)
+{
+  tree tn;
+  if (!strp || TREE_CODE (strp) != POINTER_TYPE)
+    return false;
+
+  tn = TYPE_NAME (strp);
+  if (tn) 
+    tn = DECL_NAME (tn);
+  return (tn 
+	  && IDENTIFIER_POINTER (tn)
+	  && !strncmp (IDENTIFIER_POINTER (tn), "CFStringRef", 8));
+}
+
+/* At present the behavior of this is undefined and it does nothing.  */
+static void
+darwin_check_cfstring_format_arg (tree ARG_UNUSED (format_arg), 
+				  tree ARG_UNUSED (args_list))
+{
+}
+
+/* The extra format types we recognize.  */
+EXPORTED_CONST format_kind_info darwin_additional_format_types[] = {
+  { "CFString",   NULL,  NULL, NULL, NULL, 
+    NULL, NULL, 
+    FMT_FLAG_ARG_CONVERT|FMT_FLAG_PARSE_ARG_CONVERT_EXTERNAL, 0, 0, 0, 0, 0, 0,
+    NULL, NULL
+  }
+};
+
+#undef TARGET_HANDLE_C_OPTION
+#define TARGET_HANDLE_C_OPTION handle_c_option
+
+#undef TARGET_OBJC_CONSTRUCT_STRING_OBJECT
+#define TARGET_OBJC_CONSTRUCT_STRING_OBJECT darwin_objc_construct_string
+
+#undef TARGET_STRING_OBJECT_REF_TYPE_P
+#define TARGET_STRING_OBJECT_REF_TYPE_P darwin_cfstring_ref_p
+
+#undef TARGET_CHECK_STRING_OBJECT_FORMAT_ARG
+#define TARGET_CHECK_STRING_OBJECT_FORMAT_ARG darwin_check_cfstring_format_arg
+
+struct gcc_targetcm targetcm = TARGETCM_INITIALIZER;

@@ -1,12 +1,13 @@
 /* ET-trees data structure implementation.
    Contributed by Pavel Nejedly
-   Copyright (C) 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2007, 2008, 2010 Free Software
+   Foundation, Inc.
 
 This file is part of the libiberty library.
 Libiberty is free software; you can redistribute it and/or
 modify it under the terms of the GNU Library General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
+version 3 of the License, or (at your option) any later version.
 
 Libiberty is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -14,9 +15,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 Library General Public License for more details.
 
 You should have received a copy of the GNU Library General Public
-License along with libiberty; see the file COPYING.LIB.  If
-not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.
+License along with libiberty; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.
 
   The ET-forest structure is described in:
     D. D. Sleator and R. E. Tarjan. A data structure for dynamic trees.
@@ -26,7 +26,6 @@ Boston, MA 02110-1301, USA.
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "et-forest.h"
 #include "alloc-pool.h"
 
@@ -40,19 +39,19 @@ Boston, MA 02110-1301, USA.
 /* The occurrence of a node in the et tree.  */
 struct et_occ
 {
-  struct et_node *of;                /* The node.  */
+  struct et_node *of;		/* The node.  */
 
-  struct et_occ *parent;        /* Parent in the splay-tree.  */
-  struct et_occ *prev;                /* Left son in the splay-tree.  */
-  struct et_occ *next;                /* Right son in the splay-tree.  */
+  struct et_occ *parent;	/* Parent in the splay-tree.  */
+  struct et_occ *prev;		/* Left son in the splay-tree.  */
+  struct et_occ *next;		/* Right son in the splay-tree.  */
 
-  int depth;                        /* The depth of the node is the sum of depth
-                                   fields on the path to the root.  */
-  int min;                        /* The minimum value of the depth in the subtree
-                                   is obtained by adding sum of depth fields
-                                   on the path to the root.  */
-  struct et_occ *min_occ;        /* The occurrence in the subtree with the minimal
-                                   depth.  */
+  int depth;			/* The depth of the node is the sum of depth
+				   fields on the path to the root.  */
+  int min;			/* The minimum value of the depth in the subtree
+				   is obtained by adding sum of depth fields
+				   on the path to the root.  */
+  struct et_occ *min_occ;	/* The occurrence in the subtree with the minimal
+				   depth.  */
 };
 
 static alloc_pool et_nodes;
@@ -119,7 +118,7 @@ et_recomp_min (struct et_occ *occ)
 
   if (!mson
       || (occ->next
-          && mson->min > occ->next->min))
+	  && mson->min > occ->next->min))
       mson = occ->next;
 
   if (mson && mson->min < 0)
@@ -161,8 +160,8 @@ et_check_occ_sanity (struct et_occ *occ)
     }
 
   gcc_assert (!occ->parent
-              || occ->parent->prev == occ
-              || occ->parent->next == occ);
+	      || occ->parent->prev == occ
+	      || occ->parent->next == occ);
 }
 
 /* Checks whether tree rooted at OCC is sane.  */
@@ -210,9 +209,9 @@ record_path_before_1 (struct et_occ *occ, int depth)
 
   if (occ->prev)
     {
-      m = record_path_before_1 (occ->prev, depth); 
+      m = record_path_before_1 (occ->prev, depth);
       if (m < mn)
-        mn = m;
+	mn = m;
     }
 
   fprintf (stderr, "%d (%d); ", ((basic_block) occ->of->data)->index, depth);
@@ -227,7 +226,7 @@ record_path_before_1 (struct et_occ *occ, int depth)
     {
       m = record_path_before_1 (occ->next, depth);
       if (m < mn)
-        mn = m;
+	mn = m;
     }
 
   gcc_assert (mn == occ->min + depth - occ->depth);
@@ -261,9 +260,9 @@ check_path_after_1 (struct et_occ *occ, int depth)
 
   if (occ->next)
     {
-      m = check_path_after_1 (occ->next, depth); 
+      m = check_path_after_1 (occ->next, depth);
       if (m < mn)
-        mn =  m;
+	mn =  m;
     }
 
   len--;
@@ -273,7 +272,7 @@ check_path_after_1 (struct et_occ *occ, int depth)
     {
       m = check_path_after_1 (occ->prev, depth);
       if (m < mn)
-        mn =  m;
+	mn =  m;
     }
 
   gcc_assert (mn == occ->min + depth - occ->depth);
@@ -308,7 +307,7 @@ et_splay (struct et_occ *occ)
   record_path_before (occ);
   et_check_tree_sanity (occ);
 #endif
- 
+
   while (occ->parent)
     {
       occ_depth = occ->depth;
@@ -319,35 +318,35 @@ et_splay (struct et_occ *occ)
       gf = f->parent;
 
       if (!gf)
-        {
-          set_depth_add (occ, f_depth);
-          occ->min_occ = f->min_occ;
-          occ->min = f->min;
+	{
+	  set_depth_add (occ, f_depth);
+	  occ->min_occ = f->min_occ;
+	  occ->min = f->min;
 
-          if (f->prev == occ)
-            {
-              /* zig */
-              set_prev (f, occ->next);
-              set_next (occ, f);
-              set_depth_add (f->prev, occ_depth);
-            }
-          else
-            {
-              /* zag */
-              set_next (f, occ->prev);
-              set_prev (occ, f);
-              set_depth_add (f->next, occ_depth);
-            }
-          set_depth (f, -occ_depth);
-          occ->parent = NULL;
+	  if (f->prev == occ)
+	    {
+	      /* zig */
+	      set_prev (f, occ->next);
+	      set_next (occ, f);
+	      set_depth_add (f->prev, occ_depth);
+	    }
+	  else
+	    {
+	      /* zag */
+	      set_next (f, occ->prev);
+	      set_prev (occ, f);
+	      set_depth_add (f->next, occ_depth);
+	    }
+	  set_depth (f, -occ_depth);
+	  occ->parent = NULL;
 
-          et_recomp_min (f);
+	  et_recomp_min (f);
 #ifdef DEBUG_ET
-          et_check_tree_sanity (occ);
-          check_path_after (occ);
+	  et_check_tree_sanity (occ);
+	  check_path_after (occ);
 #endif
-          return;
-        }
+	  return;
+	}
 
       gf_depth = gf->depth;
 
@@ -358,72 +357,72 @@ et_splay (struct et_occ *occ)
       ggf = gf->parent;
 
       if (gf->prev == f)
-        {
-          if (f->prev == occ)
-            {
-              /* zig zig */
-              set_prev (gf, f->next);
-              set_prev (f, occ->next);
-              set_next (occ, f);
-              set_next (f, gf);
+	{
+	  if (f->prev == occ)
+	    {
+	      /* zig zig */
+	      set_prev (gf, f->next);
+	      set_prev (f, occ->next);
+	      set_next (occ, f);
+	      set_next (f, gf);
 
-              set_depth (f, -occ_depth);
-              set_depth_add (f->prev, occ_depth);
-              set_depth (gf, -f_depth);
-              set_depth_add (gf->prev, f_depth);
-            }
-          else
-            {
-              /* zag zig */
-              set_prev (gf, occ->next);
-              set_next (f, occ->prev);
-              set_prev (occ, f);
-              set_next (occ, gf);
+	      set_depth (f, -occ_depth);
+	      set_depth_add (f->prev, occ_depth);
+	      set_depth (gf, -f_depth);
+	      set_depth_add (gf->prev, f_depth);
+	    }
+	  else
+	    {
+	      /* zag zig */
+	      set_prev (gf, occ->next);
+	      set_next (f, occ->prev);
+	      set_prev (occ, f);
+	      set_next (occ, gf);
 
-              set_depth (f, -occ_depth);
-              set_depth_add (f->next, occ_depth);
-              set_depth (gf, -occ_depth - f_depth);
-              set_depth_add (gf->prev, occ_depth + f_depth);
-            }
-        }
+	      set_depth (f, -occ_depth);
+	      set_depth_add (f->next, occ_depth);
+	      set_depth (gf, -occ_depth - f_depth);
+	      set_depth_add (gf->prev, occ_depth + f_depth);
+	    }
+	}
       else
-        {
-          if (f->prev == occ)
-            {
-              /* zig zag */
-              set_next (gf, occ->prev);
-              set_prev (f, occ->next);
-              set_prev (occ, gf);
-              set_next (occ, f);
+	{
+	  if (f->prev == occ)
+	    {
+	      /* zig zag */
+	      set_next (gf, occ->prev);
+	      set_prev (f, occ->next);
+	      set_prev (occ, gf);
+	      set_next (occ, f);
 
-              set_depth (f, -occ_depth);
-              set_depth_add (f->prev, occ_depth);
-              set_depth (gf, -occ_depth - f_depth);
-              set_depth_add (gf->next, occ_depth + f_depth);
-            }
-          else
-            {
-              /* zag zag */
-              set_next (gf, f->prev);
-              set_next (f, occ->prev);
-              set_prev (occ, f);
-              set_prev (f, gf);
+	      set_depth (f, -occ_depth);
+	      set_depth_add (f->prev, occ_depth);
+	      set_depth (gf, -occ_depth - f_depth);
+	      set_depth_add (gf->next, occ_depth + f_depth);
+	    }
+	  else
+	    {
+	      /* zag zag */
+	      set_next (gf, f->prev);
+	      set_next (f, occ->prev);
+	      set_prev (occ, f);
+	      set_prev (f, gf);
 
-              set_depth (f, -occ_depth);
-              set_depth_add (f->next, occ_depth);
-              set_depth (gf, -f_depth);
-              set_depth_add (gf->next, f_depth);
-            }
-        }
+	      set_depth (f, -occ_depth);
+	      set_depth_add (f->next, occ_depth);
+	      set_depth (gf, -f_depth);
+	      set_depth_add (gf->next, f_depth);
+	    }
+	}
 
       occ->parent = ggf;
       if (ggf)
-        {
-          if (ggf->prev == gf)
-            ggf->prev = occ;
-          else
-            ggf->next = occ;
-        }
+	{
+	  if (ggf->prev == gf)
+	    ggf->prev = occ;
+	  else
+	    ggf->next = occ;
+	}
 
       et_recomp_min (gf);
       et_recomp_min (f);
@@ -444,10 +443,10 @@ static struct et_occ *
 et_new_occ (struct et_node *node)
 {
   struct et_occ *nw;
-  
+
   if (!et_occurrences)
     et_occurrences = create_alloc_pool ("et_occ pool", sizeof (struct et_occ), 300);
-  nw = pool_alloc (et_occurrences);
+  nw = (struct et_occ *) pool_alloc (et_occurrences);
 
   nw->of = node;
   nw->parent = NULL;
@@ -467,10 +466,10 @@ struct et_node *
 et_new_tree (void *data)
 {
   struct et_node *nw;
-  
+
   if (!et_nodes)
     et_nodes = create_alloc_pool ("et_node pool", sizeof (struct et_node), 300);
-  nw = pool_alloc (et_nodes);
+  nw = (struct et_node *) pool_alloc (et_nodes);
 
   nw->data = data;
   nw->father = NULL;
@@ -590,7 +589,7 @@ et_split (struct et_node *t)
 
   for (r = rmost->next; r->prev; r = r->prev)
     continue;
-  et_splay (r); 
+  et_splay (r);
 
   r->prev->parent = NULL;
   p_occ = t->parent_occ;
@@ -659,15 +658,24 @@ et_nca (struct et_node *n1, struct et_node *n2)
 
       set_prev (o1, o2);
       if (r)
-        r->parent = o1;
+	r->parent = o1;
     }
-  else
+  else if (r == o2 || (r && r->parent != NULL))
     {
       ret = o2->prev;
 
       set_next (o1, o2);
       if (l)
-        l->parent = o1;
+	l->parent = o1;
+    }
+  else
+    {
+      /* O1 and O2 are in different components of the forest.  */
+      if (l)
+	l->parent = o1;
+      if (r)
+	r->parent = o1;
+      return NULL;
     }
 
   if (0 < o2->depth)
@@ -719,7 +727,7 @@ et_below (struct et_node *down, struct et_node *up)
   if (l == d || l->parent != NULL)
     {
       if (r)
-        r->parent = u;
+	r->parent = u;
       set_prev (u, d);
 #ifdef DEBUG_ET
       et_check_tree_sanity (u);
@@ -730,11 +738,11 @@ et_below (struct et_node *down, struct et_node *up)
       l->parent = u;
 
       /* In case O1 and O2 are in two different trees, we must just restore the
-         original state.  */
+	 original state.  */
       if (r && r->parent != NULL)
-        set_next (u, d);
+	set_next (u, d);
       else
-        set_next (u, r);
+	set_next (u, r);
 
 #ifdef DEBUG_ET
       et_check_tree_sanity (u);
@@ -746,4 +754,21 @@ et_below (struct et_node *down, struct et_node *up)
     return false;
 
   return !d->next || d->next->min + d->depth >= 0;
+}
+
+/* Returns the root of the tree that contains NODE.  */
+
+struct et_node *
+et_root (struct et_node *node)
+{
+  struct et_occ *occ = node->rightmost_occ, *r;
+
+  /* The root of the tree corresponds to the rightmost occurrence in the
+     represented path.  */
+  et_splay (occ);
+  for (r = occ; r->next; r = r->next)
+    continue;
+  et_splay (r);
+
+  return r->of;
 }

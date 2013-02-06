@@ -1,12 +1,13 @@
 /* Timing variables for measuring compiler performance.
-   Copyright (C) 2000, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2000, 2003, 2004, 2005, 2007, 2010
+   Free Software Foundation, Inc.
    Contributed by Alex Samuel <samuel@codesourcery.com>
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -15,23 +16,12 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
-#ifdef HAVE_SYS_TIMES_H
-# include <sys/times.h>
-#endif
-#ifdef HAVE_SYS_RESOURCE_H
-#include <sys/resource.h>
-#endif
-#include "coretypes.h"
-#include "tm.h"
-#include "intl.h"
-#include "rtl.h"
-#include "toplev.h"
+#include "timevar.h"
 
 #ifndef HAVE_CLOCK_T
 typedef int clock_t;
@@ -110,8 +100,8 @@ static double clocks_to_msec;
 #define CLOCKS_TO_MSEC (1 / (double)CLOCKS_PER_SEC)
 #endif
 
-#include "flags.h"
-#include "timevar.h"
+/* True if timevars should be used.  In GCC, this happens with
+   the -ftime-report flag.  */
 
 bool timevar_enable;
 
@@ -179,8 +169,8 @@ static struct timevar_time_def start_time;
 
 static void get_time (struct timevar_time_def *);
 static void timevar_accumulate (struct timevar_time_def *,
-                                struct timevar_time_def *,
-                                struct timevar_time_def *);
+				struct timevar_time_def *,
+				struct timevar_time_def *);
 
 /* Fill the current times into TIME.  The definition of this function
    also defines any or all of the HAVE_USER_TIME, HAVE_SYS_TIME, and
@@ -220,8 +210,8 @@ get_time (struct timevar_time_def *now)
 
 static void
 timevar_accumulate (struct timevar_time_def *timer,
-                    struct timevar_time_def *start_time,
-                    struct timevar_time_def *stop_time)
+		    struct timevar_time_def *start_time,
+		    struct timevar_time_def *stop_time)
 {
   timer->user += stop_time->user - start_time->user;
   timer->sys += stop_time->sys - start_time->sys;
@@ -314,7 +304,7 @@ timevar_pop_1 (timevar_id_t timevar)
   struct timevar_stack_def *popped = stack;
 
   gcc_assert (&timevars[timevar] == stack->timevar);
-  
+
   /* What time is it?  */
   get_time (&now);
 
@@ -371,10 +361,65 @@ timevar_stop (timevar_id_t timevar)
 
   /* TIMEVAR must have been started via timevar_start.  */
   gcc_assert (tv->standalone);
+  tv->standalone = 0; /* Enable a restart.  */
 
   get_time (&now);
   timevar_accumulate (&tv->elapsed, &tv->start_time, &now);
 }
+
+
+/* Conditionally start timing TIMEVAR independently of the timing stack.
+   If the timer is already running, leave it running and return true.
+   Otherwise, start the timer and return false.
+   Elapsed time until the corresponding timevar_cond_stop
+   is called for the same timing variable is attributed to TIMEVAR.  */
+
+bool
+timevar_cond_start (timevar_id_t timevar)
+{
+  struct timevar_def *tv = &timevars[timevar];
+
+  if (!timevar_enable)
+    return false;
+
+  /* Mark this timing variable as used.  */
+  tv->used = 1;
+
+  if (tv->standalone)
+    return true;  /* The timevar is already running.  */
+
+  /* Don't allow the same timing variable
+     to be unconditionally started more than once.  */
+  tv->standalone = 1;
+
+  get_time (&tv->start_time);
+  return false;  /* The timevar was not already running.  */
+}
+
+/* Conditionally stop timing TIMEVAR.  The RUNNING parameter must come
+   from the return value of a dynamically matching timevar_cond_start.
+   If the timer had already been RUNNING, do nothing.  Otherwise, time
+   elapsed since timevar_cond_start was called is attributed to it.  */
+
+void
+timevar_cond_stop (timevar_id_t timevar, bool running)
+{
+  struct timevar_def *tv;
+  struct timevar_time_def now;
+
+  if (!timevar_enable || running)
+    return;
+
+  tv = &timevars[timevar];
+
+  /* TIMEVAR must have been started via timevar_cond_start.  */
+  gcc_assert (tv->standalone);
+  tv->standalone = 0; /* Enable a restart.  */
+
+  get_time (&now);
+  timevar_accumulate (&tv->elapsed, &tv->start_time, &now);
+}
+
 
 /* Summarize timing variables to FP.  The timing variable TV_TOTAL has
    a special meaning -- it's considered to be the total elapsed time,
@@ -409,65 +454,65 @@ timevar_print (FILE *fp)
      TIMEVAR.  */
   start_time = now;
 
-  fputs (_("\nExecution times (seconds)\n"), fp);
+  fputs ("\nExecution times (seconds)\n", fp);
   for (id = 0; id < (unsigned int) TIMEVAR_LAST; ++id)
     {
       struct timevar_def *tv = &timevars[(timevar_id_t) id];
       const double tiny = 5e-3;
 
       /* Don't print the total execution time here; that goes at the
-         end.  */
+	 end.  */
       if ((timevar_id_t) id == TV_TOTAL)
-        continue;
+	continue;
 
       /* Don't print timing variables that were never used.  */
       if (!tv->used)
-        continue;
+	continue;
 
       /* Don't print timing variables if we're going to get a row of
          zeroes.  */
       if (tv->elapsed.user < tiny
-          && tv->elapsed.sys < tiny
-          && tv->elapsed.wall < tiny
-          && tv->elapsed.ggc_mem < GGC_MEM_BOUND)
-        continue;
+	  && tv->elapsed.sys < tiny
+	  && tv->elapsed.wall < tiny
+	  && tv->elapsed.ggc_mem < GGC_MEM_BOUND)
+	continue;
 
       /* The timing variable name.  */
-      fprintf (fp, " %-22s:", tv->name);
+      fprintf (fp, " %-24s:", tv->name);
 
 #ifdef HAVE_USER_TIME
       /* Print user-mode time for this process.  */
       fprintf (fp, "%7.2f (%2.0f%%) usr",
-               tv->elapsed.user,
-               (total->user == 0 ? 0 : tv->elapsed.user / total->user) * 100);
+	       tv->elapsed.user,
+	       (total->user == 0 ? 0 : tv->elapsed.user / total->user) * 100);
 #endif /* HAVE_USER_TIME */
 
 #ifdef HAVE_SYS_TIME
       /* Print system-mode time for this process.  */
       fprintf (fp, "%7.2f (%2.0f%%) sys",
-               tv->elapsed.sys,
-               (total->sys == 0 ? 0 : tv->elapsed.sys / total->sys) * 100);
+	       tv->elapsed.sys,
+	       (total->sys == 0 ? 0 : tv->elapsed.sys / total->sys) * 100);
 #endif /* HAVE_SYS_TIME */
 
 #ifdef HAVE_WALL_TIME
       /* Print wall clock time elapsed.  */
       fprintf (fp, "%7.2f (%2.0f%%) wall",
-               tv->elapsed.wall,
-               (total->wall == 0 ? 0 : tv->elapsed.wall / total->wall) * 100);
+	       tv->elapsed.wall,
+	       (total->wall == 0 ? 0 : tv->elapsed.wall / total->wall) * 100);
 #endif /* HAVE_WALL_TIME */
 
       /* Print the amount of ggc memory allocated.  */
       fprintf (fp, "%8u kB (%2.0f%%) ggc",
-               (unsigned) (tv->elapsed.ggc_mem >> 10),
-               (total->ggc_mem == 0
-                ? 0
-                : (float) tv->elapsed.ggc_mem / total->ggc_mem) * 100);
+	       (unsigned) (tv->elapsed.ggc_mem >> 10),
+	       (total->ggc_mem == 0
+		? 0
+		: (float) tv->elapsed.ggc_mem / total->ggc_mem) * 100);
 
       putc ('\n', fp);
     }
 
   /* Print total time.  */
-  fputs (_(" TOTAL                 :"), fp);
+  fputs (" TOTAL                 :", fp);
 #ifdef HAVE_USER_TIME
   fprintf (fp, "%7.2f          ", total->user);
 #endif
@@ -481,11 +526,15 @@ timevar_print (FILE *fp)
 
 #ifdef ENABLE_CHECKING
   fprintf (fp, "Extra diagnostic checks enabled; compiler may run slowly.\n");
-  fprintf (fp, "Configure with --disable-checking to disable checks.\n");
+  fprintf (fp, "Configure with --enable-checking=release to disable checks.\n");
+#endif
+#ifndef ENABLE_ASSERT_CHECKING
+  fprintf (fp, "Internal checks disabled; compiler is not suited for release.\n");
+  fprintf (fp, "Configure with --enable-checking=release to enable checks.\n");
 #endif
 
 #endif /* defined (HAVE_USER_TIME) || defined (HAVE_SYS_TIME)
-          || defined (HAVE_WALL_TIME) */
+	  || defined (HAVE_WALL_TIME) */
 }
 
 /* Prints a message to stderr stating that time elapsed in STR is
@@ -496,8 +545,8 @@ print_time (const char *str, long total)
 {
   long all_time = get_run_time ();
   fprintf (stderr,
-           _("time in %s: %ld.%06ld (%ld%%)\n"),
-           str, total / 1000000, total % 1000000,
-           all_time == 0 ? 0
-           : (long) (((100.0 * (double) total) / (double) all_time) + .5));
+	   "time in %s: %ld.%06ld (%ld%%)\n",
+	   str, total / 1000000, total % 1000000,
+	   all_time == 0 ? 0
+	   : (long) (((100.0 * (double) total) / (double) all_time) + .5));
 }

@@ -1,10 +1,10 @@
-/* Copyright (C) 2000, 2001, 2004, 2005 Free Software Foundation, Inc.
+/* Copyright (C) 2000, 2001, 2004, 2005, 2009 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -12,17 +12,15 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you include this header file into source
-   files compiled by GCC, this header file does not by itself cause
-   the resulting executable to be covered by the GNU General Public
-   License.  This exception does not however invalidate any other
-   reasons why the executable file might be covered by the GNU General
-   Public License.  */
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
+
 
 /* ushmedia.h: Intrinsics corresponding to SHmedia instructions that
    may be executed in both user and privileged mode.  */
@@ -98,7 +96,7 @@ sh_media_MCMPEQ_B (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MCMPEQ_B ((v8qi) mm,
-                                                           (v8qi) mn);
+							   (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -107,7 +105,7 @@ sh_media_MCMPEQ_L (unsigned long long mm, unsigned long long mn)
   typedef float v2si __attribute__ ((mode(V2SI)));
 
   return (unsigned long long) __builtin_sh_media_MCMPEQ_L ((v2si) mm,
-                                                           (v2si) mn);
+							   (v2si) mn);
 }
 
 static __inline unsigned long long
@@ -116,7 +114,7 @@ sh_media_MCMPEQ_W (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MCMPEQ_W ((v4hi) mm,
-                                                           (v4hi) mn);
+							   (v4hi) mn);
 }
 
 static __inline unsigned long long
@@ -125,7 +123,7 @@ sh_media_MCMPGT_UB (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MCMPGT_UB ((v8qi) mm,
-                                                           (v8qi) mn);
+							   (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -134,7 +132,7 @@ sh_media_MCMPGT_L (unsigned long long mm, unsigned long long mn)
   typedef float v2si __attribute__ ((mode(V2SI)));
 
   return (unsigned long long) __builtin_sh_media_MCMPGT_L ((v2si) mm,
-                                                           (v2si) mn);
+							   (v2si) mn);
 }
 
 static __inline unsigned long long
@@ -143,7 +141,7 @@ sh_media_MCMPGT_W (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MCMPGT_W ((v4hi) mm,
-                                                           (v4hi) mn);
+							   (v4hi) mn);
 }
 
 #define sh_media_MCMV __builtin_sh_media_MCMV
@@ -155,7 +153,7 @@ sh_media_MCNVS_LW (unsigned long long mm, unsigned long long mn)
   typedef unsigned int uv2si __attribute__ ((mode(V2SI)));
 
   return (unsigned long long) __builtin_sh_media_MCNVS_LW ((v2si) mm,
-                                                           (uv2si) mn);
+							   (uv2si) mn);
 }
 
 static __inline unsigned long long
@@ -164,7 +162,7 @@ sh_media_MCNVS_WB (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MCNVS_WB ((v4hi) mm,
-                                                           (v4hi) mn);
+							   (v4hi) mn);
 }
 
 static __inline unsigned long long
@@ -173,7 +171,7 @@ sh_media_MCNVS_WUB (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MCNVS_WUB ((v4hi) mm,
-                                                            (v4hi) mn);
+							    (v4hi) mn);
 }
 
 static __inline unsigned long long
@@ -182,7 +180,7 @@ sh_media_MEXTR1 (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MEXTR1 ((v8qi) mm,
-                                                         (v8qi) mn);
+							 (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -191,7 +189,7 @@ sh_media_MEXTR2 (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MEXTR2 ((v8qi) mm,
-                                                         (v8qi) mn);
+							 (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -200,7 +198,7 @@ sh_media_MEXTR3 (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MEXTR3 ((v8qi) mm,
-                                                         (v8qi) mn);
+							 (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -209,7 +207,7 @@ sh_media_MEXTR4 (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MEXTR4 ((v8qi) mm,
-                                                         (v8qi) mn);
+							 (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -218,7 +216,7 @@ sh_media_MEXTR5 (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MEXTR5 ((v8qi) mm,
-                                                         (v8qi) mn);
+							 (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -227,7 +225,7 @@ sh_media_MEXTR6 (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MEXTR6 ((v8qi) mm,
-                                                         (v8qi) mn);
+							 (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -236,12 +234,12 @@ sh_media_MEXTR7 (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MEXTR7 ((v8qi) mm,
-                                                         (v8qi) mn);
+							 (v8qi) mn);
 }
 
 static __inline unsigned long long
 sh_media_MMACFX_WL (unsigned long long mm, unsigned long long mn,
-                    unsigned long long mw)
+		    unsigned long long mw)
 {
   typedef float v2hi __attribute__ ((mode(V2HI)));
   typedef float v2si __attribute__ ((mode(V2SI)));
@@ -252,12 +250,12 @@ sh_media_MMACFX_WL (unsigned long long mm, unsigned long long mn,
 
   return ((unsigned long long)
     __builtin_sh_media_MMACFX_WL ((v2hi) mm_l, (v2hi) mn_l,
-                                  (uv2si) mw));
+				  (uv2si) mw));
 }
 
 static __inline unsigned long long
 sh_media_MMACNFX_WL (unsigned long long mm, unsigned long long mn,
-                     unsigned long long mw)
+		     unsigned long long mw)
 {
   typedef float v2hi __attribute__ ((mode(V2HI)));
   typedef float v2si __attribute__ ((mode(V2SI)));
@@ -268,7 +266,7 @@ sh_media_MMACNFX_WL (unsigned long long mm, unsigned long long mn,
 
   return ((unsigned long long)
     __builtin_sh_media_MMACNFX_WL ((v2hi) mm_l, (v2hi) mn_l,
-                                   (uv2si) mw));
+				   (uv2si) mw));
 }
 
 static __inline unsigned long long
@@ -293,7 +291,7 @@ sh_media_MMULFX_L (unsigned long long mm, unsigned long long mn)
   typedef float v2si __attribute__ ((mode(V2SI)));
 
   return (unsigned long long) __builtin_sh_media_MMULFX_L ((v2si) mm,
-                                                           (v2si) mn);
+							   (v2si) mn);
 }
 
 static __inline unsigned long long
@@ -302,7 +300,7 @@ sh_media_MMULFX_W (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MMULFX_W ((v4hi) mm,
-                                                           (v4hi) mn);
+							   (v4hi) mn);
 }
 
 static __inline unsigned long long
@@ -311,7 +309,7 @@ sh_media_MMULFXRP_W (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MMULFXRP_W ((v4hi) mm,
-                                                             (v4hi) mn);
+							     (v4hi) mn);
 }
 
 static __inline unsigned long long
@@ -320,7 +318,7 @@ sh_media_MMULHI_WL (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MMULHI_WL ((v4hi) mm,
-                                                            (v4hi) mn);
+							    (v4hi) mn);
 }
 
 static __inline unsigned long long
@@ -329,12 +327,12 @@ sh_media_MMULLO_WL (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MMULLO_WL ((v4hi) mm,
-                                                            (v4hi) mn);
+							    (v4hi) mn);
 }
 
 static __inline unsigned long long
 sh_media_MMULSUM_WQ (unsigned long long mm, unsigned long long mn,
-                     unsigned long long mw)
+		     unsigned long long mw)
 {
   typedef unsigned int uv4hi __attribute__ ((mode(V4HI)));
 
@@ -351,7 +349,7 @@ sh_media_MPERM_W (unsigned long long mm, unsigned int mn)
 
 static __inline unsigned long long
 sh_media_MSAD_UBQ (unsigned long long mm, unsigned long long mn,
-                   unsigned long long mw)
+		   unsigned long long mw)
 {
   typedef unsigned int uv8qi __attribute__ ((mode(V8QI)));
 
@@ -398,7 +396,7 @@ sh_media_MSHFHI_B (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MSHFHI_B ((v8qi) mm,
-                                                           (v8qi) mn);
+							   (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -407,7 +405,7 @@ sh_media_MSHFHI_L (unsigned long long mm, unsigned long long mn)
   typedef float v2si __attribute__ ((mode(V2SI)));
 
   return (unsigned long long) __builtin_sh_media_MSHFHI_L ((v2si) mm,
-                                                           (v2si) mn);
+							   (v2si) mn);
 }
 
 static __inline unsigned long long
@@ -416,7 +414,7 @@ sh_media_MSHFHI_W (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MSHFHI_W ((v4hi) mm,
-                                                           (v4hi) mn);
+							   (v4hi) mn);
 }
 
 static __inline unsigned long long
@@ -425,7 +423,7 @@ sh_media_MSHFLO_B (unsigned long long mm, unsigned long long mn)
   typedef float v8qi __attribute__ ((mode(V8QI)));
 
   return (unsigned long long) __builtin_sh_media_MSHFLO_B ((v8qi) mm,
-                                                           (v8qi) mn);
+							   (v8qi) mn);
 }
 
 static __inline unsigned long long
@@ -434,7 +432,7 @@ sh_media_MSHFLO_L (unsigned long long mm, unsigned long long mn)
   typedef float v2si __attribute__ ((mode(V2SI)));
 
   return (unsigned long long) __builtin_sh_media_MSHFLO_L ((v2si) mm,
-                                                           (v2si) mn);
+							   (v2si) mn);
 }
 
 static __inline unsigned long long
@@ -443,7 +441,7 @@ sh_media_MSHFLO_W (unsigned long long mm, unsigned long long mn)
   typedef float v4hi __attribute__ ((mode(V4HI)));
 
   return (unsigned long long) __builtin_sh_media_MSHFLO_W ((v4hi) mm,
-                                                           (v4hi) mn);
+							   (v4hi) mn);
 }
 
 static __inline unsigned long long
@@ -744,7 +742,7 @@ sh_media_SWAP_Q (void *mm, long long mn, unsigned long long mw)
 {
   unsigned long long res;
   unsigned long long *addr = (unsigned long long *)((char *)mm + mn);
-  __asm__ ("swap.q        %m1, %0" : "=r" (res), "+o" (*addr) : "0" (mw));
+  __asm__ ("swap.q	%m1, %0" : "=r" (res), "+o" (*addr) : "0" (mw));
   return res;
 }
 
@@ -773,35 +771,35 @@ __inline__ static
 void
 sh_media_ICBI (void *mm, int s)
 {
-  __asm__ __volatile__ ("icbi        %m0" : : "o" (((char*)mm)[s]));
+  __asm__ __volatile__ ("icbi	%m0" : : "o" (((char*)mm)[s]));
 }
 
 __inline__ static
 void
 sh_media_OCBI (void *mm, int s)
 {
-  __asm__ __volatile__ ("ocbi        %m0" : : "o" (((char*)mm)[s]));
+  __asm__ __volatile__ ("ocbi	%m0" : : "o" (((char*)mm)[s]));
 }
 
 __inline__ static
 void
 sh_media_OCBP (void *mm, int s)
 {
-  __asm__ __volatile__ ("ocbp        %m0" : : "o" (((char*)mm)[s]));
+  __asm__ __volatile__ ("ocbp	%m0" : : "o" (((char*)mm)[s]));
 }
 
 __inline__ static
 void
 sh_media_OCBWB (void *mm, int s)
 {
-  __asm__ __volatile__ ("ocbwb        %m0" : : "o" (((char*)mm)[s]));
+  __asm__ __volatile__ ("ocbwb	%m0" : : "o" (((char*)mm)[s]));
 }
 
 __inline__ static
 void
 sh_media_PREFI (void *mm, int s)
 {
-  __asm__ __volatile__ ("prefi        %m0" : : "o" (((char*)mm)[s]));
+  __asm__ __volatile__ ("prefi	%m0" : : "o" (((char*)mm)[s]));
 }
 
 __inline__ static
@@ -815,7 +813,7 @@ __inline__ static
 void
 sh_media_TRAPA (unsigned long long mm)
 {
-  __asm__ __volatile__ ("trapa        %%0" : : "r" (mm));
+  __asm__ __volatile__ ("trapa	%%0" : : "r" (mm));
 }
 
 __inline__ static
@@ -824,10 +822,10 @@ sh_media_unaligned_LD_W (void *p)
 {
 #if __LITTLE_ENDIAN__
   return (((unsigned char *)p)[0]
-          | (((short)((__signed__ char *)p)[1]) << 8));
+	  | (((short)((__signed__ char *)p)[1]) << 8));
 #else
   return ((((short)((__signed__ char *)p)[0]) << 8)
-          | ((unsigned char *)p)[1]);
+	  | ((unsigned char *)p)[1]);
 #endif
 }
 
@@ -852,10 +850,10 @@ sh_media_unaligned_LD_L (void *p)
 {
 #if __LITTLE_ENDIAN__
   return (__builtin_sh_media_LDHI_L ((char *)p + 3)
-          | __builtin_sh_media_LDLO_L (p));
+	  | __builtin_sh_media_LDLO_L (p));
 #else
   return (__builtin_sh_media_LDLO_L ((char *)p + 3)
-          | __builtin_sh_media_LDHI_L (p));
+	  | __builtin_sh_media_LDHI_L (p));
 #endif
 }
 
@@ -865,10 +863,10 @@ sh_media_unaligned_LD_Q (void *p)
 {
 #if __LITTLE_ENDIAN__
   return (__builtin_sh_media_LDHI_Q ((char *)p + 7)
-          | __builtin_sh_media_LDLO_Q (p));
+	  | __builtin_sh_media_LDLO_Q (p));
 #else
   return (__builtin_sh_media_LDLO_Q ((char *)p + 7)
-          | __builtin_sh_media_LDHI_Q (p));
+	  | __builtin_sh_media_LDHI_Q (p));
 #endif
 }
 

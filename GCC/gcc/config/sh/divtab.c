@@ -1,28 +1,24 @@
-/* Copyright (C) 2003 Free Software Foundation, Inc.
+/* Copyright (C) 2003, 2009 Free Software Foundation, Inc.
 
 This file is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
-Free Software Foundation; either version 2, or (at your option) any
+Free Software Foundation; either version 3, or (at your option) any
 later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 This file is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
+
 
 /* Calculate division table for SH5Media integer division
    Contributed by Joern Rennecke
@@ -83,7 +79,7 @@ static double note_defect3 (int val, double d2, double y2d, double x)
     }
 }
 
-/* This function assumes 32 bit integers.  */
+/* This function assumes 32-bit integers.  */
 static double
 calc_defect (double x, int constant, int factor)
 {
@@ -151,20 +147,20 @@ main ()
 
       factor = (1./x_low- 1./x_high) / step * 256. + 0.5;
       if (factor == 256)
-        factor = 255;
+	factor = 255;
       factors[i] = factor;
       /* Use minimum of error function for x_med.  */
       x_med = sqrt (256./factor);
       if (x_low < 0)
-        x_med = - x_med;
+	x_med = - x_med;
       low_defect = 1. / x_low + x_low * factor / 256.;
       high_defect = 1. / x_high + x_high * factor / 256.;
       med_defect = 1. / x_med + x_med * factor / 256.;
       max_defect
-        = ((low_defect > high_defect) ^ (x_med < 0)) ? low_defect : high_defect;
+	= ((low_defect > high_defect) ^ (x_med < 0)) ? low_defect : high_defect;
       constant = (med_defect + max_defect) * 0.5 * 16384. + 0.5;
       if (constant < -32768 || constant > 32767)
-        abort ();
+	abort ();
       constants[i] = constant;
       calc_defect (x_low, constant, factor);
       calc_defect (x_med, constant, factor);
@@ -179,9 +175,9 @@ main ()
     printf ("   Max div defect: %e at %d:%e\n", max_defect3, max_defect3_val, max_defect3_x);
     printf ("   Min div defect: %e at %d:%e\n", min_defect3, min_defect3_val, min_defect3_x);
     printf ("   Defect at 1: %e\n",
-            calc_defect (1., constants[0], factors[0]));
+	    calc_defect (1., constants[0], factors[0]));
     printf ("   Defect at -2: %e */\n",
-            calc_defect (-2., constants[steps], factors[steps]));
+	    calc_defect (-2., constants[steps], factors[steps]));
     printf ("\t.section\t.rodata\n");
     printf ("\t.balign 2\n");
     printf ("/* negative division constants */\n");
@@ -191,7 +187,7 @@ main ()
     for (i = steps; i < 2*steps; i++)
       printf ("\t.byte\t%d\n", factors[i]);
     printf ("\t.skip %d\n", steps);
-    printf ("\t.global        GLOBAL(div_table):\n");
+    printf ("\t.global	GLOBAL(div_table):\n");
     printf ("GLOBAL(div_table):\n");
     printf ("\t.skip %d\n", steps);
     printf ("/* positive division factors */\n");

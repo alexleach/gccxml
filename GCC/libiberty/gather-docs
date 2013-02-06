@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # -*- perl -*-
 
-#   Copyright (C) 2001
+#   Copyright (C) 2001, 2009, 2011
 #   Free Software Foundation
 #
 # This file is part of the libiberty library.
@@ -56,44 +56,44 @@ $errors = 0;
 for $in (@ARGV) {
 
     if (!open(IN, "$srcdir/$in")) {
-        print STDERR "Cannot open $srcdir/$in for reading: $!\n";
-        $errors ++;
+	print STDERR "Cannot open $srcdir/$in for reading: $!\n";
+	$errors ++;
 
     } else {
-        $first = 1;
-        $pertinent = 0;
-        $man_mode = 0;
-        $line = 0;
+	$first = 1;
+	$pertinent = 0;
+	$man_mode = 0;
+	$line = 0;
 
-        while (<IN>) {
-            $line ++;
-            $pertinent = 1 if /^\@def[a-z]*[a-wyz] /;
-            $pertinent = 0 if /^\*\//;
-            next unless $pertinent;
+	while (<IN>) {
+	    $line ++;
+	    $pertinent = 1 if /^\@def[a-z]*[a-wyz] /;
+	    $pertinent = 0 if /^\*\//;
+	    next unless $pertinent;
 
-            if (/^\@def[a-z]*[a-wyz] /) {
-                
-                ($name) = m/[^\(]* ([^\( \t\r\n]+) *\(/;
-                $name =~ s/[         ]*$//;
-                $key = $name;
-                $key =~ tr/A-Z/a-z/;
-                $key =~ s/[^a-z0-9]+/ /g;
-                $name{$key} = $node;
-                $lines{$key} = '';
-                $src_file{$key} = $in;
-                $src_line{$key} = $line;
-                print "\nReading $in :" if $verbose && $first;
-                $first = 0;
-                print " $name" if $verbose;
-                $node_lines{$key} .= $_;
+	    if (/^\@def[a-z]*[a-wyz] /) {
+		
+		($name) = m/[^\(]* ([^\( \t\r\n\@]+) *(\(|\@?$)/;
+		$name =~ s/[	 ]*\@?$//;
+		$key = $name;
+		$key =~ tr/A-Z/a-z/;
+		$key =~ s/[^a-z0-9]+/ /g;
+		$name{$key} = $node;
+		$lines{$key} = '';
+		$src_file{$key} = $in;
+		$src_line{$key} = $line;
+		print "\nReading $in :" if $verbose && $first;
+		$first = 0;
+		print " $name" if $verbose;
+		$node_lines{$key} .= $_;
 
-            } else {
-                $node_lines{$key} .= $_;
-            }
+	    } else {
+		$node_lines{$key} .= $_;
+	    }
 
-            $pertinent = 0 if /^\@end def/;
-        }
-        close (IN);
+	    $pertinent = 0 if /^\@end def/;
+	}
+	close (IN);
     }
 }
 
@@ -110,7 +110,7 @@ print "Writing $outfile\n" if $verbose;
 print OUT "\@c Automatically generated from *.c and others (the comments before\n";
 print OUT "\@c each entry tell you which file and where in that file).  DO NOT EDIT!\n";
 print OUT "\@c Edit the *.c files, configure with --enable-maintainer-mode,\n";
-print OUT "\@c and let gather-docs build you a new copy.\n\n";
+print OUT "\@c run 'make stamp-functions' and gather-docs will build a new copy.\n\n";
 
 for $key (sort keys %name) {
     print OUT "\@c $src_file{$key}:$src_line{$key}\n";

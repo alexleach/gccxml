@@ -1,11 +1,11 @@
 ;; Scheduling description for Alpha EV6.
-;;   Copyright (C) 2002, 2004, 2005 Free Software Foundation, Inc.
+;;   Copyright (C) 2002, 2004, 2005, 2007 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
 
 ; EV6 can issue 4 insns per clock.  It's out-of-order, so this isn't
 ; expected to help over-much, but a precise description can be important
@@ -156,23 +155,23 @@
 (define_insn_reservation "ev6_fdivsf" 12
   (and (eq_attr "tune" "ev6")
        (and (eq_attr "type" "fdiv")
-            (eq_attr "opsize" "si")))
+	    (eq_attr "opsize" "si")))
   "ev6_fa*9")
 
 (define_insn_reservation "ev6_fdivdf" 15
   (and (eq_attr "tune" "ev6")
        (and (eq_attr "type" "fdiv")
-            (eq_attr "opsize" "di")))
+	    (eq_attr "opsize" "di")))
   "ev6_fa*12")
 
 (define_insn_reservation "ev6_sqrtsf" 18
   (and (eq_attr "tune" "ev6")
        (and (eq_attr "type" "fsqrt")
-            (eq_attr "opsize" "si")))
+	    (eq_attr "opsize" "si")))
   "ev6_fa*15")
 
 (define_insn_reservation "ev6_sqrtdf" 33
   (and (eq_attr "tune" "ev6")
        (and (eq_attr "type" "fsqrt")
-            (eq_attr "opsize" "di")))
+	    (eq_attr "opsize" "di")))
   "ev6_fa*30")

@@ -3,7 +3,8 @@
 
 /*
 
-@deftypefn Supplemental int memcmp (const void *@var{x}, const void *@var{y}, size_t @var{count})
+@deftypefn Supplemental int memcmp (const void *@var{x}, const void *@var{y}, @
+  size_t @var{count})
 
 Compares the first @var{count} bytes of two areas of memory.  Returns
 zero if they are the same, a value less than zero if @var{x} is
@@ -27,7 +28,7 @@ memcmp (const PTR str1, const PTR str2, size_t count)
   while (count-- > 0)
     {
       if (*s1++ != *s2++)
-          return s1[-1] < s2[-1] ? -1 : 1;
+	  return s1[-1] < s2[-1] ? -1 : 1;
     }
   return 0;
 }

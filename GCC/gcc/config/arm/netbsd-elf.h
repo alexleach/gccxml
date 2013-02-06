@@ -1,12 +1,13 @@
 /* Definitions of target machine for GNU compiler, NetBSD/arm ELF version.
-   Copyright (C) 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2007, 2009, 2011
+   Free Software Foundation, Inc.
    Contributed by Wasabi Systems, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published
-   by the Free Software Foundation; either version 2, or (at your
+   by the Free Software Foundation; either version 3, or (at your
    option) any later version.
 
    GCC is distributed in the hope that it will be useful, but WITHOUT
@@ -15,13 +16,10 @@
    License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to
-   the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Run-time Target Specification.  */
-#undef TARGET_VERSION
-#define TARGET_VERSION fputs (" (NetBSD/arm ELF)", stderr);
 
 /* arm.h defaults to ARM6 CPU.  */
 
@@ -34,39 +32,38 @@
 
 /* Default it to use ATPCS with soft-VFP.  */
 #undef TARGET_DEFAULT
-#define TARGET_DEFAULT                        \
-  (MASK_APCS_FRAME                        \
+#define TARGET_DEFAULT			\
+  (MASK_APCS_FRAME			\
    | TARGET_ENDIAN_DEFAULT)
 
 #undef ARM_DEFAULT_ABI
 #define ARM_DEFAULT_ABI ARM_ABI_ATPCS
 
-#define TARGET_OS_CPP_BUILTINS()        \
-  do                                        \
-    {                                        \
-      NETBSD_OS_CPP_BUILTINS_ELF();        \
-    }                                        \
+#define TARGET_OS_CPP_BUILTINS()	\
+  do					\
+    {					\
+      NETBSD_OS_CPP_BUILTINS_ELF();	\
+    }					\
   while (0)
 
 #undef SUBTARGET_CPP_SPEC
 #define SUBTARGET_CPP_SPEC NETBSD_CPP_SPEC
 
 #undef SUBTARGET_EXTRA_ASM_SPEC
-#define SUBTARGET_EXTRA_ASM_SPEC        \
+#define SUBTARGET_EXTRA_ASM_SPEC	\
   "-matpcs %{fpic|fpie:-k} %{fPIC|fPIE:-k}"
 
-/* Default to full VFP if -mhard-float is specified.  */
+/* Default to full VFP if -mfloat-abi=hard is specified.  */
 #undef SUBTARGET_ASM_FLOAT_SPEC
-#define SUBTARGET_ASM_FLOAT_SPEC        \
-  "%{mhard-float:{!mfpu=*:-mfpu=vfp}}   \
-   %{mfloat-abi=hard:{!mfpu=*:-mfpu=vfp}}"
+#define SUBTARGET_ASM_FLOAT_SPEC	\
+  "%{mfloat-abi=hard:{!mfpu=*:-mfpu=vfp}}"
 
 #undef SUBTARGET_EXTRA_SPECS
-#define SUBTARGET_EXTRA_SPECS                                \
-  { "subtarget_extra_asm_spec",        SUBTARGET_EXTRA_ASM_SPEC }, \
+#define SUBTARGET_EXTRA_SPECS				\
+  { "subtarget_extra_asm_spec",	SUBTARGET_EXTRA_ASM_SPEC }, \
   { "subtarget_asm_float_spec", SUBTARGET_ASM_FLOAT_SPEC }, \
-  { "netbsd_link_spec",                NETBSD_LINK_SPEC_ELF },        \
-  { "netbsd_entry_point",        NETBSD_ENTRY_POINT },
+  { "netbsd_link_spec",		NETBSD_LINK_SPEC_ELF },	\
+  { "netbsd_entry_point",	NETBSD_ENTRY_POINT },
 
 #define NETBSD_ENTRY_POINT "__start"
 
@@ -93,12 +90,12 @@
    compatibility below a little more won't hurt.  */
    
 #undef ARM_FUNCTION_PROFILER                                  
-#define ARM_FUNCTION_PROFILER(STREAM,LABELNO)                \
-{                                                        \
-  asm_fprintf (STREAM, "\tmov\t%Rip, %Rlr\n");                \
-  asm_fprintf (STREAM, "\tbl\t__mcount%s\n",                \
-               (TARGET_ARM && NEED_PLT_RELOC)                \
-               ? "(PLT)" : "");                                \
+#define ARM_FUNCTION_PROFILER(STREAM,LABELNO)		\
+{							\
+  asm_fprintf (STREAM, "\tmov\t%Rip, %Rlr\n");		\
+  asm_fprintf (STREAM, "\tbl\t__mcount%s\n",		\
+	       (TARGET_ARM && NEED_PLT_RELOC)		\
+	       ? "(PLT)" : "");				\
 }
 
 /* VERY BIG NOTE: Change of structure alignment for NetBSD/arm.
@@ -138,21 +135,21 @@
 
 /* Clear the instruction cache from `BEG' to `END'.  This makes a
    call to the ARM_SYNC_ICACHE architecture specific syscall.  */
-#define CLEAR_INSN_CACHE(BEG, END)                                        \
-do                                                                        \
-  {                                                                        \
-    extern int sysarch(int number, void *args);                                \
-    struct                                                                \
-      {                                                                        \
-        unsigned int addr;                                                \
-        int          len;                                                \
-      } s;                                                                \
-    s.addr = (unsigned int)(BEG);                                        \
-    s.len = (END) - (BEG);                                                \
-    (void) sysarch (0, &s);                                                \
-  }                                                                        \
+#define CLEAR_INSN_CACHE(BEG, END)					\
+do									\
+  {									\
+    extern int sysarch(int number, void *args);				\
+    struct								\
+      {									\
+	unsigned int addr;						\
+	int          len;						\
+      } s;								\
+    s.addr = (unsigned int)(BEG);					\
+    s.len = (END) - (BEG);						\
+    (void) sysarch (0, &s);						\
+  }									\
 while (0)
 
 #undef FPUTYPE_DEFAULT
-#define FPUTYPE_DEFAULT FPUTYPE_VFP
+#define FPUTYPE_DEFAULT "vfp"
 

@@ -1,13 +1,13 @@
 /* Definitions of target machine for GCC,
    for i386/ELF NetBSD systems.
-   Copyright (C) 2001, 2002, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2001, 2002, 2004, 2007, 2011 Free Software Foundation, Inc.
    Contributed by matthew green <mrg@eterna.com.au>
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -16,23 +16,22 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
-#define TARGET_OS_CPP_BUILTINS()                \
-  do                                                \
-    {                                                \
-      NETBSD_OS_CPP_BUILTINS_ELF();                \
-    }                                                \
+#define TARGET_OS_CPP_BUILTINS()		\
+  do						\
+    {						\
+      NETBSD_OS_CPP_BUILTINS_ELF();		\
+    }						\
   while (0)
 
 
 /* Extra specs needed for NetBSD/i386 ELF.  */
 
 #undef SUBTARGET_EXTRA_SPECS
-#define SUBTARGET_EXTRA_SPECS                        \
-  { "netbsd_cpp_spec", NETBSD_CPP_SPEC },        \
+#define SUBTARGET_EXTRA_SPECS			\
+  { "netbsd_cpp_spec", NETBSD_CPP_SPEC },	\
   { "netbsd_entry_point", NETBSD_ENTRY_POINT },
 
 
@@ -74,15 +73,15 @@ Boston, MA 02110-1301, USA.  */
 /* Output assembler code to FILE to call the profiler.  */
 
 #undef NO_PROFILE_COUNTERS
-#define NO_PROFILE_COUNTERS        1
+#define NO_PROFILE_COUNTERS	1
 
 #undef FUNCTION_PROFILER
-#define FUNCTION_PROFILER(FILE, LABELNO)                                \
-{                                                                        \
-  if (flag_pic)                                                                \
-    fprintf (FILE, "\tcall __mcount@PLT\n");                                \
-  else                                                                        \
-    fprintf (FILE, "\tcall __mcount\n");                                \
+#define FUNCTION_PROFILER(FILE, LABELNO)				\
+{									\
+  if (flag_pic)								\
+    fprintf (FILE, "\tcall __mcount@PLT\n");				\
+  else									\
+    fprintf (FILE, "\tcall __mcount\n");				\
 }
 
 
@@ -91,9 +90,9 @@ Boston, MA 02110-1301, USA.  */
 /* This is how we tell the assembler that two symbols have the same value.  */
 
 #define ASM_OUTPUT_DEF(FILE,NAME1,NAME2) \
-  do { assemble_name(FILE, NAME1);          \
-       fputs(" = ", FILE);                 \
-       assemble_name(FILE, NAME2);         \
+  do { assemble_name(FILE, NAME1); 	 \
+       fputs(" = ", FILE);		 \
+       assemble_name(FILE, NAME2);	 \
        fputc('\n', FILE); } while (0)
 
 /* A C statement to output to the stdio stream FILE an assembler
@@ -103,23 +102,20 @@ Boston, MA 02110-1301, USA.  */
    This is used to align code labels according to Intel recommendations.  */
 
 #ifdef HAVE_GAS_MAX_SKIP_P2ALIGN
-#define ASM_OUTPUT_MAX_SKIP_ALIGN(FILE, LOG, MAX_SKIP)                        \
-  if ((LOG) != 0) {                                                        \
-    if ((MAX_SKIP) == 0) fprintf ((FILE), "\t.p2align %d\n", (LOG));        \
-    else fprintf ((FILE), "\t.p2align %d,,%d\n", (LOG), (MAX_SKIP));        \
+#define ASM_OUTPUT_MAX_SKIP_ALIGN(FILE, LOG, MAX_SKIP)			\
+  if ((LOG) != 0) {							\
+    if ((MAX_SKIP) == 0) fprintf ((FILE), "\t.p2align %d\n", (LOG));	\
+    else fprintf ((FILE), "\t.p2align %d,,%d\n", (LOG), (MAX_SKIP));	\
   }
 #endif
 
 /* We always use gas here, so we don't worry about ECOFF assembler
    problems.  */
 #undef TARGET_GAS
-#define TARGET_GAS        1
+#define TARGET_GAS	1
 
 /* Default to pcc-struct-return, because this is the ELF abi and
    we don't care about compatibility with older gcc versions.  */
 #define DEFAULT_PCC_STRUCT_RETURN 1
 
-/* Attempt to enable execute permissions on the stack.  */
-#define ENABLE_EXECUTE_STACK NETBSD_ENABLE_EXECUTE_STACK
-
-#define TARGET_VERSION fprintf (stderr, " (NetBSD/i386 ELF)");
+#define HAVE_ENABLE_EXECUTE_STACK

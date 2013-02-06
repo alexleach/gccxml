@@ -1,12 +1,12 @@
 /* Generate check macros for tree codes.
-   Copyright (C) 1998, 1999, 2000, 2002, 2003, 2004
+   Copyright (C) 1998, 1999, 2000, 2002, 2003, 2004, 2007, 2008
    Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -15,9 +15,8 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "bconfig.h"
 #include "system.h"
@@ -25,13 +24,15 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 #include "tm.h"
 
 #define DEFTREECODE(SYM, NAME, TYPE, LEN) #SYM,
+#define END_OF_BASE_TREE_CODES
 
 static const char *const tree_codes[] = {
-#include "tree.def"
-#include "c-common.def"
-#include "gencheck.h"
+#include "all-tree.def"
 (char*) 0
 };
+
+#undef DEFTREECODE
+#undef END_OF_BASE_TREE_CODES
 
 static void usage (void);
 
@@ -45,10 +46,6 @@ int
 main (int argc, char ** ARG_UNUSED (argv))
 {
   int i, j;
-
-/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-  gccxml_fix_printf();
-/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
 
   switch (argc)
     {
@@ -70,12 +67,12 @@ main (int argc, char ** ARG_UNUSED (argv))
   for (i = 0; tree_codes[i]; i++)
     {
       for (j = 0; j < i; j++)
-        if (strcmp (tree_codes[i], tree_codes[j]) == 0)
-          break;
+	if (strcmp (tree_codes[i], tree_codes[j]) == 0)
+	  break;
 
       if (i == j)
-        printf ("#define %s_CHECK(t)\tTREE_CHECK (t, %s)\n",
-                tree_codes[i], tree_codes[i]);
+	printf ("#define %s_CHECK(t)\tTREE_CHECK (t, %s)\n",
+		tree_codes[i], tree_codes[i]);
     }
 
   puts ("\n#endif /* GCC_TREE_CHECK_H */");

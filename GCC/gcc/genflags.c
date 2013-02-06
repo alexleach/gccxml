@@ -1,14 +1,14 @@
 /* Generate from machine description:
    - some flags HAVE_... saying which simple standard instructions are
    available for this machine.
-   Copyright (C) 1987, 1991, 1995, 1998,
-   1999, 2000, 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1987, 1991, 1995, 1998, 1999, 2000, 2003, 2004, 2007, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -17,9 +17,8 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 
 #include "bconfig.h"
@@ -29,6 +28,7 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 #include "rtl.h"
 #include "obstack.h"
 #include "errors.h"
+#include "read-md.h"
 #include "gensupport.h"
 
 /* Obstack to remember insns with.  */
@@ -44,7 +44,7 @@ static void max_operand_1 (rtx);
 static int num_operands (rtx);
 static void gen_proto (rtx);
 static void gen_macro (const char *, int, int);
-static void gen_insn (rtx);
+static void gen_insn (int, rtx);
 
 /* Count the number of match_operand's found.  */
 
@@ -70,13 +70,13 @@ max_operand_1 (rtx x)
   for (i = 0; i < len; i++)
     {
       if (fmt[i] == 'e' || fmt[i] == 'u')
-        max_operand_1 (XEXP (x, i));
+	max_operand_1 (XEXP (x, i));
       else if (fmt[i] == 'E')
-        {
-          int j;
-          for (j = 0; j < XVECLEN (x, i); j++)
-            max_operand_1 (XVECEXP (x, i, j));
-        }
+	{
+	  int j;
+	  for (j = 0; j < XVECLEN (x, i); j++)
+	    max_operand_1 (XVECEXP (x, i, j));
+	}
     }
 }
 
@@ -140,15 +140,15 @@ gen_proto (rtx insn)
   if (name[0] == 'c' || name[0] == 's')
     {
       if (!strcmp (name, "call")
-          || !strcmp (name, "call_pop")
-          || !strcmp (name, "sibcall")
-          || !strcmp (name, "sibcall_pop"))
-        gen_macro (name, num, 4);
+	  || !strcmp (name, "call_pop")
+	  || !strcmp (name, "sibcall")
+	  || !strcmp (name, "sibcall_pop"))
+	gen_macro (name, num, 4);
       else if (!strcmp (name, "call_value")
-               || !strcmp (name, "call_value_pop")
-               || !strcmp (name, "sibcall_value")
-               || !strcmp (name, "sibcall_value_pop"))
-        gen_macro (name, num, 5);
+	       || !strcmp (name, "call_value_pop")
+	       || !strcmp (name, "sibcall_value")
+	       || !strcmp (name, "sibcall_value_pop"))
+	gen_macro (name, num, 5);
     }
 
   if (truth != 0)
@@ -161,7 +161,7 @@ gen_proto (rtx insn)
   else
     {
       for (i = 1; i < num; i++)
-        fputs ("rtx, ", stdout);
+	fputs ("rtx, ", stdout);
 
       fputs ("rtx", stdout);
     }
@@ -174,26 +174,45 @@ gen_proto (rtx insn)
     {
       printf ("static inline rtx\ngen_%s", name);
       if (num > 0)
-        {
-          putchar ('(');
-          for (i = 0; i < num-1; i++)
-            printf ("rtx ARG_UNUSED (%c), ", 'a' + i);
-          printf ("rtx ARG_UNUSED (%c))\n", 'a' + i);
-        }
+	{
+	  putchar ('(');
+	  for (i = 0; i < num-1; i++)
+	    printf ("rtx ARG_UNUSED (%c), ", 'a' + i);
+	  printf ("rtx ARG_UNUSED (%c))\n", 'a' + i);
+	}
       else
-        puts ("(void)");
+	puts ("(void)");
       puts ("{\n  return 0;\n}");
     }
 
 }
 
 static void
-gen_insn (rtx insn)
+gen_insn (int line_no, rtx insn)
 {
   const char *name = XSTR (insn, 0);
   const char *p;
+  const char *lt, *gt;
   int len;
   int truth = maybe_eval_c_test (XSTR (insn, 2));
+
+  lt = strchr (name, '<');
+  if (lt && strchr (lt + 1, '>'))
+    {
+      message_with_line (line_no, "unresolved iterator");
+      have_error = 1;
+      return;
+    }
+
+  gt = strchr (name, '>');
+  if (lt || gt)
+    {
+      message_with_line (line_no,
+			 "unmatched angle brackets, likely "
+			 "an error in iterator syntax");
+      have_error = 1;
+      return;
+    }
 
   /* Don't mention instructions whose names are the null string
      or begin with '*'.  They are in the machine description just
@@ -213,15 +232,15 @@ gen_insn (rtx insn)
   else
     {
       /* Write the macro definition, putting \'s at the end of each line,
-         if more than one.  */
+	 if more than one.  */
       printf ("#define HAVE_%s (", name);
       for (p = XSTR (insn, 2); *p; p++)
-        {
-          if (IS_VSPACE (*p))
-            fputs (" \\\n", stdout);
-          else
-            putchar (*p);
-        }
+	{
+	  if (IS_VSPACE (*p))
+	    fputs (" \\\n", stdout);
+	  else
+	    putchar (*p);
+	}
       fputs (")\n", stdout);
     }
 
@@ -236,10 +255,6 @@ main (int argc, char **argv)
   rtx *insns;
   rtx *insn_ptr;
 
-/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-  gccxml_fix_printf();
-/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-
   progname = "genflags";
   obstack_init (&obstack);
 
@@ -247,7 +262,7 @@ main (int argc, char **argv)
      direct calls to their generators in C code.  */
   insn_elision = 0;
 
-  if (init_md_reader_args (argc, argv) != SUCCESS_EXIT_CODE)
+  if (!init_rtx_reader_args (argc, argv))
     return (FATAL_EXIT_CODE);
 
   puts ("/* Generated automatically by the program `genflags'");
@@ -263,9 +278,9 @@ main (int argc, char **argv)
 
       desc = read_md_rtx (&line_no, &insn_code_number);
       if (desc == NULL)
-        break;
+	break;
       if (GET_CODE (desc) == DEFINE_INSN || GET_CODE (desc) == DEFINE_EXPAND)
-        gen_insn (desc);
+	gen_insn (line_no, desc);
     }
 
   /* Print out the prototypes now.  */
@@ -278,7 +293,7 @@ main (int argc, char **argv)
 
   puts("\n#endif /* GCC_INSN_FLAGS_H */");
 
-  if (ferror (stdout) || fflush (stdout) || fclose (stdout))
+  if (have_error || ferror (stdout) || fflush (stdout) || fclose (stdout))
     return FATAL_EXIT_CODE;
 
   return SUCCESS_EXIT_CODE;

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for ARM with PE obj format.
-   Copyright (C) 1995, 1996, 1999, 2000, 2002, 2003, 2004, 2005
+   Copyright (C) 1995, 1996, 1999, 2000, 2002, 2003, 2004, 2005, 2007, 2011
    Free Software Foundation, Inc.
    Contributed by Doug Evans (dje@cygnus.com).
    
@@ -7,7 +7,7 @@
 
    GCC is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published
-   by the Free Software Foundation; either version 2, or (at your
+   by the Free Software Foundation; either version 3, or (at your
    option) any later version.
 
    GCC is distributed in the hope that it will be useful, but WITHOUT
@@ -16,12 +16,11 @@
    License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to
-   the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Enable PE specific code.  */
-#define ARM_PE                1
+#define ARM_PE		1
 
 #define ARM_PE_FLAG_CHAR '@'
 
@@ -35,8 +34,6 @@
 
 
 /* Run-time Target Specification.  */
-#undef  TARGET_VERSION
-#define TARGET_VERSION fputs (" (ARM/pe)", stderr)
 
 /* Get tree.c to declare a target-specific specialization of
    merge_decl_attributes.  */
@@ -46,14 +43,14 @@
 #define SUBTARGET_CPP_SPEC "-D__pe__"
 
 #undef  TARGET_DEFAULT
-#define TARGET_DEFAULT        (MASK_NOP_FUN_DLLIMPORT)
+#define TARGET_DEFAULT	(MASK_NOP_FUN_DLLIMPORT)
 
 #undef  MULTILIB_DEFAULTS
 #define MULTILIB_DEFAULTS \
-  { "marm", "mlittle-endian", "msoft-float", "mno-thumb-interwork" }  
+  { "marm", "mlittle-endian", "mfloat-abi=soft", "mno-thumb-interwork" }  
 
 #undef  WCHAR_TYPE
-#define WCHAR_TYPE         "short unsigned int"
+#define WCHAR_TYPE 	"short unsigned int"
 #undef  WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE 16
 
@@ -85,64 +82,64 @@
 
 /* Output a function definition label.  */
 #undef  ASM_DECLARE_FUNCTION_NAME
-#define ASM_DECLARE_FUNCTION_NAME(STREAM, NAME, DECL)           \
-  do                                                                \
-    {                                                                \
-      if (arm_dllexport_name_p (NAME))                                \
-        {                                                        \
-          drectve_section ();                                        \
-          fprintf (STREAM, "\t.ascii \" -export:%s\"\n",        \
-                   arm_strip_name_encoding (NAME));                \
-          switch_to_section (function_section (DECL));                \
-        }                                                        \
-      ARM_DECLARE_FUNCTION_NAME (STREAM, NAME, DECL);                \
-      if (TARGET_THUMB)                                                \
-        fprintf (STREAM, "\t.code 16\n");                        \
-      ASM_OUTPUT_LABEL (STREAM, NAME);                                \
-    }                                                                \
+#define ASM_DECLARE_FUNCTION_NAME(STREAM, NAME, DECL)   	\
+  do								\
+    {								\
+      if (arm_dllexport_name_p (NAME))				\
+	{							\
+	  drectve_section ();					\
+	  fprintf (STREAM, "\t.ascii \" -export:%s\"\n",	\
+		   arm_strip_name_encoding (NAME));		\
+	  switch_to_section (function_section (DECL));		\
+	}							\
+      ARM_DECLARE_FUNCTION_NAME (STREAM, NAME, DECL);		\
+      if (TARGET_THUMB)						\
+	fprintf (STREAM, "\t.code 16\n");			\
+      ASM_OUTPUT_LABEL (STREAM, NAME);				\
+    }								\
   while (0)
 
 /* Output a common block.  */
 #undef  ASM_OUTPUT_COMMON
-#define ASM_OUTPUT_COMMON(STREAM, NAME, SIZE, ROUNDED)        \
-  do                                                        \
-    {                                                        \
-      if (arm_dllexport_name_p (NAME))                        \
-        {                                                \
-          drectve_section ();                                \
-          fprintf ((STREAM), "\t.ascii \" -export:%s\"\n",\
-                   arm_strip_name_encoding (NAME));        \
-        }                                                \
-      if (! arm_dllimport_name_p (NAME))                \
-        {                                                \
-          fprintf ((STREAM), "\t.comm\t");                 \
-          assemble_name ((STREAM), (NAME));                \
-          asm_fprintf ((STREAM), ", %d\t%@ %d\n",        \
-                    (int)(ROUNDED), (int)(SIZE));        \
-        }                                                \
-    }                                                        \
+#define ASM_OUTPUT_COMMON(STREAM, NAME, SIZE, ROUNDED)	\
+  do							\
+    {							\
+      if (arm_dllexport_name_p (NAME))			\
+	{						\
+	  drectve_section ();				\
+	  fprintf ((STREAM), "\t.ascii \" -export:%s\"\n",\
+		   arm_strip_name_encoding (NAME));	\
+	}						\
+      if (! arm_dllimport_name_p (NAME))		\
+	{						\
+	  fprintf ((STREAM), "\t.comm\t"); 		\
+	  assemble_name ((STREAM), (NAME));		\
+	  asm_fprintf ((STREAM), ", %d\t%@ %d\n",	\
+ 		   (int)(ROUNDED), (int)(SIZE));	\
+	}						\
+    }							\
   while (0)
 
 /* Output the label for an initialized variable.  */
 #undef  ASM_DECLARE_OBJECT_NAME
-#define ASM_DECLARE_OBJECT_NAME(STREAM, NAME, DECL)         \
-  do                                                        \
-    {                                                        \
-      if (arm_dllexport_name_p (NAME))                        \
-        {                                                \
-          section *save_section = in_section;                \
-          drectve_section ();                                \
-          fprintf (STREAM, "\t.ascii \" -export:%s\"\n",\
-                   arm_strip_name_encoding (NAME));        \
-          switch_to_section (save_section);                \
-        }                                                \
-      ASM_OUTPUT_LABEL ((STREAM), (NAME));                \
-    }                                                        \
+#define ASM_DECLARE_OBJECT_NAME(STREAM, NAME, DECL) 	\
+  do							\
+    {							\
+      if (arm_dllexport_name_p (NAME))			\
+	{						\
+	  section *save_section = in_section;		\
+	  drectve_section ();				\
+	  fprintf (STREAM, "\t.ascii \" -export:%s\"\n",\
+		   arm_strip_name_encoding (NAME));	\
+	  switch_to_section (save_section);		\
+	}						\
+      ASM_OUTPUT_LABEL ((STREAM), (NAME));		\
+    }							\
   while (0)
 
 /* Support the ctors/dtors and other sections.  */
 
-#define DRECTVE_SECTION_ASM_OP        "\t.section .drectve"
+#define DRECTVE_SECTION_ASM_OP	"\t.section .drectve"
 
 #define drectve_section() \
   (fprintf (asm_out_file, "%s\n", DRECTVE_SECTION_ASM_OP), \

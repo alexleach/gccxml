@@ -1,12 +1,12 @@
 ;; ARM 1136J[F]-S Pipeline Description
-;; Copyright (C) 2003 Free Software Foundation, Inc.
+;; Copyright (C) 2003, 2007 Free Software Foundation, Inc.
 ;; Written by CodeSourcery, LLC.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful, but
@@ -15,9 +15,8 @@
 ;; General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to the Free
-;; Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-;; 02110-1301, USA.  */
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.  */
 
 ;; These descriptions are based on the information contained in the
 ;; ARM1136JF-S Technical Reference Manual, Copyright (c) 2003 ARM
@@ -96,28 +95,28 @@
 
 ;; alu_ops can start sooner, if there is no shifter dependency
 (define_bypass 1 "11_alu_op,11_alu_shift_op"
-               "11_alu_op")
+	       "11_alu_op")
 (define_bypass 1 "11_alu_op,11_alu_shift_op"
-               "11_alu_shift_op"
-               "arm_no_early_alu_shift_value_dep")
+	       "11_alu_shift_op"
+	       "arm_no_early_alu_shift_value_dep")
 (define_bypass 1 "11_alu_op,11_alu_shift_op"
-               "11_alu_shift_reg_op"
-               "arm_no_early_alu_shift_dep")
+	       "11_alu_shift_reg_op"
+	       "arm_no_early_alu_shift_dep")
 (define_bypass 2 "11_alu_shift_reg_op"
-               "11_alu_op")
+	       "11_alu_op")
 (define_bypass 2 "11_alu_shift_reg_op"
-               "11_alu_shift_op"
-               "arm_no_early_alu_shift_value_dep")
+	       "11_alu_shift_op"
+	       "arm_no_early_alu_shift_value_dep")
 (define_bypass 2 "11_alu_shift_reg_op"
-               "11_alu_shift_reg_op"
-               "arm_no_early_alu_shift_dep")
+	       "11_alu_shift_reg_op"
+	       "arm_no_early_alu_shift_dep")
 
 (define_bypass 1 "11_alu_op,11_alu_shift_op"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 (define_bypass 2 "11_alu_shift_reg_op"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Multiplication Instructions
@@ -140,19 +139,19 @@
  "e_1*2,e_2,e_3,e_wb")
 
 (define_bypass 3 "11_mult1,11_mult2"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 (define_bypass 3 "11_mult1,11_mult2"
-               "11_alu_op")
+	       "11_alu_op")
 (define_bypass 3 "11_mult1,11_mult2"
-               "11_alu_shift_op"
-               "arm_no_early_alu_shift_value_dep")
+	       "11_alu_shift_op"
+	       "arm_no_early_alu_shift_value_dep")
 (define_bypass 3 "11_mult1,11_mult2"
-               "11_alu_shift_reg_op"
-               "arm_no_early_alu_shift_dep")
+	       "11_alu_shift_reg_op"
+	       "arm_no_early_alu_shift_dep")
 (define_bypass 3 "11_mult1,11_mult2"
-               "11_store1"
-               "arm_no_early_store_addr_dep")
+	       "11_store1"
+	       "arm_no_early_store_addr_dep")
 
 ;; Signed and unsigned multiply long results are available across two cycles;
 ;; the less significant word is available one cycle before the more significant
@@ -171,19 +170,19 @@
  "e_1*3,e_2,e_3,e_wb*2")
 
 (define_bypass 4 "11_mult3,11_mult4"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 (define_bypass 4 "11_mult3,11_mult4"
-               "11_alu_op")
+	       "11_alu_op")
 (define_bypass 4 "11_mult3,11_mult4"
-               "11_alu_shift_op"
-               "arm_no_early_alu_shift_value_dep")
+	       "11_alu_shift_op"
+	       "arm_no_early_alu_shift_value_dep")
 (define_bypass 4 "11_mult3,11_mult4"
-               "11_alu_shift_reg_op"
-               "arm_no_early_alu_shift_dep")
+	       "11_alu_shift_reg_op"
+	       "arm_no_early_alu_shift_dep")
 (define_bypass 4 "11_mult3,11_mult4"
-               "11_store1"
-               "arm_no_early_store_addr_dep")
+	       "11_store1"
+	       "arm_no_early_store_addr_dep")
 
 ;; Various 16x16->32 multiplies and multiply-accumulates, using combinations
 ;; of high and low halves of the argument registers.  They take a single
@@ -195,19 +194,19 @@
  "e_1,e_2,e_3,e_wb")
 
 (define_bypass 2 "11_mult5"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 (define_bypass 2 "11_mult5"
-               "11_alu_op")
+	       "11_alu_op")
 (define_bypass 2 "11_mult5"
-               "11_alu_shift_op"
-               "arm_no_early_alu_shift_value_dep")
+	       "11_alu_shift_op"
+	       "arm_no_early_alu_shift_value_dep")
 (define_bypass 2 "11_mult5"
-               "11_alu_shift_reg_op"
-               "arm_no_early_alu_shift_dep")
+	       "11_alu_shift_reg_op"
+	       "arm_no_early_alu_shift_dep")
 (define_bypass 2 "11_mult5"
-               "11_store1"
-               "arm_no_early_store_addr_dep")
+	       "11_store1"
+	       "arm_no_early_store_addr_dep")
 
 ;; The same idea, then the 32-bit result is added to a 64-bit quantity.
 (define_insn_reservation "11_mult6" 4
@@ -223,19 +222,19 @@
  "e_1*2,e_2,e_3,e_wb")
 
 (define_bypass 3 "11_mult6,11_mult7"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 (define_bypass 3 "11_mult6,11_mult7"
-               "11_alu_op")
+	       "11_alu_op")
 (define_bypass 3 "11_mult6,11_mult7"
-               "11_alu_shift_op"
-               "arm_no_early_alu_shift_value_dep")
+	       "11_alu_shift_op"
+	       "arm_no_early_alu_shift_value_dep")
 (define_bypass 3 "11_mult6,11_mult7"
-               "11_alu_shift_reg_op"
-               "arm_no_early_alu_shift_dep")
+	       "11_alu_shift_reg_op"
+	       "arm_no_early_alu_shift_dep")
 (define_bypass 3 "11_mult6,11_mult7"
-               "11_store1"
-               "arm_no_early_store_addr_dep")
+	       "11_store1"
+	       "arm_no_early_store_addr_dep")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Branch Instructions
@@ -264,13 +263,13 @@
 ;; cost, but we're conservative here, and use the timings a
 ;; late-register would give us.
 (define_bypass 1 "11_alu_op,11_alu_shift_op"
-               "11_branches")
+	       "11_branches")
 (define_bypass 2 "11_alu_shift_reg_op"
-               "11_branches")
+	       "11_branches")
 (define_bypass 2 "11_load1,11_load2"
-               "11_branches")
+	       "11_branches")
 (define_bypass 3 "11_load34"
-               "11_branches")
+	       "11_branches")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Load/Store Instructions
@@ -329,49 +328,49 @@
 ;; A store can start immediately after an alu op, if that alu op does
 ;; not provide part of the address to access.
 (define_bypass 1 "11_alu_op,11_alu_shift_op"
-               "11_store1"
-               "arm_no_early_store_addr_dep")
+	       "11_store1"
+	       "arm_no_early_store_addr_dep")
 (define_bypass 2 "11_alu_shift_reg_op"
-               "11_store1"
-               "arm_no_early_store_addr_dep")
+	       "11_store1"
+	       "arm_no_early_store_addr_dep")
 
 ;; An alu op can start sooner after a load, if that alu op does not
 ;; have an early register dependency on the load
 (define_bypass 2 "11_load1"
-               "11_alu_op")
+	       "11_alu_op")
 (define_bypass 2 "11_load1"
-               "11_alu_shift_op"
-               "arm_no_early_alu_shift_value_dep")
+	       "11_alu_shift_op"
+	       "arm_no_early_alu_shift_value_dep")
 (define_bypass 2 "11_load1"
-               "11_alu_shift_reg_op"
-               "arm_no_early_alu_shift_dep")
+	       "11_alu_shift_reg_op"
+	       "arm_no_early_alu_shift_dep")
 
 (define_bypass 3 "11_loadb"
-               "11_alu_op")
+	       "11_alu_op")
 (define_bypass 3 "11_loadb"
-               "11_alu_shift_op"
-               "arm_no_early_alu_shift_value_dep")
+	       "11_alu_shift_op"
+	       "arm_no_early_alu_shift_value_dep")
 (define_bypass 3 "11_loadb"
-               "11_alu_shift_reg_op"
-               "arm_no_early_alu_shift_dep")
+	       "11_alu_shift_reg_op"
+	       "arm_no_early_alu_shift_dep")
 
 ;; A mul op can start sooner after a load, if that mul op does not
 ;; have an early multiply dependency
 (define_bypass 2 "11_load1"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 (define_bypass 3 "11_load34"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 (define_bypass 3 "11_loadb"
-               "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
-               "arm_no_early_mul_dep")
+	       "11_mult1,11_mult2,11_mult3,11_mult4,11_mult5,11_mult6,11_mult7"
+	       "arm_no_early_mul_dep")
 
 ;; A store can start sooner after a load, if that load does not
 ;; produce part of the address to access
 (define_bypass 2 "11_load1"
-               "11_store1"
-               "arm_no_early_store_addr_dep")
+	       "11_store1"
+	       "arm_no_early_store_addr_dep")
 (define_bypass 3 "11_loadb"
-               "11_store1"
-               "arm_no_early_store_addr_dep")
+	       "11_store1"
+	       "arm_no_early_store_addr_dep")

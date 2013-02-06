@@ -1,12 +1,12 @@
 /* Definitions of target machine for GNU compiler, for HPs using the
    64bit runtime model.
-   Copyright (C) 1999, 2000, 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1999, 2000, 2003, 2004, 2007 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -15,27 +15,26 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 /* The default sizes for basic datatypes provided by GCC are not
    correct for the PA64 runtime architecture.
 
    In PA64, basic types have the following sizes
 
-     char        1 byte
-     short        2 bytes
-     int        4 bytes
-     long        8 bytes
-     long long        8 bytes
-     pointer        8 bytes
-     float        4 bytes
-     double        8 bytes
+     char	1 byte
+     short	2 bytes
+     int	4 bytes
+     long	8 bytes
+     long long	8 bytes
+     pointer	8 bytes
+     float	4 bytes
+     double	8 bytes
      long double 16 bytes
-     size_t        8 bytes
-     ptrdiff_t        8 bytes
-     wchar        4 bytes
+     size_t	8 bytes
+     ptrdiff_t	8 bytes
+     wchar	4 bytes
      
   Make GCC agree with types.h.  */
 #undef SIZE_TYPE
@@ -85,3 +84,17 @@ Boston, MA 02110-1301, USA.  */
    want aggregates padded down.  */
 
 #define PAD_VARARGS_DOWN (!AGGREGATE_TYPE_P (type))
+
+/* In the PA architecture, it is not possible to directly move data
+   between GENERAL_REGS and FP_REGS.  On the 32-bit port, we use the
+   location at SP-16 because PA 1.X only supports 5-bit immediates for
+   floating-point loads and stores.  We don't expose this location in
+   the RTL to avoid scheduling related problems.  For example, the
+   store and load could be separated by a call to a pure or const
+   function which has no frame and this function might also use SP-16.
+   We have 14-bit immediates on the 64-bit port, so we use secondary
+   memory for the copies.  */
+#define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, MODE) \
+  (MAYBE_FP_REG_CLASS_P (CLASS1) != FP_REG_CLASS_P (CLASS2)		\
+   || MAYBE_FP_REG_CLASS_P (CLASS2) != FP_REG_CLASS_P (CLASS1))
+

@@ -1,12 +1,13 @@
 /* Various declarations for language-independent pretty-print subroutines.
-   Copyright (C) 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2003, 2004, 2005, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -15,59 +16,46 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#undef FLOAT /* This is for hpux. They should change hpux.  */
-#undef FFS  /* Some systems define this in param.h.  */
 #include "system.h"
 #include "coretypes.h"
 #include "intl.h"
 #include "pretty-print.h"
-#include "tree.h"
 
-#define obstack_chunk_alloc xmalloc
-#define obstack_chunk_free  free
+#if HAVE_ICONV
+#include <iconv.h>
+#endif
 
 /* A pointer to the formatted diagnostic message.  */
 #define pp_formatted_text_data(PP) \
    ((const char *) obstack_base (pp_base (PP)->buffer->obstack))
 
-/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:10) */
-#if defined(_MSC_VER) && _MSC_VER < 1400 || defined(__BORLANDC__)
-# define PP_LL_FORMAT "%I64"
-# define PP_LL_TYPE __int64
-#else
-# define PP_LL_FORMAT "%ll"
-# define PP_LL_TYPE long long
-#endif
-
 /* Format an integer given by va_arg (ARG, type-specifier T) where
    type-specifier is a precision modifier as indicated by PREC.  F is
    a string used to construct the appropriate format-specifier.  */
-#define pp_integer_with_precision(PP, ARG, PREC, sign, F)       \
+#define pp_integer_with_precision(PP, ARG, PREC, T, F)       \
   do                                                         \
     switch (PREC)                                            \
       {                                                      \
       case 0:                                                \
-        pp_scalar (PP, "%" F, va_arg (ARG, sign int));              \
+        pp_scalar (PP, "%" F, va_arg (ARG, T));              \
         break;                                               \
                                                              \
       case 1:                                                \
-        pp_scalar (PP, "%l" F, va_arg (ARG, sign long));        \
+        pp_scalar (PP, "%l" F, va_arg (ARG, long T));        \
         break;                                               \
                                                              \
       case 2:                                                \
-        pp_scalar (PP, PP_LL_FORMAT F, va_arg (ARG, sign PP_LL_TYPE));  \
+        pp_scalar (PP, "%" HOST_LONG_LONG_FORMAT F, va_arg (ARG, long long T));  \
         break;                                               \
                                                              \
       default:                                               \
         break;                                               \
       }                                                      \
   while (0)
-/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:10) */
 
 
 /* Subroutine of pp_set_maximum_length.  Set up PRETTY-PRINTER's
@@ -88,9 +76,9 @@ pp_set_real_maximum_length (pretty_printer *pp)
       /* If the prefix is ridiculously too long, output at least
          32 characters.  */
       if (pp_line_cutoff (pp) - prefix_length < 32)
-        pp->maximum_length = pp_line_cutoff (pp) + 32;
+	pp->maximum_length = pp_line_cutoff (pp) + 32;
       else
-        pp->maximum_length = pp_line_cutoff (pp);
+	pp->maximum_length = pp_line_cutoff (pp);
     }
 }
 
@@ -121,26 +109,26 @@ pp_wrap_text (pretty_printer *pp, const char *start, const char *end)
     {
       /* Dump anything bordered by whitespaces.  */
       {
-        const char *p = start;
-        while (p != end && !ISBLANK (*p) && *p != '\n')
-          ++p;
-        if (wrapping_line
+	const char *p = start;
+	while (p != end && !ISBLANK (*p) && *p != '\n')
+	  ++p;
+	if (wrapping_line
             && p - start >= pp_remaining_character_count_for_line (pp))
-          pp_newline (pp);
-        pp_append_text (pp, start, p);
-        start = p;
+	  pp_newline (pp);
+	pp_append_text (pp, start, p);
+	start = p;
       }
 
       if (start != end && ISBLANK (*start))
-        {
-          pp_space (pp);
-          ++start;
-        }
+	{
+	  pp_space (pp);
+	  ++start;
+	}
       if (start != end && *start == '\n')
-        {
-          pp_newline (pp);
-          ++start;
-        }
+	{
+	  pp_newline (pp);
+	  ++start;
+	}
     }
 }
 
@@ -194,10 +182,8 @@ pp_base_indent (pretty_printer *pp)
    %': apostrophe (should only be used in untranslated messages;
        translations should use appropriate punctuation directly).
    %.*s: a substring the length of which is specified by an argument
-         integer.
+	 integer.
    %Ns: likewise, but length specified as constant in the format string.
-   %H: location_t.
-   %J: a decl tree, from which DECL_SOURCE_LOCATION will be recorded.
    Flag 'q': quote formatted text (must come immediately after '%').
 
    Arguments can be used sequentially, or through %N$ resp. *N$
@@ -240,129 +226,129 @@ pp_base_format (pretty_printer *pp, text_info *text)
      this point.  */
 
   memset (formatters, 0, sizeof formatters);
-  
+
   for (p = text->format_spec; *p; )
     {
       while (*p != '\0' && *p != '%')
-        {
-          obstack_1grow (&buffer->chunk_obstack, *p);
-          p++;
-        }
+	{
+	  obstack_1grow (&buffer->chunk_obstack, *p);
+	  p++;
+	}
 
       if (*p == '\0')
-        break;
+	break;
 
       switch (*++p)
-        {
-        case '\0':
-          gcc_unreachable ();
-          
-        case '%':
-          obstack_1grow (&buffer->chunk_obstack, '%');
-          p++;
-          continue;
+	{
+	case '\0':
+	  gcc_unreachable ();
 
-        case '<':
-          obstack_grow (&buffer->chunk_obstack,
-                        open_quote, strlen (open_quote));
-          p++;
-          continue;
+	case '%':
+	  obstack_1grow (&buffer->chunk_obstack, '%');
+	  p++;
+	  continue;
 
-        case '>':
-        case '\'':
-          obstack_grow (&buffer->chunk_obstack,
-                        close_quote, strlen (close_quote));
-          p++;
-          continue;
+	case '<':
+	  obstack_grow (&buffer->chunk_obstack,
+			open_quote, strlen (open_quote));
+	  p++;
+	  continue;
 
-        case 'm':
-          {
-            const char *errstr = xstrerror (text->err_no);
-            obstack_grow (&buffer->chunk_obstack, errstr, strlen (errstr));
-          }
-          p++;
-          continue;
+	case '>':
+	case '\'':
+	  obstack_grow (&buffer->chunk_obstack,
+			close_quote, strlen (close_quote));
+	  p++;
+	  continue;
 
-        default:
-          /* Handled in phase 2.  Terminate the plain chunk here.  */
-          obstack_1grow (&buffer->chunk_obstack, '\0');
-          gcc_assert (chunk < PP_NL_ARGMAX * 2);
-          args[chunk++] = XOBFINISH (&buffer->chunk_obstack, const char *);
-          break;
-        }
+	case 'm':
+	  {
+	    const char *errstr = xstrerror (text->err_no);
+	    obstack_grow (&buffer->chunk_obstack, errstr, strlen (errstr));
+	  }
+	  p++;
+	  continue;
+
+	default:
+	  /* Handled in phase 2.  Terminate the plain chunk here.  */
+	  obstack_1grow (&buffer->chunk_obstack, '\0');
+	  gcc_assert (chunk < PP_NL_ARGMAX * 2);
+	  args[chunk++] = XOBFINISH (&buffer->chunk_obstack, const char *);
+	  break;
+	}
 
       if (ISDIGIT (*p))
-        {
-          char *end;
-          argno = strtoul (p, &end, 10) - 1;
-          p = end;
-          gcc_assert (*p == '$');
-          p++;
+	{
+	  char *end;
+	  argno = strtoul (p, &end, 10) - 1;
+	  p = end;
+	  gcc_assert (*p == '$');
+	  p++;
 
-          any_numbered = true;
-          gcc_assert (!any_unnumbered);
-        }
+	  any_numbered = true;
+	  gcc_assert (!any_unnumbered);
+	}
       else
-        {
-          argno = curarg++;
-          any_unnumbered = true;
-          gcc_assert (!any_numbered);
-        }
+	{
+	  argno = curarg++;
+	  any_unnumbered = true;
+	  gcc_assert (!any_numbered);
+	}
       gcc_assert (argno < PP_NL_ARGMAX);
       gcc_assert (!formatters[argno]);
       formatters[argno] = &args[chunk];
       do
-        {
-          obstack_1grow (&buffer->chunk_obstack, *p);
-          p++;
-        }
+	{
+	  obstack_1grow (&buffer->chunk_obstack, *p);
+	  p++;
+	}
       while (strchr ("qwl+#", p[-1]));
 
       if (p[-1] == '.')
-        {
-          /* We handle '%.Ns' and '%.*s' or '%M$.*N$s'
-             (where M == N + 1).  */
-          if (ISDIGIT (*p))
-            {
-              do
-                {
-                  obstack_1grow (&buffer->chunk_obstack, *p);
-                  p++;
-                }
-              while (ISDIGIT (p[-1]));
-              gcc_assert (p[-1] == 's');
-            }
-          else
-            {
-              gcc_assert (*p == '*');
-              obstack_1grow (&buffer->chunk_obstack, '*');
-              p++;
+	{
+	  /* We handle '%.Ns' and '%.*s' or '%M$.*N$s'
+	     (where M == N + 1).  */
+	  if (ISDIGIT (*p))
+	    {
+	      do
+		{
+		  obstack_1grow (&buffer->chunk_obstack, *p);
+		  p++;
+		}
+	      while (ISDIGIT (p[-1]));
+	      gcc_assert (p[-1] == 's');
+	    }
+	  else
+	    {
+	      gcc_assert (*p == '*');
+	      obstack_1grow (&buffer->chunk_obstack, '*');
+	      p++;
 
-              if (ISDIGIT (*p))
-                {
-                  char *end;
-                  unsigned int argno2 = strtoul (p, &end, 10) - 1;
-                  p = end;
-                  gcc_assert (argno2 == argno - 1);
-                  gcc_assert (!any_unnumbered);
-                  gcc_assert (*p == '$');
+	      if (ISDIGIT (*p))
+		{
+		  char *end;
+		  unsigned int argno2 = strtoul (p, &end, 10) - 1;
+		  p = end;
+		  gcc_assert (argno2 == argno - 1);
+		  gcc_assert (!any_unnumbered);
+		  gcc_assert (*p == '$');
 
-                  p++;
-                  formatters[argno2] = formatters[argno];
-                }
-              else
-                {
-                  gcc_assert (!any_numbered);
-                  formatters[argno+1] = formatters[argno];
-                  curarg++;
-                }
-              gcc_assert (*p == 's');
-              obstack_1grow (&buffer->chunk_obstack, 's');
-              p++;
-            }
-        }
+		  p++;
+		  formatters[argno2] = formatters[argno];
+		}
+	      else
+		{
+		  gcc_assert (!any_numbered);
+		  formatters[argno+1] = formatters[argno];
+		  curarg++;
+		}
+	      gcc_assert (*p == 's');
+	      obstack_1grow (&buffer->chunk_obstack, 's');
+	      p++;
+	    }
+	}
       if (*p == '\0')
-        break;
+	break;
 
       obstack_1grow (&buffer->chunk_obstack, '\0');
       gcc_assert (chunk < PP_NL_ARGMAX * 2);
@@ -373,7 +359,7 @@ pp_base_format (pretty_printer *pp, text_info *text)
   gcc_assert (chunk < PP_NL_ARGMAX * 2);
   args[chunk++] = XOBFINISH (&buffer->chunk_obstack, const char *);
   args[chunk] = 0;
-                  
+
   /* Set output to the argument obstack, and switch line-wrapping and
      prefixing off.  */
   buffer->obstack = &buffer->chunk_obstack;
@@ -391,160 +377,142 @@ pp_base_format (pretty_printer *pp, text_info *text)
       bool quote = false;
 
       /* We do not attempt to enforce any ordering on the modifier
-         characters.  */
+	 characters.  */
 
       for (p = *formatters[argno];; p++)
-        {
-          switch (*p)
-            {
-            case 'q':
-              gcc_assert (!quote);
-              quote = true;
-              continue;
+	{
+	  switch (*p)
+	    {
+	    case 'q':
+	      gcc_assert (!quote);
+	      quote = true;
+	      continue;
 
-            case '+':
-              gcc_assert (!plus);
-              plus = true;
-              continue;
+	    case '+':
+	      gcc_assert (!plus);
+	      plus = true;
+	      continue;
 
-            case '#':
-              gcc_assert (!hash);
-              hash = true;
-              continue;
+	    case '#':
+	      gcc_assert (!hash);
+	      hash = true;
+	      continue;
 
-            case 'w':
-              gcc_assert (!wide);
-              wide = true;
-              continue;
+	    case 'w':
+	      gcc_assert (!wide);
+	      wide = true;
+	      continue;
 
-            case 'l':
-              /* We don't support precision beyond that of "long long".  */
-              gcc_assert (precision < 2);
-              precision++;
-              continue;
-            }
-          break;
-        }
+	    case 'l':
+	      /* We don't support precision beyond that of "long long".  */
+	      gcc_assert (precision < 2);
+	      precision++;
+	      continue;
+	    }
+	  break;
+	}
 
       gcc_assert (!wide || precision == 0);
 
       if (quote)
-        pp_string (pp, open_quote);
+	pp_string (pp, open_quote);
 
       switch (*p)
-        {
-        case 'c':
-          pp_character (pp, va_arg (*text->args_ptr, int));
-          break;
+	{
+	case 'c':
+	  pp_character (pp, va_arg (*text->args_ptr, int));
+	  break;
 
-        case 'd':
-        case 'i':
-          if (wide)
-            pp_wide_integer (pp, va_arg (*text->args_ptr, HOST_WIDE_INT));
-          else
-/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:10) */
-            pp_integer_with_precision
-              (pp, *text->args_ptr, precision, signed, "d");
-/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:10) */
-          break;
+	case 'd':
+	case 'i':
+	  if (wide)
+	    pp_wide_integer (pp, va_arg (*text->args_ptr, HOST_WIDE_INT));
+	  else
+	    pp_integer_with_precision
+	      (pp, *text->args_ptr, precision, int, "d");
+	  break;
 
-        case 'o':
-          if (wide)
-            pp_scalar (pp, "%" HOST_WIDE_INT_PRINT "o",
-                       va_arg (*text->args_ptr, unsigned HOST_WIDE_INT));
-          else
-            pp_integer_with_precision
-              (pp, *text->args_ptr, precision, unsigned, "o");
-          break;
+	case 'o':
+	  if (wide)
+	    pp_scalar (pp, "%" HOST_WIDE_INT_PRINT "o",
+		       va_arg (*text->args_ptr, unsigned HOST_WIDE_INT));
+	  else
+	    pp_integer_with_precision
+	      (pp, *text->args_ptr, precision, unsigned, "o");
+	  break;
 
-        case 's':
-          pp_string (pp, va_arg (*text->args_ptr, const char *));
-          break;
+	case 's':
+	  pp_string (pp, va_arg (*text->args_ptr, const char *));
+	  break;
 
-        case 'p':
-          pp_pointer (pp, va_arg (*text->args_ptr, void *));
-          break;
+	case 'p':
+	  pp_pointer (pp, va_arg (*text->args_ptr, void *));
+	  break;
 
-        case 'u':
-          if (wide)
-            pp_scalar (pp, HOST_WIDE_INT_PRINT_UNSIGNED,
-                       va_arg (*text->args_ptr, unsigned HOST_WIDE_INT));
-          else
-            pp_integer_with_precision
-              (pp, *text->args_ptr, precision, unsigned, "u");
-          break;
+	case 'u':
+	  if (wide)
+	    pp_scalar (pp, HOST_WIDE_INT_PRINT_UNSIGNED,
+		       va_arg (*text->args_ptr, unsigned HOST_WIDE_INT));
+	  else
+	    pp_integer_with_precision
+	      (pp, *text->args_ptr, precision, unsigned, "u");
+	  break;
 
-        case 'x':
-          if (wide)
-            pp_scalar (pp, HOST_WIDE_INT_PRINT_HEX,
-                       va_arg (*text->args_ptr, unsigned HOST_WIDE_INT));
-          else
-            pp_integer_with_precision
-              (pp, *text->args_ptr, precision, unsigned, "x");
-          break;
+	case 'x':
+	  if (wide)
+	    pp_scalar (pp, HOST_WIDE_INT_PRINT_HEX,
+		       va_arg (*text->args_ptr, unsigned HOST_WIDE_INT));
+	  else
+	    pp_integer_with_precision
+	      (pp, *text->args_ptr, precision, unsigned, "x");
+	  break;
 
-        case 'H':
-          {
-            location_t *locus = va_arg (*text->args_ptr, location_t *);
-            gcc_assert (text->locus != NULL);
-            *text->locus = *locus;
-          }
-          break;
+	case '.':
+	  {
+	    int n;
+	    const char *s;
 
-        case 'J':
-          {
-            tree t = va_arg (*text->args_ptr, tree);
-            gcc_assert (text->locus != NULL);
-            *text->locus = DECL_SOURCE_LOCATION (t);
-          }
-          break;
+	    /* We handle '%.Ns' and '%.*s' or '%M$.*N$s'
+	       (where M == N + 1).  The format string should be verified
+	       already from the first phase.  */
+	    p++;
+	    if (ISDIGIT (*p))
+	      {
+		char *end;
+		n = strtoul (p, &end, 10);
+		p = end;
+		gcc_assert (*p == 's');
+	      }
+	    else
+	      {
+		gcc_assert (*p == '*');
+		p++;
+		gcc_assert (*p == 's');
+		n = va_arg (*text->args_ptr, int);
 
-        case '.':
-          {
-            int n;
-            const char *s;
+		/* This consumes a second entry in the formatters array.  */
+		gcc_assert (formatters[argno] == formatters[argno+1]);
+		argno++;
+	      }
 
-            /* We handle '%.Ns' and '%.*s' or '%M$.*N$s'
-               (where M == N + 1).  The format string should be verified
-               already from the first phase.  */
-            p++;
-            if (ISDIGIT (*p))
-              {
-                char *end;
-                n = strtoul (p, &end, 10);
-                p = end;
-                gcc_assert (*p == 's');
-              }
-            else
-              {
-                gcc_assert (*p == '*');
-                p++;
-                gcc_assert (*p == 's');
-                n = va_arg (*text->args_ptr, int);
+	    s = va_arg (*text->args_ptr, const char *);
+	    pp_append_text (pp, s, s + n);
+	  }
+	  break;
 
-                /* This consumes a second entry in the formatters array.  */
-                gcc_assert (formatters[argno] == formatters[argno+1]);
-                argno++;
-              }
+	default:
+	  {
+	    bool ok;
 
-            s = va_arg (*text->args_ptr, const char *);
-            pp_append_text (pp, s, s + n);
-          }
-          break;
-
-        default:
-          {
-            bool ok;
-
-            gcc_assert (pp_format_decoder (pp));
-            ok = pp_format_decoder (pp) (pp, text, p,
-                                         precision, wide, plus, hash);
-            gcc_assert (ok);
-          }
-        }
+	    gcc_assert (pp_format_decoder (pp));
+	    ok = pp_format_decoder (pp) (pp, text, p,
+					 precision, wide, plus, hash);
+	    gcc_assert (ok);
+	  }
+	}
 
       if (quote)
-        pp_string (pp, close_quote);
+	pp_string (pp, close_quote);
 
       obstack_1grow (&buffer->chunk_obstack, '\0');
       *formatters[argno] = XOBFINISH (&buffer->chunk_obstack, const char *);
@@ -646,7 +614,7 @@ pp_base_destroy_prefix (pretty_printer *pp)
 {
   if (pp->prefix != NULL)
     {
-      free ((char *) pp->prefix);
+      free (CONST_CAST (char *, pp->prefix));
       pp->prefix = NULL;
     }
 }
@@ -658,28 +626,28 @@ pp_base_emit_prefix (pretty_printer *pp)
   if (pp->prefix != NULL)
     {
       switch (pp_prefixing_rule (pp))
-        {
-        default:
-        case DIAGNOSTICS_SHOW_PREFIX_NEVER:
-          break;
+	{
+	default:
+	case DIAGNOSTICS_SHOW_PREFIX_NEVER:
+	  break;
 
-        case DIAGNOSTICS_SHOW_PREFIX_ONCE:
-          if (pp->emitted_prefix)
-            {
-              pp_base_indent (pp);
-              break;
-            }
-          pp_indentation (pp) += 3;
-          /* Fall through.  */
+	case DIAGNOSTICS_SHOW_PREFIX_ONCE:
+	  if (pp->emitted_prefix)
+	    {
+	      pp_base_indent (pp);
+	      break;
+	    }
+	  pp_indentation (pp) += 3;
+	  /* Fall through.  */
 
-        case DIAGNOSTICS_SHOW_PREFIX_EVERY_LINE:
-          {
-            int prefix_length = strlen (pp->prefix);
-            pp_append_r (pp, pp->prefix, prefix_length);
-            pp->emitted_prefix = true;
-          }
-          break;
-        }
+	case DIAGNOSTICS_SHOW_PREFIX_EVERY_LINE:
+	  {
+	    int prefix_length = strlen (pp->prefix);
+	    pp_append_r (pp, pp->prefix, prefix_length);
+	    pp->emitted_prefix = true;
+	  }
+	  break;
+	}
     }
 }
 
@@ -697,6 +665,7 @@ pp_construct (pretty_printer *pp, const char *prefix, int maximum_length)
   pp_line_cutoff (pp) = maximum_length;
   pp_prefixing_rule (pp) = DIAGNOSTICS_SHOW_PREFIX_ONCE;
   pp_set_prefix (pp, prefix);
+  pp_translate_identifiers (pp) = true;
 }
 
 /* Append a string delimited by START and END to the output area of
@@ -712,8 +681,8 @@ pp_base_append_text (pretty_printer *pp, const char *start, const char *end)
     {
       pp_emit_prefix (pp);
       if (pp_is_wrapping_line (pp))
-        while (start != end && *start == ' ')
-          ++start;
+	while (start != end && *start == ' ')
+	  ++start;
     }
   pp_append_r (pp, start, end - start);
 }
@@ -826,4 +795,227 @@ pp_base_maybe_space (pretty_printer *pp)
       pp_space (pp);
       pp_base (pp)->padding = pp_none;
     }
+}
+
+/* The string starting at P has LEN (at least 1) bytes left; if they
+   start with a valid UTF-8 sequence, return the length of that
+   sequence and set *VALUE to the value of that sequence, and
+   otherwise return 0 and set *VALUE to (unsigned int) -1.  */
+
+static int
+decode_utf8_char (const unsigned char *p, size_t len, unsigned int *value)
+{
+  unsigned int t = *p;
+
+  if (len == 0)
+    abort ();
+  if (t & 0x80)
+    {
+      size_t utf8_len = 0;
+      unsigned int ch;
+      size_t i;
+      for (t = *p; t & 0x80; t <<= 1)
+	utf8_len++;
+
+      if (utf8_len > len || utf8_len < 2 || utf8_len > 6)
+	{
+	  *value = (unsigned int) -1;
+	  return 0;
+	}
+      ch = *p & ((1 << (7 - utf8_len)) - 1);
+      for (i = 1; i < utf8_len; i++)
+	{
+	  unsigned int u = p[i];
+	  if ((u & 0xC0) != 0x80)
+	    {
+	      *value = (unsigned int) -1;
+	      return 0;
+	    }
+	  ch = (ch << 6) | (u & 0x3F);
+	}
+      if (   (ch <=      0x7F && utf8_len > 1)
+	  || (ch <=     0x7FF && utf8_len > 2)
+	  || (ch <=    0xFFFF && utf8_len > 3)
+	  || (ch <=  0x1FFFFF && utf8_len > 4)
+	  || (ch <= 0x3FFFFFF && utf8_len > 5)
+	  || (ch >= 0xD800 && ch <= 0xDFFF))
+	{
+	  *value = (unsigned int) -1;
+	  return 0;
+	}
+      *value = ch;
+      return utf8_len;
+    }
+  else
+    {
+      *value = t;
+      return 1;
+    }
+}
+
+/* Allocator for identifier_to_locale and corresponding function to
+   free memory.  */
+
+void *(*identifier_to_locale_alloc) (size_t) = xmalloc;
+void (*identifier_to_locale_free) (void *) = free;
+
+/* Given IDENT, an identifier in the internal encoding, return a
+   version of IDENT suitable for diagnostics in the locale character
+   set: either IDENT itself, or a string, allocated using
+   identifier_to_locale_alloc, converted to the locale character set
+   and using escape sequences if not representable in the locale
+   character set or containing control characters or invalid byte
+   sequences.  Existing backslashes in IDENT are not doubled, so the
+   result may not uniquely specify the contents of an arbitrary byte
+   sequence identifier.  */
+
+const char *
+identifier_to_locale (const char *ident)
+{
+  const unsigned char *uid = (const unsigned char *) ident;
+  size_t idlen = strlen (ident);
+  bool valid_printable_utf8 = true;
+  bool all_ascii = true;
+  size_t i;
+
+  for (i = 0; i < idlen;)
+    {
+      unsigned int c;
+      size_t utf8_len = decode_utf8_char (&uid[i], idlen - i, &c);
+      if (utf8_len == 0 || c <= 0x1F || (c >= 0x7F && c <= 0x9F))
+	{
+	  valid_printable_utf8 = false;
+	  break;
+	}
+      if (utf8_len > 1)
+	all_ascii = false;
+      i += utf8_len;
+    }
+
+  /* If IDENT contains invalid UTF-8 sequences (which may occur with
+     attributes putting arbitrary byte sequences in identifiers), or
+     control characters, we use octal escape sequences for all bytes
+     outside printable ASCII.  */
+  if (!valid_printable_utf8)
+    {
+      char *ret = (char *) identifier_to_locale_alloc (4 * idlen + 1);
+      char *p = ret;
+      for (i = 0; i < idlen; i++)
+	{
+	  if (uid[i] > 0x1F && uid[i] < 0x7F)
+	    *p++ = uid[i];
+	  else
+	    {
+	      sprintf (p, "\\%03o", uid[i]);
+	      p += 4;
+	    }
+	}
+      *p = 0;
+      return ret;
+    }
+
+  /* Otherwise, if it is valid printable ASCII, or printable UTF-8
+     with the locale character set being UTF-8, IDENT is used.  */
+  if (all_ascii || locale_utf8)
+    return ident;
+
+  /* Otherwise IDENT is converted to the locale character set if
+     possible.  */
+#if defined ENABLE_NLS && defined HAVE_LANGINFO_CODESET && HAVE_ICONV
+  if (locale_encoding != NULL)
+    {
+      iconv_t cd = iconv_open (locale_encoding, "UTF-8");
+      bool conversion_ok = true;
+      char *ret = NULL;
+      if (cd != (iconv_t) -1)
+	{
+	  size_t ret_alloc = 4 * idlen + 1;
+	  for (;;)
+	    {
+	      /* Repeat the whole conversion process as needed with
+		 larger buffers so non-reversible transformations can
+		 always be detected.  */
+	      ICONV_CONST char *inbuf = CONST_CAST (char *, ident);
+	      char *outbuf;
+	      size_t inbytesleft = idlen;
+	      size_t outbytesleft = ret_alloc - 1;
+	      size_t iconv_ret;
+
+	      ret = (char *) identifier_to_locale_alloc (ret_alloc);
+	      outbuf = ret;
+
+	      if (iconv (cd, 0, 0, 0, 0) == (size_t) -1)
+		{
+		  conversion_ok = false;
+		  break;
+		}
+
+	      iconv_ret = iconv (cd, &inbuf, &inbytesleft,
+				 &outbuf, &outbytesleft);
+	      if (iconv_ret == (size_t) -1 || inbytesleft != 0)
+		{
+		  if (errno == E2BIG)
+		    {
+		      ret_alloc *= 2;
+		      identifier_to_locale_free (ret);
+		      ret = NULL;
+		      continue;
+		    }
+		  else
+		    {
+		      conversion_ok = false;
+		      break;
+		    }
+		}
+	      else if (iconv_ret != 0)
+		{
+		  conversion_ok = false;
+		  break;
+		}
+	      /* Return to initial shift state.  */
+	      if (iconv (cd, 0, 0, &outbuf, &outbytesleft) == (size_t) -1)
+		{
+		  if (errno == E2BIG)
+		    {
+		      ret_alloc *= 2;
+		      identifier_to_locale_free (ret);
+		      ret = NULL;
+		      continue;
+		    }
+		  else
+		    {
+		      conversion_ok = false;
+		      break;
+		    }
+		}
+	      *outbuf = 0;
+	      break;
+	    }
+	  iconv_close (cd);
+	  if (conversion_ok)
+	    return ret;
+	}
+    }
+#endif
+
+  /* Otherwise, convert non-ASCII characters in IDENT to UCNs.  */
+  {
+    char *ret = (char *) identifier_to_locale_alloc (10 * idlen + 1);
+    char *p = ret;
+    for (i = 0; i < idlen;)
+      {
+	unsigned int c;
+	size_t utf8_len = decode_utf8_char (&uid[i], idlen - i, &c);
+	if (utf8_len == 1)
+	  *p++ = uid[i];
+	else
+	  {
+	    sprintf (p, "\\U%08x", c);
+	    p += 10;
+	  }
+	i += utf8_len;
+      }
+    *p = 0;
+    return ret;
+  }
 }

@@ -1,5 +1,5 @@
 /* Definitions for Rs6000 running LynxOS.
-   Copyright (C) 1995, 1996, 2000, 2002, 2003, 2004, 2005
+   Copyright (C) 1995, 1996, 2000, 2002, 2003, 2004, 2005, 2007, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by David Henkel-Wallace, Cygnus Support (gumby@cygnus.com)
    Rewritten by Adam Nemet, LynuxWorks Inc.
@@ -8,7 +8,7 @@
 
    GCC is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published
-   by the Free Software Foundation; either version 2, or (at your
+   by the Free Software Foundation; either version 3, or (at your
    option) any later version.
 
    GCC is distributed in the hope that it will be useful, but WITHOUT
@@ -17,14 +17,8 @@
    License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the
-   Free Software Foundation, 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.  */
-
-/* Override the definition in sysv4.h.  */
-
-#undef TARGET_VERSION
-#define TARGET_VERSION fputs (" (PowerPC/LynxOS)", stderr);
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Undefine the definition to enable the LynxOS default from the
    top-level lynx.h.  */
@@ -54,8 +48,7 @@
 #undef ASM_SPEC
 #define ASM_SPEC \
 "%(asm_cpu) \
- %{.s: %{mregnames} %{mno-regnames}} \
- %{.S: %{mregnames} %{mno-regnames}}"
+ %{,assembler|,assembler-with-cpp: %{mregnames} %{mno-regnames}}"
 
 #undef STARTFILE_SPEC
 #undef ENDFILE_SPEC
@@ -68,15 +61,15 @@
 /* Override the definition from sysv4.h.  */
 
 #undef TARGET_OS_CPP_BUILTINS
-#define TARGET_OS_CPP_BUILTINS()                \
-  do                                                \
-    {                                                \
-      builtin_define ("__BIG_ENDIAN__");        \
-      builtin_define ("__powerpc__");                \
-      builtin_assert ("cpu=powerpc");                \
-      builtin_assert ("machine=powerpc");        \
-      builtin_define ("__PPC__");                \
-    }                                                \
+#define TARGET_OS_CPP_BUILTINS()		\
+  do						\
+    {						\
+      builtin_define ("__BIG_ENDIAN__");	\
+      builtin_define ("__powerpc__");		\
+      builtin_assert ("cpu=powerpc");		\
+      builtin_assert ("machine=powerpc");	\
+      builtin_define ("__PPC__");		\
+    }						\
   while (0)
 
 /* Override the rs6000.h definition.  */
@@ -107,6 +100,8 @@
 #undef HAVE_AS_TLS
 #define HAVE_AS_TLS 0
 
+#define DBX_REGISTER_NUMBER(REGNO) rs6000_dbx_register_number (REGNO)
+
 #ifdef CRT_BEGIN
 /* This function is part of crtbegin*.o which is at the beginning of
    the link and is called from .fini which is usually toward the end
@@ -114,7 +109,7 @@
    text size of the executables to 32M.  */
 
 static void __do_global_dtors_aux (void) __attribute__ ((longcall));
-#endif        /* CRT_BEGIN */
+#endif	/* CRT_BEGIN */
 
 #ifdef CRT_END
 /* Similarly here.  This function resides in crtend*.o which is toward
@@ -122,4 +117,4 @@ static void __do_global_dtors_aux (void) __attribute__ ((longcall));
    beginning.  */
 
 static void __do_global_ctors_aux (void) __attribute__ ((longcall));
-#endif        /* CRT_END */
+#endif	/* CRT_END */

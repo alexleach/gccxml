@@ -1,10 +1,10 @@
-/* Copyright (C) 2002, 2003, 2004 Free Software Foundation, Inc.
+/* Copyright (C) 2002, 2003, 2004, 2009 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published
-   by the Free Software Foundation; either version 2, or (at your
+   by the Free Software Foundation; either version 3, or (at your
    option) any later version.
 
    GCC is distributed in the hope that it will be useful, but WITHOUT
@@ -12,17 +12,14 @@
    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
    License for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the Free
-   Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-   02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you include this header file into source
-   files compiled by GCC, this header file does not by itself cause
-   the resulting executable to be covered by the GNU General Public
-   License.  This exception does not however invalidate any other
-   reasons why the executable file might be covered by the GNU General
-   Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _MMINTRIN_H_INCLUDED
 #define _MMINTRIN_H_INCLUDED
@@ -1044,13 +1041,13 @@ _mm_set_pi16 (short __w3, short __w2, short __w1, short __w0)
   unsigned int __i1 = (unsigned short)__w3 << 16 | (unsigned short)__w2;
   unsigned int __i0 = (unsigned short)__w1 << 16 | (unsigned short)__w0;
   return _mm_set_pi32 (__i1, __i0);
-                       
+		       
 }
 
 /* Creates a vector of eight 8-bit values; B0 is least significant.  */
 static __inline __m64
 _mm_set_pi8 (char __b7, char __b6, char __b5, char __b4,
-             char __b3, char __b2, char __b1, char __b0)
+	     char __b3, char __b2, char __b1, char __b0)
 {
   unsigned int __i1, __i0;
 
@@ -1082,7 +1079,7 @@ _mm_setr_pi16 (short __w0, short __w1, short __w2, short __w3)
 
 static __inline __m64
 _mm_setr_pi8 (char __b0, char __b1, char __b2, char __b3,
-              char __b4, char __b5, char __b6, char __b7)
+	      char __b4, char __b5, char __b6, char __b7)
 {
   return _mm_set_pi8 (__b7, __b6, __b5, __b4, __b3, __b2, __b1, __b0);
 }

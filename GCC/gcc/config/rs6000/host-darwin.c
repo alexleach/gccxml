@@ -1,11 +1,12 @@
 /* Darwin/powerpc host-specific hook definitions.
-   Copyright (C) 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2010
+   Free Software Foundation, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published
-   by the Free Software Foundation; either version 2, or (at your
+   by the Free Software Foundation; either version 3, or (at your
    option) any later version.
 
    GCC is distributed in the hope that it will be useful, but WITHOUT
@@ -14,18 +15,15 @@
    License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the
-   Free Software Foundation, 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.  */
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include <signal.h>
 #include <sys/ucontext.h>
 #include "hosthooks.h"
 #include "hosthooks-def.h"
-#include "toplev.h"
 #include "diagnostic.h"
 #include "config/host-darwin.h"
 
@@ -64,8 +62,8 @@ segv_crash_handler (int sig ATTRIBUTE_UNUSED)
 
 static void
 segv_handler (int sig ATTRIBUTE_UNUSED,
-              siginfo_t *sip ATTRIBUTE_UNUSED,
-              void *scp)
+	      siginfo_t *sip ATTRIBUTE_UNUSED,
+	      void *scp)
 {
   ucontext_t *uc = (ucontext_t *)scp;
   sigset_t sigset;
@@ -97,38 +95,38 @@ segv_handler (int sig ATTRIBUTE_UNUSED,
       fnotice (stderr, "Out of stack space.\n");
       shell_name = getenv ("SHELL");
       if (shell_name != NULL)
-        shell_name = strrchr (shell_name, '/');
+	shell_name = strrchr (shell_name, '/');
       if (shell_name != NULL)
-        {
-          static const char * shell_commands[][2] = {
-            { "sh", "ulimit -S -s unlimited" },
-            { "bash", "ulimit -S -s unlimited" },
-            { "tcsh", "limit stacksize unlimited" },
-            { "csh", "limit stacksize unlimited" },
-            /* zsh doesn't have "unlimited", this will work under the
-               default configuration.  */
-            { "zsh", "limit stacksize 32m" }
-          };
-          size_t i;
-          
-          for (i = 0; i < ARRAY_SIZE (shell_commands); i++)
-            if (strcmp (shell_commands[i][0], shell_name + 1) == 0)
-              {
-                fnotice (stderr, 
-                         "Try running '%s' in the shell to raise its limit.\n",
-                         shell_commands[i][1]);
-              }
-        }
+	{
+	  static const char * shell_commands[][2] = {
+	    { "sh", "ulimit -S -s unlimited" },
+	    { "bash", "ulimit -S -s unlimited" },
+	    { "tcsh", "limit stacksize unlimited" },
+	    { "csh", "limit stacksize unlimited" },
+	    /* zsh doesn't have "unlimited", this will work under the
+	       default configuration.  */
+	    { "zsh", "limit stacksize 32m" }
+	  };
+	  size_t i;
+	  
+	  for (i = 0; i < ARRAY_SIZE (shell_commands); i++)
+	    if (strcmp (shell_commands[i][0], shell_name + 1) == 0)
+	      {
+		fnotice (stderr, 
+			 "Try running '%s' in the shell to raise its limit.\n",
+			 shell_commands[i][1]);
+	      }
+	}
       
       if (global_dc->abort_on_error)
-        fancy_abort (__FILE__, __LINE__, __FUNCTION__);
+	fancy_abort (__FILE__, __LINE__, __FUNCTION__);
 
       exit (FATAL_EXIT_CODE);
     }
 
   fprintf (stderr, "[address=%08lx pc=%08x]\n", 
-           uc->uc_mcontext->MC_FLD(es).MC_FLD(dar),
-           uc->uc_mcontext->MC_FLD(ss).MC_FLD(srr0));
+	   uc->uc_mcontext->MC_FLD(es).MC_FLD(dar),
+	   uc->uc_mcontext->MC_FLD(ss).MC_FLD(srr0));
   internal_error ("Segmentation Fault");
   exit (FATAL_EXIT_CODE);
 }
@@ -139,7 +137,7 @@ darwin_rs6000_extra_signals (void)
   struct sigaction sact;
   stack_t sigstk;
 
-  sigstk.ss_sp = xmalloc (SIGSTKSZ);
+  sigstk.ss_sp = (char*)xmalloc (SIGSTKSZ);
   sigstk.ss_size = SIGSTKSZ;
   sigstk.ss_flags = 0;
   if (sigaltstack (&sigstk, NULL) < 0)

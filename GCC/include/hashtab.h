@@ -1,5 +1,6 @@
 /* An expandable hash tables datatype.  
-   Copyright (C) 1999, 2000, 2002, 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1999, 2000, 2002, 2003, 2004, 2005, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Vladimir Makarov (vmakarov@cygnus.com).
 
 This program is free software; you can redistribute it and/or modify
@@ -96,8 +97,7 @@ typedef void (*htab_free_with_arg) (void *, void *);
    functions mentioned below.  The size of this structure is subject to
    change.  */
 
-struct htab GTY(())
-{
+struct GTY(()) htab {
   /* Pointer to hash function.  */
   htab_hash hash_f;
 
@@ -148,42 +148,45 @@ enum insert_option {NO_INSERT, INSERT};
 
 /* The prototypes of the package functions. */
 
-extern htab_t        htab_create_alloc  (size_t, htab_hash,
+extern htab_t	htab_create_alloc  (size_t, htab_hash,
                                     htab_eq, htab_del,
                                     htab_alloc, htab_free);
 
-extern htab_t        htab_create_alloc_ex (size_t, htab_hash,
+extern htab_t	htab_create_alloc_ex (size_t, htab_hash,
                                       htab_eq, htab_del,
                                       void *, htab_alloc_with_arg,
                                       htab_free_with_arg);
+
+extern htab_t  htab_create_typed_alloc (size_t, htab_hash, htab_eq, htab_del,
+					htab_alloc, htab_alloc, htab_free);
 
 /* Backward-compatibility functions.  */
 extern htab_t htab_create (size_t, htab_hash, htab_eq, htab_del);
 extern htab_t htab_try_create (size_t, htab_hash, htab_eq, htab_del);
 
-extern void        htab_set_functions_ex (htab_t, htab_hash,
+extern void	htab_set_functions_ex (htab_t, htab_hash,
                                        htab_eq, htab_del,
                                        void *, htab_alloc_with_arg,
                                        htab_free_with_arg);
 
-extern void        htab_delete (htab_t);
-extern void        htab_empty (htab_t);
+extern void	htab_delete (htab_t);
+extern void	htab_empty (htab_t);
 
-extern void *        htab_find (htab_t, const void *);
-extern void **        htab_find_slot (htab_t, const void *, enum insert_option);
-extern void *        htab_find_with_hash (htab_t, const void *, hashval_t);
-extern void **        htab_find_slot_with_hash (htab_t, const void *,
-                                          hashval_t, enum insert_option);
-extern void        htab_clear_slot        (htab_t, void **);
-extern void        htab_remove_elt        (htab_t, void *);
-extern void        htab_remove_elt_with_hash (htab_t, void *, hashval_t);
+extern void *	htab_find (htab_t, const void *);
+extern void **	htab_find_slot (htab_t, const void *, enum insert_option);
+extern void *	htab_find_with_hash (htab_t, const void *, hashval_t);
+extern void **	htab_find_slot_with_hash (htab_t, const void *,
+					  hashval_t, enum insert_option);
+extern void	htab_clear_slot	(htab_t, void **);
+extern void	htab_remove_elt	(htab_t, void *);
+extern void	htab_remove_elt_with_hash (htab_t, void *, hashval_t);
 
-extern void        htab_traverse (htab_t, htab_trav, void *);
-extern void        htab_traverse_noresize (htab_t, htab_trav, void *);
+extern void	htab_traverse (htab_t, htab_trav, void *);
+extern void	htab_traverse_noresize (htab_t, htab_trav, void *);
 
-extern size_t        htab_size (htab_t);
-extern size_t        htab_elements (htab_t);
-extern double        htab_collisions        (htab_t);
+extern size_t	htab_size (htab_t);
+extern size_t	htab_elements (htab_t);
+extern double	htab_collisions	(htab_t);
 
 /* A hash function for pointers.  */
 extern htab_hash htab_hash_pointer;

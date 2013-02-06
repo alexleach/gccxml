@@ -1,11 +1,11 @@
 ;; Scheduling description for Alpha EV5.
-;;   Copyright (C) 2002, 2004, 2005 Free Software Foundation, Inc.
+;;   Copyright (C) 2002, 2004, 2005, 2007 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
 
 ;; EV5 has two asymmetric integer units, E0 and E1, plus separate
 ;; FP add and multiply units.
@@ -108,19 +107,19 @@
 (define_insn_reservation "ev5_imull" 8
   (and (eq_attr "tune" "ev5")
        (and (eq_attr "type" "imul")
-            (eq_attr "opsize" "si")))
+	    (eq_attr "opsize" "si")))
   "ev5_e0+ev5_imul,ev5_imul*3,nothing,ev5_e0")
 
 (define_insn_reservation "ev5_imulq" 12
   (and (eq_attr "tune" "ev5")
        (and (eq_attr "type" "imul")
-            (eq_attr "opsize" "di")))
+	    (eq_attr "opsize" "di")))
   "ev5_e0+ev5_imul,ev5_imul*7,nothing,ev5_e0")
 
 (define_insn_reservation "ev5_imulh" 14
   (and (eq_attr "tune" "ev5")
        (and (eq_attr "type" "imul")
-            (eq_attr "opsize" "udi")))
+	    (eq_attr "opsize" "udi")))
   "ev5_e0+ev5_imul,ev5_imul*7,nothing*3,ev5_e0")
 
 ; The multiplier is unable to receive data from Ebox bypass paths.  The
@@ -177,14 +176,14 @@
 (define_insn_reservation "ev5_fdivsf" 15
   (and (eq_attr "tune" "ev5")
        (and (eq_attr "type" "fdiv")
-            (eq_attr "opsize" "si")))
+	    (eq_attr "opsize" "si")))
   ; "ev5_fa+ev5_fdiv,ev5_fdiv*9,ev5_fa+ev5_fdiv,ev5_fdiv*4"
   "ev5_fa+ev5_fdiv,ev5_fdiv*14")
 
 (define_insn_reservation "ev5_fdivdf" 22
   (and (eq_attr "tune" "ev5")
        (and (eq_attr "type" "fdiv")
-            (eq_attr "opsize" "di")))
+	    (eq_attr "opsize" "di")))
   ; "ev5_fa+ev5_fdiv,ev5_fdiv*17,ev5_fa+ev5_fdiv,ev5_fdiv*4"
   "ev5_fa+ev5_fdiv,ev5_fdiv*21")
 

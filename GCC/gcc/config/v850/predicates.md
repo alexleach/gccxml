@@ -1,11 +1,11 @@
 ;; Predicate definitions for NEC V850.
-;; Copyright (C) 2005 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2007, 2010 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
 
 ;; Return true if OP is either a register or 0.
 
@@ -27,7 +26,7 @@
     return INTVAL (op) == 0;
 
   else if (GET_CODE (op) == CONST_DOUBLE)
-    return CONST_DOUBLE_OK_FOR_G (op);
+    return satisfies_constraint_G (op);
 
   else
     return register_operand (op, mode);
@@ -69,6 +68,17 @@
   return register_operand (op, mode);
 })
 
+;; Return true if OP is a even number register.
+
+(define_predicate "even_reg_operand"
+  (match_code "reg")
+{
+  return (GET_CODE (op) == REG
+	  && (REGNO (op) >= FIRST_PSEUDO_REGISTER
+	      || ((REGNO (op) > 0) && (REGNO (op) < 32)
+		   && ((REGNO (op) & 1)==0))));
+})
+
 ;; Return true if OP is a valid call operand.
 
 (define_predicate "call_address_operand"
@@ -80,7 +90,7 @@
   return (GET_CODE (op) == SYMBOL_REF || GET_CODE (op) == REG);
 })
 
-;; TODO: Add a comment here.
+;; Return true if OP is a valid source operand for SImode move.
 
 (define_predicate "movsi_source_operand"
   (match_code "label_ref,symbol_ref,const_int,const_double,const,high,mem,reg,subreg")
@@ -98,25 +108,39 @@
     return general_operand (op, mode);
 })
 
-;; TODO: Add a comment here.
+;; Return true if OP is a valid operand for 23 bit displacement
+;; operations.
+
+(define_predicate "disp23_operand"
+  (match_code "const_int")
+{
+  if (GET_CODE (op) == CONST_INT
+      && ((unsigned)(INTVAL (op)) >= 0x8000)
+      && ((unsigned)(INTVAL (op)) < 0x400000))
+    return 1;
+  else
+    return 0;
+})
+
+;; Return true if OP is a symbol ref with 16-bit signed value.
 
 (define_predicate "special_symbolref_operand"
   (match_code "symbol_ref")
 {
   if (GET_CODE (op) == CONST
       && GET_CODE (XEXP (op, 0)) == PLUS
-      && GET_CODE (XEXP (XEXP (op, 0), 1)) == CONST_INT
-      && CONST_OK_FOR_K (INTVAL (XEXP (XEXP (op, 0), 1))))
+      && satisfies_constraint_K (XEXP (XEXP (op, 0), 1)))
     op = XEXP (XEXP (op, 0), 0);
 
   if (GET_CODE (op) == SYMBOL_REF)
     return (SYMBOL_REF_FLAGS (op)
-            & (SYMBOL_FLAG_ZDA | SYMBOL_FLAG_TDA | SYMBOL_FLAG_SDA)) != 0;
+	    & (SYMBOL_FLAG_ZDA | SYMBOL_FLAG_TDA | SYMBOL_FLAG_SDA)) != 0;
 
   return FALSE;
 })
 
-;; TODO: Add a comment here.
+;; Return true if OP is a valid operand for bit related operations
+;; containing only single 1 in its binary representation.
 
 (define_predicate "power_of_two_operand"
   (match_code "const_int")
@@ -141,7 +165,7 @@
 
   /* If there are no registers to save then the function prologue
      is not suitable.  */
-  if (count <= 2)
+  if (count <= (TARGET_LONG_CALLS ? 3 : 2))
     return 0;
 
   /* The pattern matching has already established that we are adjusting the
@@ -167,50 +191,56 @@
       vector_element = XVECEXP (op, 0, i);
 
       if (GET_CODE (vector_element) != SET)
-        return 0;
+	return 0;
 
       dest = SET_DEST (vector_element);
       src = SET_SRC (vector_element);
 
       if (GET_CODE (dest) != MEM
-          || GET_MODE (dest) != SImode
-          || GET_CODE (src) != REG
-          || GET_MODE (src) != SImode
-          || ! register_is_ok_for_epilogue (src, SImode))
-        return 0;
+	  || GET_MODE (dest) != SImode
+	  || GET_CODE (src) != REG
+	  || GET_MODE (src) != SImode
+	  || ! register_is_ok_for_epilogue (src, SImode))
+	return 0;
 
       plus = XEXP (dest, 0);
 
       if ( GET_CODE (plus) != PLUS
-          || GET_CODE (XEXP (plus, 0)) != REG
-          || GET_MODE (XEXP (plus, 0)) != SImode
-          || REGNO (XEXP (plus, 0)) != STACK_POINTER_REGNUM
-          || GET_CODE (XEXP (plus, 1)) != CONST_INT)
-        return 0;
+	  || GET_CODE (XEXP (plus, 0)) != REG
+	  || GET_MODE (XEXP (plus, 0)) != SImode
+	  || REGNO (XEXP (plus, 0)) != STACK_POINTER_REGNUM
+	  || GET_CODE (XEXP (plus, 1)) != CONST_INT)
+	return 0;
 
       /* If the register is being pushed somewhere other than the stack
-         space just acquired by the first operand then abandon this quest.
-         Note: the test is <= because both values are negative.         */
+	 space just acquired by the first operand then abandon this quest.
+	 Note: the test is <= because both values are negative.	 */
       if (INTVAL (XEXP (plus, 1))
-          <= INTVAL (XEXP (SET_SRC (XVECEXP (op, 0, 0)), 1)))
-        {
-          return 0;
-        }
+	  <= INTVAL (XEXP (SET_SRC (XVECEXP (op, 0, 0)), 1)))
+	{
+	  return 0;
+	}
     }
 
   /* Make sure that the last entries in the vector are clobbers.  */
-  for (; i < count; i++)
+  vector_element = XVECEXP (op, 0, i++);
+
+  if (GET_CODE (vector_element) != CLOBBER
+      || GET_CODE (XEXP (vector_element, 0)) != REG
+      || REGNO (XEXP (vector_element, 0)) != 10)
+    return 0;
+
+  if (TARGET_LONG_CALLS)
     {
-      vector_element = XVECEXP (op, 0, i);
+      vector_element = XVECEXP (op, 0, i++);
 
       if (GET_CODE (vector_element) != CLOBBER
-          || GET_CODE (XEXP (vector_element, 0)) != REG
-          || !(REGNO (XEXP (vector_element, 0)) == 10
-               || (TARGET_LONG_CALLS ? (REGNO (XEXP (vector_element, 0)) == 11) : 0 )))
-        return 0;
+	  || GET_CODE (XEXP (vector_element, 0)) != REG
+	  || REGNO (XEXP (vector_element, 0)) != 11)
+	return 0;
     }
 
-  return 1;
+  return i == count;
 })
 
 ;; Return nonzero if the given RTX is suitable for collapsing into
@@ -237,10 +267,10 @@
      pattern match:
 
         (set (match_operand:SI n "register_is_ok_for_epilogue" "r")
-          (mem:SI (plus:SI (reg:SI 3) (match_operand:SI n "immediate_operand" "i"))))
+	  (mem:SI (plus:SI (reg:SI 3) (match_operand:SI n "immediate_operand" "i"))))
      */
 
-  for (i = 3; i < count; i++)
+  for (i = 2; i < count; i++)
     {
       rtx vector_element = XVECEXP (op, 0, i);
       rtx dest;
@@ -248,26 +278,26 @@
       rtx plus;
 
       if (GET_CODE (vector_element) != SET)
-        return 0;
+	return 0;
 
       dest = SET_DEST (vector_element);
       src = SET_SRC (vector_element);
 
       if (GET_CODE (dest) != REG
-          || GET_MODE (dest) != SImode
-          || ! register_is_ok_for_epilogue (dest, SImode)
-          || GET_CODE (src) != MEM
-          || GET_MODE (src) != SImode)
-        return 0;
+	  || GET_MODE (dest) != SImode
+	  || ! register_is_ok_for_epilogue (dest, SImode)
+	  || GET_CODE (src) != MEM
+	  || GET_MODE (src) != SImode)
+	return 0;
 
       plus = XEXP (src, 0);
 
       if (GET_CODE (plus) != PLUS
-          || GET_CODE (XEXP (plus, 0)) != REG
-          || GET_MODE (XEXP (plus, 0)) != SImode
-          || REGNO (XEXP (plus, 0)) != STACK_POINTER_REGNUM
-          || GET_CODE (XEXP (plus, 1)) != CONST_INT)
-        return 0;
+	  || GET_CODE (XEXP (plus, 0)) != REG
+	  || GET_MODE (XEXP (plus, 0)) != SImode
+	  || REGNO (XEXP (plus, 0)) != STACK_POINTER_REGNUM
+	  || GET_CODE (XEXP (plus, 1)) != CONST_INT)
+	return 0;
     }
 
   return 1;
@@ -308,8 +338,8 @@
      pattern match:
 
         (set (match_operand:SI n "register_is_ok_for_epilogue" "r")
-          (mem:SI (plus:SI (reg:SI 3)
-            (match_operand:SI n "immediate_operand" "i"))))
+	  (mem:SI (plus:SI (reg:SI 3)
+	    (match_operand:SI n "immediate_operand" "i"))))
      */
 
   for (i = 3; i < count; i++)
@@ -320,26 +350,26 @@
       rtx plus;
 
       if (GET_CODE (vector_element) != SET)
-        return 0;
+	return 0;
 
       dest = SET_DEST (vector_element);
       src  = SET_SRC (vector_element);
 
       if (   GET_CODE (dest) != REG
-          || GET_MODE (dest) != SImode
-          || ! register_is_ok_for_epilogue (dest, SImode)
-          || GET_CODE (src) != MEM
-          || GET_MODE (src) != SImode)
-        return 0;
+	  || GET_MODE (dest) != SImode
+	  || ! register_is_ok_for_epilogue (dest, SImode)
+	  || GET_CODE (src) != MEM
+	  || GET_MODE (src) != SImode)
+	return 0;
 
       plus = XEXP (src, 0);
 
       if (   GET_CODE (plus) != PLUS
-          || GET_CODE (XEXP (plus, 0)) != REG
-          || GET_MODE (XEXP (plus, 0)) != SImode
-          || REGNO    (XEXP (plus, 0)) != STACK_POINTER_REGNUM
-          || GET_CODE (XEXP (plus, 1)) != CONST_INT)
-        return 0;
+	  || GET_CODE (XEXP (plus, 0)) != REG
+	  || GET_MODE (XEXP (plus, 0)) != SImode
+	  || REGNO    (XEXP (plus, 0)) != STACK_POINTER_REGNUM
+	  || GET_CODE (XEXP (plus, 1)) != CONST_INT)
+	return 0;
     }
 
   return 1;
@@ -373,48 +403,52 @@
 
      */
 
-  for (i = 2; i < count; i++)
+  for (i = 1; i < count; i++)
     {
       rtx vector_element = XVECEXP (op, 0, i);
       rtx dest;
       rtx src;
       rtx plus;
 
+      if (GET_CODE (vector_element) == CLOBBER)
+	continue;
+
       if (GET_CODE (vector_element) != SET)
-        return 0;
+	return 0;
 
       dest = SET_DEST (vector_element);
       src  = SET_SRC (vector_element);
 
       if (   GET_CODE (dest) != MEM
-          || GET_MODE (dest) != SImode
-          || GET_CODE (src) != REG
-          || GET_MODE (src) != SImode
-          || ! register_is_ok_for_epilogue (src, SImode)
-             )
-        return 0;
+	  || GET_MODE (dest) != SImode
+	  || GET_CODE (src) != REG
+	  || GET_MODE (src) != SImode
+	  || ! register_is_ok_for_epilogue (src, SImode)
+	     )
+	return 0;
 
       plus = XEXP (dest, 0);
 
       if (   GET_CODE (plus) != PLUS
-          || GET_CODE (XEXP (plus, 0)) != REG
-          || GET_MODE (XEXP (plus, 0)) != SImode
-          || REGNO    (XEXP (plus, 0)) != STACK_POINTER_REGNUM
-          || GET_CODE (XEXP (plus, 1)) != CONST_INT)
-        return 0;
+	  || GET_CODE (XEXP (plus, 0)) != REG
+	  || GET_MODE (XEXP (plus, 0)) != SImode
+	  || REGNO    (XEXP (plus, 0)) != STACK_POINTER_REGNUM
+	  || GET_CODE (XEXP (plus, 1)) != CONST_INT)
+	return 0;
 
       /* If the register is being pushed somewhere other than the stack
-         space just acquired by the first operand then abandon this quest.
-         Note: the test is <= because both values are negative.         */
+	 space just acquired by the first operand then abandon this quest.
+	 Note: the test is <= because both values are negative.	 */
       if (INTVAL (XEXP (plus, 1))
-          <= INTVAL (XEXP (SET_SRC (XVECEXP (op, 0, 0)), 1)))
-        return 0;
+	  < INTVAL (XEXP (SET_SRC (XVECEXP (op, 0, 0)), 1)))
+	return 0;
     }
 
   return 1;
 })
 
-;; TODO: Add a comment here.
+;; Return true if OP is a valid operand for bit related operations
+;; containing only single 0 in its binary representation.
 
 (define_predicate "not_power_of_two_operand"
   (match_code "const_int")
@@ -437,3 +471,31 @@
     return 0;
   return 1;
 })
+
+;; Return true if OP is a float value operand with value as 1.
+
+(define_predicate "const_float_1_operand"
+  (match_code "const_int")
+{
+  if (GET_CODE (op) != CONST_DOUBLE
+      || mode != GET_MODE (op)
+      || (mode != DFmode && mode != SFmode))
+    return 0;
+
+  return op == CONST1_RTX(mode);
+})
+
+;; Return true if OP is a float value operand with value as 0.
+
+(define_predicate "const_float_0_operand"
+  (match_code "const_int")
+{
+  if (GET_CODE (op) != CONST_DOUBLE
+      || mode != GET_MODE (op)
+      || (mode != DFmode && mode != SFmode))
+    return 0;
+
+  return op == CONST0_RTX(mode);
+})
+
+

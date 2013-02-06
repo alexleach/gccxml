@@ -1,11 +1,12 @@
 /* Process machine description and calculate constant conditions.
-   Copyright (C) 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2007, 2010
+   Free Software Foundation, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
    GCC is distributed in the hope that it will be useful,
@@ -14,9 +15,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to
-   the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 /* In a machine description, all of the insn patterns - define_insn,
    define_expand, define_split, define_peephole, define_peephole2 -
@@ -33,14 +33,15 @@
 #include "rtl.h"
 #include "errors.h"
 #include "hashtab.h"
+#include "read-md.h"
 #include "gensupport.h"
 
 /* so we can include except.h in the generated file.  */
 static int saw_eh_return;
 
-static void write_header        (void);
-static void write_conditions        (void);
-static int write_one_condition        (void **, void *);
+static void write_header	(void);
+static void write_conditions	(void);
+static int write_one_condition	(void **, void *);
 
 /* Generate the header for insn-conditions.c.  */
 
@@ -81,12 +82,11 @@ write_header (void)
 \n\
 #include \"regs.h\"\n\
 #include \"recog.h\"\n\
-#include \"real.h\"\n\
 #include \"output.h\"\n\
 #include \"flags.h\"\n\
 #include \"hard-reg-set.h\"\n\
 #include \"resource.h\"\n\
-#include \"toplev.h\"\n\
+#include \"diagnostic-core.h\"\n\
 #include \"reload.h\"\n\
 #include \"tm-constrs.h\"\n");
 
@@ -117,17 +117,17 @@ write_one_condition (void **slot, void * ARG_UNUSED (dummy))
   const struct c_test *test = * (const struct c_test **) slot;
   const char *p;
 
-  print_rtx_ptr_loc (test->expr);
+  print_md_ptr_loc (test->expr);
   fputs ("  { \"", stdout);
   for (p = test->expr; *p; p++)
     {
       switch (*p)
-        {
-        case '\n': fputs ("\\n\\", stdout); break;
-        case '\\':
-        case '\"': putchar ('\\'); break;
-        default: break;
-        }
+	{
+	case '\n': fputs ("\\n\\", stdout); break;
+	case '\\':
+	case '\"': putchar ('\\'); break;
+	default: break;
+	}
       putchar (*p);
     }
 
@@ -177,32 +177,32 @@ static void
 write_writer (void)
 {
   puts ("int\n"
-        "main(void)\n"
-        "{\n"
-        "  unsigned int i;\n"
+	"main(void)\n"
+	"{\n"
+	"  unsigned int i;\n"
         "  const char *p;\n"
         "  puts (\"(define_conditions [\");\n"
-        "#if GCC_VERSION >= 3001\n"
-        "  for (i = 0; i < ARRAY_SIZE (insn_conditions); i++)\n"
-        "    {\n"
-        "      printf (\"  (%d \\\"\", insn_conditions[i].value);\n"
-        "      for (p = insn_conditions[i].expr; *p; p++)\n"
-        "        {\n"
-        "          switch (*p)\n"
-        "             {\n"
-        "             case '\\\\':\n"
-        "             case '\\\"': putchar ('\\\\'); break;\n"
-        "             default: break;\n"
-        "             }\n"
-        "          putchar (*p);\n"
-        "        }\n"
+	"#if GCC_VERSION >= 3001\n"
+	"  for (i = 0; i < ARRAY_SIZE (insn_conditions); i++)\n"
+	"    {\n"
+	"      printf (\"  (%d \\\"\", insn_conditions[i].value);\n"
+	"      for (p = insn_conditions[i].expr; *p; p++)\n"
+	"        {\n"
+	"          switch (*p)\n"
+	"	     {\n"
+	"	     case '\\\\':\n"
+	"	     case '\\\"': putchar ('\\\\'); break;\n"
+	"	     default: break;\n"
+	"	     }\n"
+	"          putchar (*p);\n"
+	"        }\n"
         "      puts (\"\\\")\");\n"
         "    }\n"
-        "#endif /* gcc >= 3.0.1 */\n"
-        "  puts (\"])\");\n"
+	"#endif /* gcc >= 3.0.1 */\n"
+	"  puts (\"])\");\n"
         "  fflush (stdout);\n"
         "return ferror (stdout) != 0 ? FATAL_EXIT_CODE : SUCCESS_EXIT_CODE;\n"
-        "}");
+	"}");
 }
 
 int
@@ -212,13 +212,9 @@ main (int argc, char **argv)
   int pattern_lineno; /* not used */
   int code;
 
-/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-  gccxml_fix_printf();
-/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-
   progname = "genconditions";
 
-  if (init_md_reader_args (argc, argv) != SUCCESS_EXIT_CODE)
+  if (!init_rtx_reader_args (argc, argv))
     return (FATAL_EXIT_CODE);
 
   /* Read the machine description.  */
@@ -226,30 +222,30 @@ main (int argc, char **argv)
     {
       desc = read_md_rtx (&pattern_lineno, &code);
       if (desc == NULL)
-        break;
+	break;
 
       /* N.B. define_insn_and_split, define_cond_exec are handled
-         entirely within read_md_rtx; we never see them.  */
+	 entirely within read_md_rtx; we never see them.  */
       switch (GET_CODE (desc))
-        {
-        default:
-          break;
+	{
+	default:
+	  break;
 
-        case DEFINE_INSN:
-        case DEFINE_EXPAND:
-          add_c_test (XSTR (desc, 2), -1);
-          /* except.h needs to know whether there is an eh_return
-             pattern in the machine description.  */
-          if (!strcmp (XSTR (desc, 0), "eh_return"))
-            saw_eh_return = 1;
-          break;
+	case DEFINE_INSN:
+	case DEFINE_EXPAND:
+	  add_c_test (XSTR (desc, 2), -1);
+	  /* except.h needs to know whether there is an eh_return
+	     pattern in the machine description.  */
+	  if (!strcmp (XSTR (desc, 0), "eh_return"))
+	    saw_eh_return = 1;
+	  break;
 
-        case DEFINE_SPLIT:
-        case DEFINE_PEEPHOLE:
-        case DEFINE_PEEPHOLE2:
-          add_c_test (XSTR (desc, 1), -1);
-          break;
-        }
+	case DEFINE_SPLIT:
+	case DEFINE_PEEPHOLE:
+	case DEFINE_PEEPHOLE2:
+	  add_c_test (XSTR (desc, 1), -1);
+	  break;
+	}
     }
 
   write_header ();

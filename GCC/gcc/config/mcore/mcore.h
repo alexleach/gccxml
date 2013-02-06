@@ -1,13 +1,13 @@
 /* Definitions of target machine for GNU compiler,
    for Motorola M*CORE Processor.
-   Copyright (C) 1993, 1999, 2000, 2001, 2002, 2003, 2004, 2005
-   Free Software Foundation, Inc.
+   Copyright (C) 1993, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007,
+   2008, 2009, 2010 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published
-   by the Free Software Foundation; either version 2, or (at your
+   by the Free Software Foundation; either version 3, or (at your
    option) any later version.
 
    GCC is distributed in the hope that it will be useful, but WITHOUT
@@ -16,16 +16,15 @@
    License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the
-   Free Software Foundation, 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef GCC_MCORE_H
 #define GCC_MCORE_H
 
 /* RBE: need to move these elsewhere.  */
-#undef        LIKE_PPC_ABI 
-#define        MCORE_STRUCT_ARGS
+#undef	LIKE_PPC_ABI 
+#define	MCORE_STRUCT_ARGS
 /* RBE: end of "move elsewhere".  */
 
 /* Run-time Target Specification.  */
@@ -35,43 +34,40 @@
    merge_decl_attributes.  */
 #define TARGET_DLLIMPORT_DECL_ATTRIBUTES 1
 
-#define TARGET_CPU_CPP_BUILTINS()                                          \
-  do                                                                          \
-    {                                                                          \
-      builtin_define ("__mcore__");                                          \
-      builtin_define ("__MCORE__");                                          \
-      if (TARGET_LITTLE_END)                                                  \
-        builtin_define ("__MCORELE__");                                          \
-      else                                                                  \
-        builtin_define ("__MCOREBE__");                                          \
-      if (TARGET_M340)                                                          \
-        builtin_define ("__M340__");                                          \
-      else                                                                  \
-        builtin_define ("__M210__");                                          \
-    }                                                                          \
+#define TARGET_CPU_CPP_BUILTINS()					  \
+  do									  \
+    {									  \
+      builtin_define ("__mcore__");					  \
+      builtin_define ("__MCORE__");					  \
+      if (TARGET_LITTLE_END)						  \
+        builtin_define ("__MCORELE__");					  \
+      else								  \
+        builtin_define ("__MCOREBE__");					  \
+      if (TARGET_M340)							  \
+        builtin_define ("__M340__");					  \
+      else								  \
+        builtin_define ("__M210__");					  \
+    }									  \
   while (0)
 
-/* If -m4align is ever re-enabled then add this line to the definition of CPP_SPEC
-   %{!m4align:-D__MCORE_ALIGN_8__} %{m4align:-D__MCORE__ALIGN_4__}.  */
 #undef  CPP_SPEC
 #define CPP_SPEC "%{m210:%{mlittle-endian:%ethe m210 does not have little endian support}}"
 
 /* We don't have a -lg library, so don't put it in the list.  */
-#undef        LIB_SPEC
+#undef	LIB_SPEC
 #define LIB_SPEC "%{!shared: %{!p:%{!pg:-lc}}%{p:-lc_p}%{pg:-lc_p}}"
 
-#undef        ASM_SPEC
-#define        ASM_SPEC "%{mbig-endian:-EB} %{m210:-cpu=210 -EB}"
+#undef	ASM_SPEC
+#define	ASM_SPEC "%{mbig-endian:-EB} %{m210:-cpu=210 -EB}"
 
 #undef  LINK_SPEC
 #define LINK_SPEC "%{mbig-endian:-EB} %{m210:-EB} -X"
 
-#define TARGET_DEFAULT        \
-  (MASK_HARDLIT                \
-   | MASK_8ALIGN        \
-   | MASK_DIV                \
-   | MASK_RELAX_IMM        \
-   | MASK_M340                \
+#define TARGET_DEFAULT	\
+  (MASK_HARDLIT		\
+   | MASK_DIV		\
+   | MASK_RELAX_IMM	\
+   | MASK_M340		\
    | MASK_LITTLE_END)
 
 #ifndef MULTILIB_DEFAULTS
@@ -89,44 +85,14 @@ extern char * mcore_current_function_name;
 /* The MCore ABI says that bitfields are unsigned by default.  */
 #define CC1_SPEC "-funsigned-bitfields"
 
-/* What options are we going to default to specific settings when
-   -O* happens; the user can subsequently override these settings.
-  
-   Omitting the frame pointer is a very good idea on the MCore.
-   Scheduling isn't worth anything on the current MCore implementation.  */
-#define OPTIMIZATION_OPTIONS(LEVEL,SIZE)        \
-{                                                \
-  if (LEVEL)                                        \
-    {                                                \
-      flag_no_function_cse = 1;                        \
-      flag_omit_frame_pointer = 1;                \
-                                                \
-      if (LEVEL >= 2)                                \
-        {                                        \
-          flag_caller_saves = 0;                \
-          flag_schedule_insns = 0;                \
-          flag_schedule_insns_after_reload = 0;        \
-        }                                        \
-    }                                                \
-  if (SIZE)                                        \
-    {                                                \
-      target_flags &= ~MASK_HARDLIT;                \
-    }                                                \
-}
-
-/* What options are we going to force to specific settings,
-   regardless of what the user thought he wanted.
-   We also use this for some post-processing of options.  */
-#define OVERRIDE_OPTIONS  mcore_override_options ()
-
 /* Target machine storage Layout.  */
 
-#define PROMOTE_MODE(MODE,UNSIGNEDP,TYPE)          \
+#define PROMOTE_MODE(MODE,UNSIGNEDP,TYPE)  	\
   if (GET_MODE_CLASS (MODE) == MODE_INT         \
       && GET_MODE_SIZE (MODE) < UNITS_PER_WORD) \
-    {                                                \
-      (MODE) = SImode;                                \
-      (UNSIGNEDP) = 1;                                \
+    {						\
+      (MODE) = SImode;				\
+      (UNSIGNEDP) = 1;				\
     }
 
 /* Define this if most significant bit is lowest numbered
@@ -140,16 +106,10 @@ extern char * mcore_current_function_name;
    numbered.  */
 #define WORDS_BIG_ENDIAN (! TARGET_LITTLE_END)
 
-#define LIBGCC2_WORDS_BIG_ENDIAN 1
-#ifdef __MCORELE__
-#undef  LIBGCC2_WORDS_BIG_ENDIAN
-#define LIBGCC2_WORDS_BIG_ENDIAN 0
-#endif
-
 #define MAX_BITS_PER_WORD 32
 
 /* Width of a word, in units (bytes).  */
-#define UNITS_PER_WORD        4
+#define UNITS_PER_WORD	4
 
 /* A C expression for the size in bits of the type `long long' on the
    target machine.  If you don't define this, the default is two
@@ -157,18 +117,12 @@ extern char * mcore_current_function_name;
 #define LONG_LONG_TYPE_SIZE 64
 
 /* Allocation boundary (in *bits*) for storing arguments in argument list.  */
-#define PARM_BOUNDARY          32
+#define PARM_BOUNDARY  	32
 
-/* Doubles must be aligned to an 8 byte boundary.  */
-#define FUNCTION_ARG_BOUNDARY(MODE, TYPE) \
-  ((MODE != BLKmode && (GET_MODE_SIZE (MODE) == 8)) \
-   ? BIGGEST_ALIGNMENT : PARM_BOUNDARY)
-     
 /* Boundary (in *bits*) on which stack pointer should be aligned.  */
 #define STACK_BOUNDARY  (TARGET_8ALIGN ? 64 : 32)
 
 /* Largest increment in UNITS we allow the stack to grow in a single operation.  */
-extern int mcore_stack_increment;
 #define STACK_UNITS_MAXSTEP  4096
 
 /* Allocation boundary (in *bits*) for the code of a function.  */
@@ -189,7 +143,7 @@ extern int mcore_stack_increment;
 /* Look at the fundamental type that is used for a bit-field and use 
    that to impose alignment on the enclosing structure.
    struct s {int a:8}; should have same alignment as "int", not "char".  */
-#define        PCC_BITFIELD_TYPE_MATTERS        1
+#define	PCC_BITFIELD_TYPE_MATTERS	1
 
 /* Largest integer machine mode for structures.  If undefined, the default
    is GET_MODE_SIZE(DImode).  */
@@ -197,14 +151,14 @@ extern int mcore_stack_increment;
 
 /* Make strings word-aligned so strcpy from constants will be faster.  */
 #define CONSTANT_ALIGNMENT(EXP, ALIGN)  \
-  ((TREE_CODE (EXP) == STRING_CST        \
-    && (ALIGN) < FASTEST_ALIGNMENT)        \
+  ((TREE_CODE (EXP) == STRING_CST	\
+    && (ALIGN) < FASTEST_ALIGNMENT)	\
    ? FASTEST_ALIGNMENT : (ALIGN))
 
 /* Make arrays of chars word-aligned for the same reasons.  */
-#define DATA_ALIGNMENT(TYPE, ALIGN)                \
-  (TREE_CODE (TYPE) == ARRAY_TYPE                \
-   && TYPE_MODE (TREE_TYPE (TYPE)) == QImode        \
+#define DATA_ALIGNMENT(TYPE, ALIGN)		\
+  (TREE_CODE (TYPE) == ARRAY_TYPE		\
+   && TYPE_MODE (TREE_TYPE (TYPE)) == QImode	\
    && (ALIGN) < FASTEST_ALIGNMENT ? FASTEST_ALIGNMENT : (ALIGN))
      
 /* Set this nonzero if move instructions will actually fail to work
@@ -215,15 +169,15 @@ extern int mcore_stack_increment;
 
 /* Register allocation for our first guess 
 
-        r0                stack pointer
-        r1                scratch, target reg for xtrb?
-        r2-r7                arguments.
-        r8-r14                call saved
-        r15                link register
-        ap                arg pointer (doesn't really exist, always eliminated)
-        c               c bit
-        fp                frame pointer (doesn't really exist, always eliminated)
-        x19                two control registers.  */
+	r0		stack pointer
+	r1		scratch, target reg for xtrb?
+	r2-r7		arguments.
+	r8-r14		call saved
+	r15		link register
+	ap		arg pointer (doesn't really exist, always eliminated)
+	c               c bit
+	fp		frame pointer (doesn't really exist, always eliminated)
+	x19		two control registers.  */
 
 /* Number of actual hardware registers.
    The hardware registers are assigned numbers for the compiler
@@ -236,12 +190,12 @@ extern int mcore_stack_increment;
 
 #define FIRST_PSEUDO_REGISTER 20
 
-#define R1_REG  1        /* Where literals are forced.  */
-#define LK_REG        15        /* Overloaded on general register.  */
-#define AP_REG  16        /* Fake arg pointer register.  */
+#define R1_REG  1	/* Where literals are forced.  */
+#define LK_REG	15	/* Overloaded on general register.  */
+#define AP_REG  16	/* Fake arg pointer register.  */
 /* RBE: mcore.md depends on CC_REG being set to 17.  */
-#define CC_REG        17        /* Can't name it C_REG.  */
-#define FP_REG  18        /* Fake frame pointer register.  */
+#define CC_REG	17	/* Can't name it C_REG.  */
+#define FP_REG  18	/* Fake frame pointer register.  */
 
 /* Specify the registers used for certain standard purposes.
    The values of these macros are register numbers.  */
@@ -255,10 +209,10 @@ extern int mcore_stack_increment;
    the Real framepointer; it can also be used as a normal general register.
    Note that the name `fp' is horribly misleading since `fp' is in fact only
    the argument-and-return-context pointer.  */
-#define REGISTER_NAMES                                  \
-{                                                           \
-  "sp", "r1", "r2",  "r3",  "r4",  "r5",  "r6",  "r7",         \
-  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",        \
+#define REGISTER_NAMES  				\
+{				                   	\
+  "sp", "r1", "r2",  "r3",  "r4",  "r5",  "r6",  "r7", 	\
+  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",	\
   "apvirtual",  "c", "fpvirtual", "x19" \
 }
 
@@ -307,11 +261,6 @@ extern int mcore_stack_increment;
 #define MODES_TIEABLE_P(MODE1, MODE2) \
   ((MODE1) == (MODE2) || GET_MODE_CLASS (MODE1) == GET_MODE_CLASS (MODE2))
 
-/* Value should be nonzero if functions must have frame pointers.
-   Zero means the frame pointer need not be set up (and parms may be accessed
-   via the stack pointer) in functions that seem suitable.  */
-#define FRAME_POINTER_REQUIRED        0
-
 /* Definitions for register eliminations.
 
    We have two registers that can be eliminated on the MCore.  First, the
@@ -320,24 +269,19 @@ extern int mcore_stack_increment;
    eliminated; it is replaced with either the stack or frame pointer.  */
 
 /* Base register for access to arguments of the function.  */
-#define ARG_POINTER_REGNUM        16
+#define ARG_POINTER_REGNUM	16
 
 /* Register in which the static-chain is passed to a function.  */
-#define STATIC_CHAIN_REGNUM        1
+#define STATIC_CHAIN_REGNUM	1
 
 /* This is an array of structures.  Each structure initializes one pair
    of eliminable registers.  The "from" register number is given first,
    followed by "to".  Eliminations of the same "from" register are listed
    in order of preference.  */
-#define ELIMINABLE_REGS                                \
-{{ FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM},        \
- { ARG_POINTER_REGNUM,   STACK_POINTER_REGNUM},        \
+#define ELIMINABLE_REGS				\
+{{ FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM},	\
+ { ARG_POINTER_REGNUM,   STACK_POINTER_REGNUM},	\
  { ARG_POINTER_REGNUM,   FRAME_POINTER_REGNUM},}
-
-/* Given FROM and TO register numbers, say whether this elimination
-   is allowed.  */
-#define CAN_ELIMINATE(FROM, TO) \
-  (!((FROM) == FRAME_POINTER_REGNUM && FRAME_POINTER_REQUIRED))
 
 /* Define the offset between two registers, one to be eliminated, and the other
    its replacement, at the start of a routine.  */
@@ -380,15 +324,16 @@ enum reg_class
 
 #define N_REG_CLASSES  (int) LIM_REG_CLASSES
 
+
 /* Give names of register classes as strings for dump file.  */
 #define REG_CLASS_NAMES  \
-{                        \
-  "NO_REGS",                \
-  "ONLYR1_REGS",        \
-  "LRW_REGS",                \
-  "GENERAL_REGS",        \
-  "C_REGS",                \
-  "ALL_REGS",                \
+{			\
+  "NO_REGS",		\
+  "ONLYR1_REGS",	\
+  "LRW_REGS",		\
+  "GENERAL_REGS",	\
+  "C_REGS",		\
+  "ALL_REGS",		\
 }
 
 /* Define which registers fit in which classes.
@@ -396,14 +341,14 @@ enum reg_class
    of length N_REG_CLASSES.  */
 
 /* ??? STACK_POINTER_REGNUM should be excluded from LRW_REGS.  */
-#define REG_CLASS_CONTENTS              \
-{                                        \
-  {0x000000},  /* NO_REGS       */        \
-  {0x000002},  /* ONLYR1_REGS   */        \
-  {0x007FFE},  /* LRW_REGS      */        \
-  {0x01FFFF},  /* GENERAL_REGS  */        \
-  {0x020000},  /* C_REGS        */        \
-  {0x0FFFFF}   /* ALL_REGS      */        \
+#define REG_CLASS_CONTENTS      	\
+{					\
+  {0x000000},  /* NO_REGS       */	\
+  {0x000002},  /* ONLYR1_REGS   */	\
+  {0x007FFE},  /* LRW_REGS      */	\
+  {0x01FFFF},  /* GENERAL_REGS  */	\
+  {0x020000},  /* C_REGS        */	\
+  {0x0FFFFF}   /* ALL_REGS      */	\
 }
 
 /* The same information, inverted:
@@ -411,94 +356,36 @@ enum reg_class
    reg number REGNO.  This could be a conditional expression
    or could index an array.  */
 
-extern const int regno_reg_class[FIRST_PSEUDO_REGISTER];
-#define REGNO_REG_CLASS(REGNO) regno_reg_class[REGNO]
+extern const enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
+#define REGNO_REG_CLASS(REGNO) ((REGNO) < FIRST_PSEUDO_REGISTER ? regno_reg_class[REGNO] : NO_REGS)
 
-/* When defined, the compiler allows registers explicitly used in the
-   rtl to be used as spill registers but prevents the compiler from
-   extending the lifetime of these registers.  */
-#define SMALL_REGISTER_CLASSES 1
+/* When this hook returns true for MODE, the compiler allows
+   registers explicitly used in the rtl to be used as spill registers
+   but prevents the compiler from extending the lifetime of these
+   registers.  */
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
  
 /* The class value for index registers, and the one for base regs.  */
 #define INDEX_REG_CLASS  NO_REGS
-#define BASE_REG_CLASS         GENERAL_REGS
+#define BASE_REG_CLASS	 GENERAL_REGS
 
-/* Get reg_class from a letter such as appears in the machine 
-   description.  */
-extern const enum reg_class reg_class_from_letter[];
-
-#define REG_CLASS_FROM_LETTER(C) \
-   (ISLOWER (C) ? reg_class_from_letter[(C) - 'a'] : NO_REGS)
-
-/* The letters I, J, K, L, M, N, O, and P in a register constraint string
-   can be used to stand for particular ranges of immediate operands.
-   This macro defines what the ranges are.
-   C is the letter, and VALUE is a constant value.
-   Return 1 if VALUE is in the range specified by C.
-        I: loadable by movi (0..127)
-        J: arithmetic operand 1..32
-        K: shift operand 0..31
-        L: negative arithmetic operand -1..-32
-        M: powers of two, constants loadable by bgeni
-        N: powers of two minus 1, constants loadable by bmaski, including -1
-        O: allowed by cmov with two constants +/- 1 of each other
-        P: values we will generate 'inline' -- without an 'lrw'
-
-   Others defined for use after reload
-        Q: constant 1
-        R: a label
-        S: 0/1/2 cleared bits out of 32        [for bclri's]
-        T: 2 set bits out of 32        [for bseti's]
-        U: constant 0
-        xxxS: 1 cleared bit out of 32 (complement of power of 2). for bclri
-        xxxT: 2 cleared bits out of 32. for pairs of bclris.  */
-#define CONST_OK_FOR_I(VALUE) (((int)(VALUE)) >= 0 && ((int)(VALUE)) <= 0x7f)
-#define CONST_OK_FOR_J(VALUE) (((int)(VALUE)) >  0 && ((int)(VALUE)) <= 32)
-#define CONST_OK_FOR_L(VALUE) (((int)(VALUE)) <  0 && ((int)(VALUE)) >= -32)
-#define CONST_OK_FOR_K(VALUE) (((int)(VALUE)) >= 0 && ((int)(VALUE)) <= 31)
-#define CONST_OK_FOR_M(VALUE) (exact_log2 (VALUE) >= 0)
-#define CONST_OK_FOR_N(VALUE) (((int)(VALUE)) == -1 || exact_log2 ((VALUE) + 1) >= 0)
-#define CONST_OK_FOR_O(VALUE) (CONST_OK_FOR_I(VALUE) || \
-                               CONST_OK_FOR_M(VALUE) || \
-                               CONST_OK_FOR_N(VALUE) || \
-                               CONST_OK_FOR_M((int)(VALUE) - 1) || \
-                               CONST_OK_FOR_N((int)(VALUE) + 1))
-
-#define CONST_OK_FOR_P(VALUE) (mcore_const_ok_for_inline (VALUE)) 
-
-#define CONST_OK_FOR_LETTER_P(VALUE, C)     \
-     ((C) == 'I' ? CONST_OK_FOR_I (VALUE)   \
-    : (C) == 'J' ? CONST_OK_FOR_J (VALUE)   \
-    : (C) == 'L' ? CONST_OK_FOR_L (VALUE)   \
-    : (C) == 'K' ? CONST_OK_FOR_K (VALUE)   \
-    : (C) == 'M' ? CONST_OK_FOR_M (VALUE)   \
-    : (C) == 'N' ? CONST_OK_FOR_N (VALUE)   \
-    : (C) == 'P' ? CONST_OK_FOR_P (VALUE)   \
-    : (C) == 'O' ? CONST_OK_FOR_O (VALUE)   \
-    : 0)
-
-/* Similar, but for floating constants, and defining letters G and H.
-   Here VALUE is the CONST_DOUBLE rtx itself.  */
-#define CONST_DOUBLE_OK_FOR_LETTER_P(VALUE, C) \
-   ((C) == 'G' ? CONST_OK_FOR_I (CONST_DOUBLE_HIGH (VALUE)) \
-              && CONST_OK_FOR_I (CONST_DOUBLE_LOW (VALUE))  \
-    : 0)
-
-/* Letters in the range `Q' through `U' in a register constraint string
-   may be defined in a machine-dependent fashion to stand for arbitrary
-   operand types.  */
-#define EXTRA_CONSTRAINT(OP, C)                                \
-  ((C) == 'R' ? (GET_CODE (OP) == MEM                        \
-                 && GET_CODE (XEXP (OP, 0)) == LABEL_REF) \
-   : (C) == 'S' ? (GET_CODE (OP) == CONST_INT \
-                   && mcore_num_zeros (INTVAL (OP)) <= 2) \
-   : (C) == 'T' ? (GET_CODE (OP) == CONST_INT \
-                   && mcore_num_ones (INTVAL (OP)) == 2) \
-   : (C) == 'Q' ? (GET_CODE (OP) == CONST_INT \
-                   && INTVAL(OP) == 1) \
-   : (C) == 'U' ? (GET_CODE (OP) == CONST_INT \
-                   && INTVAL(OP) == 0) \
-   : 0)
+/* Convenience wrappers around insn_const_int_ok_for_constraint.  */
+#define CONST_OK_FOR_I(VALUE) \
+  insn_const_int_ok_for_constraint (VALUE, CONSTRAINT_I)
+#define CONST_OK_FOR_J(VALUE) \
+  insn_const_int_ok_for_constraint (VALUE, CONSTRAINT_J)
+#define CONST_OK_FOR_L(VALUE) \
+  insn_const_int_ok_for_constraint (VALUE, CONSTRAINT_L)
+#define CONST_OK_FOR_K(VALUE) \
+  insn_const_int_ok_for_constraint (VALUE, CONSTRAINT_K)
+#define CONST_OK_FOR_M(VALUE) \
+  insn_const_int_ok_for_constraint (VALUE, CONSTRAINT_M)
+#define CONST_OK_FOR_N(VALUE) \
+  insn_const_int_ok_for_constraint (VALUE, CONSTRAINT_N)
+#define CONST_OK_FOR_O(VALUE) \
+  insn_const_int_ok_for_constraint (VALUE, CONSTRAINT_O)
+#define CONST_OK_FOR_P(VALUE) \
+  insn_const_int_ok_for_constraint (VALUE, CONSTRAINT_P)
 
 /* Given an rtx X being reloaded into a reg required to be
    in class CLASS, return the class of reg to actually use.
@@ -539,23 +426,13 @@ extern const enum reg_class reg_class_from_letter[];
 
 /* If defined, the maximum amount of space required for outgoing arguments
    will be computed and placed into the variable
-   `current_function_outgoing_args_size'.  No space will be pushed
+   `crtl->outgoing_args_size'.  No space will be pushed
    onto the stack for each call; instead, the function prologue should
    increase the stack frame size by this amount.  */
 #define ACCUMULATE_OUTGOING_ARGS 1
 
 /* Offset of first parameter from the argument pointer register value.  */
 #define FIRST_PARM_OFFSET(FNDECL)  0
-
-/* Value is the number of byte of arguments automatically
-   popped when returning from a subroutine call.
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.
-
-   On the MCore, the callee does not pop any of its arguments that were passed
-   on the stack.  */
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE) 0
 
 /* Define how to find the value returned by a function.
    VALTYPE is the data type of the value (as a tree).
@@ -591,16 +468,16 @@ extern const enum reg_class reg_class_from_letter[];
    Thus NARGREGS or more means all following args should go on the stack.  */
 #define CUMULATIVE_ARGS  int
 
-#define ROUND_ADVANCE(SIZE)        \
+#define ROUND_ADVANCE(SIZE)	\
   ((SIZE + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
 
 /* Round a register number up to a proper boundary for an arg of mode 
    MODE. 
    
    We round to an even reg for things larger than a word.  */
-#define ROUND_REG(X, MODE)                                 \
-  ((TARGET_8ALIGN                                         \
-   && GET_MODE_UNIT_SIZE ((MODE)) > UNITS_PER_WORD)         \
+#define ROUND_REG(X, MODE) 				\
+  ((TARGET_8ALIGN 					\
+   && GET_MODE_UNIT_SIZE ((MODE)) > UNITS_PER_WORD) 	\
    ? ((X) + ((X) & 1)) : (X))
 
 
@@ -613,24 +490,12 @@ extern const enum reg_class reg_class_from_letter[];
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
   ((CUM) = 0)
 
-/* Update the data in CUM to advance over an argument
-   of mode MODE and data type TYPE.
-   (TYPE is null for libcalls where that information may not be
-   available.)  */
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)           \
- ((CUM) = (ROUND_REG ((CUM), (MODE))                           \
-           + ((NAMED) * mcore_num_arg_regs (MODE, TYPE)))) \
-
-/* Define where to put the arguments to a function.  */
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  mcore_function_arg (CUM, MODE, TYPE, NAMED)
-
 /* Call the function profiler with a given profile label.  */
-#define FUNCTION_PROFILER(STREAM,LABELNO)                \
-{                                                        \
-  fprintf (STREAM, "        trap        1\n");                        \
-  fprintf (STREAM, "        .align        2\n");                        \
-  fprintf (STREAM, "        .long        LP%d\n", (LABELNO));        \
+#define FUNCTION_PROFILER(STREAM,LABELNO)		\
+{							\
+  fprintf (STREAM, "	trap	1\n");			\
+  fprintf (STREAM, "	.align	2\n");			\
+  fprintf (STREAM, "	.long	LP%d\n", (LABELNO));	\
 }
 
 /* EXIT_IGNORE_STACK should be nonzero if, when returning from a function,
@@ -639,41 +504,11 @@ extern const enum reg_class reg_class_from_letter[];
    No definition is equivalent to always zero.  */
 #define EXIT_IGNORE_STACK 0
 
-/* Output assembler code for a block containing the constant parts
-   of a trampoline, leaving space for the variable parts.
-
-   On the MCore, the trampoline looks like:
-           lrw        r1,  function
-             lrw        r13, area
-           jmp        r13
-           or        r0, r0
-    .literals                                                */
-#define TRAMPOLINE_TEMPLATE(FILE)                  \
-{                                                \
-  fprintf ((FILE), "        .short        0x7102\n");        \
-  fprintf ((FILE), "        .short        0x7d02\n");        \
-  fprintf ((FILE), "        .short        0x00cd\n");     \
-  fprintf ((FILE), "        .short        0x1e00\n");        \
-  fprintf ((FILE), "        .long        0\n");                \
-  fprintf ((FILE), "        .long        0\n");                \
-}
-
 /* Length in units of the trampoline for entering a nested function.  */
 #define TRAMPOLINE_SIZE  12
 
 /* Alignment required for a trampoline in bits.  */
 #define TRAMPOLINE_ALIGNMENT  32
-
-/* Emit RTL insns to initialize the variable parts of a trampoline.
-   FNADDR is an RTX for the address of the function's pure code.
-   CXT is an RTX for the static chain value for the function.  */
-#define INITIALIZE_TRAMPOLINE(TRAMP, FNADDR, CXT)  \
-{                                                                        \
-  emit_move_insn (gen_rtx_MEM (SImode, plus_constant ((TRAMP), 8)),        \
-                  (CXT));                                                \
-  emit_move_insn (gen_rtx_MEM (SImode, plus_constant ((TRAMP), 12)),        \
-                  (FNADDR));                                                \
-}
 
 /* Macros to check register numbers against specific register classes.  */
 
@@ -692,13 +527,7 @@ extern const enum reg_class reg_class_from_letter[];
 #define MAX_REGS_PER_ADDRESS 1
 
 /* Recognize any constant value that is a valid address.  */
-#define CONSTANT_ADDRESS_P(X)          (GET_CODE (X) == LABEL_REF)
-
-/* Nonzero if the constant value X is a legitimate general operand.
-   It is given that X satisfies CONSTANT_P or is a CONST_DOUBLE.
-
-   On the MCore, allow anything but a double.  */
-#define LEGITIMATE_CONSTANT_P(X) (GET_CODE(X) != CONST_DOUBLE)
+#define CONSTANT_ADDRESS_P(X) 	 (GET_CODE (X) == LABEL_REF)
 
 /* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
    and check its validity for a certain class.
@@ -711,20 +540,20 @@ extern const enum reg_class reg_class_from_letter[];
 /* Nonzero if X is a hard reg that can be used as a base reg
    or if it is a pseudo reg.  */
 #define REG_OK_FOR_BASE_P(X) \
-            (REGNO (X) <= 16 || REGNO (X) >= FIRST_PSEUDO_REGISTER)
+    	(REGNO (X) <= 16 || REGNO (X) >= FIRST_PSEUDO_REGISTER)
 
 /* Nonzero if X is a hard reg that can be used as an index
    or if it is a pseudo reg.  */
-#define REG_OK_FOR_INDEX_P(X)        0
+#define REG_OK_FOR_INDEX_P(X)	0
 
 #else
 
 /* Nonzero if X is a hard reg that can be used as a base reg.  */
-#define REG_OK_FOR_BASE_P(X)        \
-        REGNO_OK_FOR_BASE_P (REGNO (X))
+#define REG_OK_FOR_BASE_P(X)	\
+	REGNO_OK_FOR_BASE_P (REGNO (X))
 
 /* Nonzero if X is a hard reg that can be used as an index.  */
-#define REG_OK_FOR_INDEX_P(X)        0
+#define REG_OK_FOR_INDEX_P(X)	0
 
 #endif
 /* GO_IF_LEGITIMATE_ADDRESS recognizes an RTL expression
@@ -745,53 +574,45 @@ extern const enum reg_class reg_class_from_letter[];
    the above macros so we are in luck.  
  
    Allow  REG
-          REG+disp 
+	  REG+disp 
 
    A legitimate index for a QI is 0..15, for HI is 0..30, for SI is 0..60,
    and for DI is 0..56 because we use two SI loads, etc.  */
-#define GO_IF_LEGITIMATE_INDEX(MODE, REGNO, OP, LABEL)                        \
-  do                                                                        \
-    {                                                                        \
-      if (GET_CODE (OP) == CONST_INT)                                         \
-        {                                                                \
-          if (GET_MODE_SIZE (MODE) >= 4                                        \
-              && (((unsigned)INTVAL (OP)) % 4) == 0                        \
-              &&  ((unsigned)INTVAL (OP)) <= 64 - GET_MODE_SIZE (MODE))        \
-            goto LABEL;                                                        \
-          if (GET_MODE_SIZE (MODE) == 2                                 \
-              && (((unsigned)INTVAL (OP)) % 2) == 0                        \
-              &&  ((unsigned)INTVAL (OP)) <= 30)                        \
-            goto LABEL;                                                        \
-          if (GET_MODE_SIZE (MODE) == 1                                 \
-              && ((unsigned)INTVAL (OP)) <= 15)                                \
-            goto LABEL;                                                        \
-        }                                                                \
-    }                                                                        \
+#define GO_IF_LEGITIMATE_INDEX(MODE, REGNO, OP, LABEL)			\
+  do									\
+    {									\
+      if (GET_CODE (OP) == CONST_INT) 					\
+        {								\
+	  if (GET_MODE_SIZE (MODE) >= 4					\
+	      && (((unsigned HOST_WIDE_INT) INTVAL (OP)) % 4) == 0	\
+	      &&  ((unsigned HOST_WIDE_INT) INTVAL (OP))		\
+	      <= (unsigned HOST_WIDE_INT) 64 - GET_MODE_SIZE (MODE))	\
+	    goto LABEL;							\
+	  if (GET_MODE_SIZE (MODE) == 2 				\
+	      && (((unsigned HOST_WIDE_INT) INTVAL (OP)) % 2) == 0	\
+	      &&  ((unsigned HOST_WIDE_INT) INTVAL (OP)) <= 30)		\
+	    goto LABEL;							\
+	  if (GET_MODE_SIZE (MODE) == 1 				\
+	      && ((unsigned HOST_WIDE_INT) INTVAL (OP)) <= 15)		\
+	    goto LABEL;							\
+        }								\
+    }									\
   while (0)
 
 #define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)                  \
-{                                                                   \
-  if (BASE_REGISTER_RTX_P (X))                                          \
-    goto LABEL;                                                          \
-  else if (GET_CODE (X) == PLUS || GET_CODE (X) == LO_SUM)           \
-    {                                                                  \
-      rtx xop0 = XEXP (X,0);                                          \
-      rtx xop1 = XEXP (X,1);                                          \
-      if (BASE_REGISTER_RTX_P (xop0))                                  \
-        GO_IF_LEGITIMATE_INDEX (MODE, REGNO (xop0), xop1, LABEL); \
-      if (BASE_REGISTER_RTX_P (xop1))                                  \
-        GO_IF_LEGITIMATE_INDEX (MODE, REGNO (xop1), xop0, LABEL); \
-    }                                                                  \
-}                                                                   
-                                                                   
-/* Go to LABEL if ADDR (a legitimate address expression)
-   has an effect that depends on the machine mode it is used for.  */
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR,LABEL)  \
-{                                                                        \
-  if (   GET_CODE (ADDR) == PRE_DEC || GET_CODE (ADDR) == POST_DEC        \
-      || GET_CODE (ADDR) == PRE_INC || GET_CODE (ADDR) == POST_INC)        \
-    goto LABEL;                                                                \
-}
+{ 								  \
+  if (BASE_REGISTER_RTX_P (X))					  \
+    goto LABEL;							  \
+  else if (GET_CODE (X) == PLUS || GET_CODE (X) == LO_SUM) 	  \
+    {								  \
+      rtx xop0 = XEXP (X,0);					  \
+      rtx xop1 = XEXP (X,1);					  \
+      if (BASE_REGISTER_RTX_P (xop0))				  \
+	GO_IF_LEGITIMATE_INDEX (MODE, REGNO (xop0), xop1, LABEL); \
+      if (BASE_REGISTER_RTX_P (xop1))				  \
+	GO_IF_LEGITIMATE_INDEX (MODE, REGNO (xop1), xop0, LABEL); \
+    }								  \
+}								   
 
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
@@ -800,8 +621,17 @@ extern const enum reg_class reg_class_from_letter[];
 /* 'char' is signed by default.  */
 #define DEFAULT_SIGNED_CHAR  0
 
-/* The type of size_t unsigned int.  */
+#undef SIZE_TYPE
 #define SIZE_TYPE "unsigned int"
+
+#undef PTRDIFF_TYPE
+#define PTRDIFF_TYPE "int"
+
+#undef WCHAR_TYPE
+#define WCHAR_TYPE "long int"
+
+#undef WCHAR_TYPE_SIZE
+#define WCHAR_TYPE_SIZE BITS_PER_WORD
 
 /* Max number of bytes we can move from memory to memory
    in one reasonably fast instruction.  */
@@ -848,8 +678,8 @@ extern const enum reg_class reg_class_from_letter[];
 /* Assembler output control.  */
 #define ASM_COMMENT_START "\t//"
 
-#define ASM_APP_ON        "// inline asm begin\n"
-#define ASM_APP_OFF        "// inline asm end\n"
+#define ASM_APP_ON	"// inline asm begin\n"
+#define ASM_APP_OFF	"// inline asm end\n"
 
 #define FILE_ASM_OP     "\t.file\n"
 
@@ -858,41 +688,43 @@ extern const enum reg_class reg_class_from_letter[];
 #define DATA_SECTION_ASM_OP  "\t.data"
 
 /* Switch into a generic section.  */
-#undef TARGET_ASM_NAMED_SECTION
+#undef  TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION  mcore_asm_named_section
+
+#define INCOMING_RETURN_ADDR_RTX gen_rtx_REG (SImode, LK_REG)
 
 /* This is how to output an insn to push a register on the stack.
    It need not be very fast code.  */
 #define ASM_OUTPUT_REG_PUSH(FILE,REGNO)  \
-  fprintf (FILE, "\tsubi\t %s,%d\n\tstw\t %s,(%s)\n",        \
-           reg_names[STACK_POINTER_REGNUM],                \
-           (STACK_BOUNDARY / BITS_PER_UNIT),                \
-           reg_names[REGNO],                                \
-           reg_names[STACK_POINTER_REGNUM])
+  fprintf (FILE, "\tsubi\t %s,%d\n\tstw\t %s,(%s)\n",	\
+	   reg_names[STACK_POINTER_REGNUM],		\
+	   (STACK_BOUNDARY / BITS_PER_UNIT),		\
+	   reg_names[REGNO],				\
+	   reg_names[STACK_POINTER_REGNUM])
 
 /* Length in instructions of the code output by ASM_OUTPUT_REG_PUSH.  */
 #define REG_PUSH_LENGTH 2
 
 /* This is how to output an insn to pop a register from the stack.  */
 #define ASM_OUTPUT_REG_POP(FILE,REGNO)  \
-  fprintf (FILE, "\tldw\t %s,(%s)\n\taddi\t %s,%d\n",        \
-           reg_names[REGNO],                                \
-           reg_names[STACK_POINTER_REGNUM],                \
-           reg_names[STACK_POINTER_REGNUM],                \
-           (STACK_BOUNDARY / BITS_PER_UNIT))
+  fprintf (FILE, "\tldw\t %s,(%s)\n\taddi\t %s,%d\n",	\
+	   reg_names[REGNO],				\
+	   reg_names[STACK_POINTER_REGNUM],		\
+	   reg_names[STACK_POINTER_REGNUM],		\
+	   (STACK_BOUNDARY / BITS_PER_UNIT))
 
   
 /* Output a reference to a label.  */
 #undef  ASM_OUTPUT_LABELREF
 #define ASM_OUTPUT_LABELREF(STREAM, NAME)  \
   fprintf (STREAM, "%s%s", USER_LABEL_PREFIX, \
-           (* targetm.strip_name_encoding) (NAME))
+	   (* targetm.strip_name_encoding) (NAME))
 
 /* This is how to output an assembler line
    that says to advance the location counter
    to a multiple of 2**LOG bytes.  */
-#define ASM_OUTPUT_ALIGN(FILE,LOG)        \
-  if ((LOG) != 0)                        \
+#define ASM_OUTPUT_ALIGN(FILE,LOG)	\
+  if ((LOG) != 0)			\
     fprintf (FILE, "\t.align\t%d\n", LOG)
 
 #ifndef ASM_DECLARE_RESULT
@@ -905,30 +737,30 @@ extern const enum reg_class reg_class_from_letter[];
 
 /* A pair of macros to output things for the callgraph data.
    VALUE means (to the tools that reads this info later):
-          0 a call from src to dst
-          1 the call is special (e.g. dst is "unknown" or "alloca")
-          2 the call is special (e.g., the src is a table instead of routine)
+  	0 a call from src to dst
+  	1 the call is special (e.g. dst is "unknown" or "alloca")
+  	2 the call is special (e.g., the src is a table instead of routine)
   
    Frame sizes are augmented with timestamps to help later tools 
    differentiate between static entities with same names in different
    files.  */
 extern long mcore_current_compilation_timestamp;
-#define        ASM_OUTPUT_CG_NODE(FILE,SRCNAME,VALUE)                                \
-  do                                                                        \
-    {                                                                        \
-      if (mcore_current_compilation_timestamp == 0)                        \
-        mcore_current_compilation_timestamp = time (0);                        \
-      fprintf ((FILE),"\t.equ\t__$frame$size$_%s_$_%08lx,%d\n",                \
-             (SRCNAME), mcore_current_compilation_timestamp, (VALUE));        \
-    }                                                                        \
+#define	ASM_OUTPUT_CG_NODE(FILE,SRCNAME,VALUE)				\
+  do									\
+    {									\
+      if (mcore_current_compilation_timestamp == 0)			\
+        mcore_current_compilation_timestamp = time (0);			\
+      fprintf ((FILE),"\t.equ\t__$frame$size$_%s_$_%08lx,%d\n",		\
+             (SRCNAME), mcore_current_compilation_timestamp, (VALUE));	\
+    }									\
   while (0)
 
-#define        ASM_OUTPUT_CG_EDGE(FILE,SRCNAME,DSTNAME,VALUE)                \
-  do                                                                \
-    {                                                                \
-      fprintf ((FILE),"\t.equ\t__$function$call$_%s_$_%s,%d\n",        \
-             (SRCNAME), (DSTNAME), (VALUE));                        \
-    }                                                                \
+#define	ASM_OUTPUT_CG_EDGE(FILE,SRCNAME,DSTNAME,VALUE)		\
+  do								\
+    {								\
+      fprintf ((FILE),"\t.equ\t__$function$call$_%s_$_%s,%d\n",	\
+             (SRCNAME), (DSTNAME), (VALUE));			\
+    }								\
   while (0)
 
 /* Globalizing directive for a label.  */
@@ -969,50 +801,39 @@ extern long mcore_current_compilation_timestamp;
    to define a global common symbol, with alignment information.  */
 /* XXX - for now we ignore the alignment.  */     
 #undef  ASM_OUTPUT_ALIGNED_COMMON
-#define ASM_OUTPUT_ALIGNED_COMMON(FILE, NAME, SIZE, ALIGN)        \
-  do                                                                \
-    {                                                                \
-      if (mcore_dllexport_name_p (NAME))                        \
-        MCORE_EXPORT_NAME (FILE, NAME)                                \
-      if (! mcore_dllimport_name_p (NAME))                        \
-        {                                                        \
-          fputs ("\t.comm\t", FILE);                                \
-          assemble_name (FILE, NAME);                                \
-          fprintf (FILE, ",%lu\n", (unsigned long)(SIZE));        \
-        }                                                        \
-    }                                                                \
+#define ASM_OUTPUT_ALIGNED_COMMON(FILE, NAME, SIZE, ALIGN)	\
+  do								\
+    {								\
+      if (mcore_dllexport_name_p (NAME))			\
+	MCORE_EXPORT_NAME (FILE, NAME)				\
+      if (! mcore_dllimport_name_p (NAME))			\
+        {							\
+          fputs ("\t.comm\t", FILE);				\
+          assemble_name (FILE, NAME);				\
+          fprintf (FILE, ",%lu\n", (unsigned long)(SIZE));	\
+        }							\
+    }								\
   while (0)
 
 /* This says how to output an assembler line
    to define a local common symbol....  */
 #undef  ASM_OUTPUT_LOCAL
-#define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE, ROUNDED)        \
-  (fputs ("\t.lcomm\t", FILE),                                \
-  assemble_name (FILE, NAME),                                \
+#define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE, ROUNDED)	\
+  (fputs ("\t.lcomm\t", FILE),				\
+  assemble_name (FILE, NAME),				\
   fprintf (FILE, ",%d\n", (int)SIZE))
 
 /* ... and how to define a local common symbol whose alignment
    we wish to specify.  ALIGN comes in as bits, we have to turn
    it into bytes.  */
 #undef  ASM_OUTPUT_ALIGNED_LOCAL
-#define ASM_OUTPUT_ALIGNED_LOCAL(FILE, NAME, SIZE, ALIGN)                \
-  do                                                                        \
-    {                                                                        \
-      fputs ("\t.bss\t", (FILE));                                        \
-      assemble_name ((FILE), (NAME));                                        \
+#define ASM_OUTPUT_ALIGNED_LOCAL(FILE, NAME, SIZE, ALIGN)		\
+  do									\
+    {									\
+      fputs ("\t.bss\t", (FILE));					\
+      assemble_name ((FILE), (NAME));					\
       fprintf ((FILE), ",%d,%d\n", (int)(SIZE), (ALIGN) / BITS_PER_UNIT);\
-    }                                                                        \
+    }									\
   while (0)
-
-/* Print operand X (an rtx) in assembler syntax to file FILE.
-   CODE is a letter or dot (`z' in `%z0') or 0 if no letter was specified.
-   For `%' followed by punctuation, CODE is the punctuation and X is null.  */
-#define PRINT_OPERAND(STREAM, X, CODE)  mcore_print_operand (STREAM, X, CODE)
-
-/* Print a memory address as an operand to reference that memory location.  */
-#define PRINT_OPERAND_ADDRESS(STREAM,X)  mcore_print_operand_address (STREAM, X)
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CHAR) \
-  ((CHAR)=='.' || (CHAR) == '#' || (CHAR) == '*' || (CHAR) == '^' || (CHAR) == '!')
 
 #endif /* ! GCC_MCORE_H */

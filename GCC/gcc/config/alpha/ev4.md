@@ -1,11 +1,11 @@
 ;; Scheduling description for Alpha EV4.
-;;   Copyright (C) 2002, 2004, 2005 Free Software Foundation, Inc.
+;;   Copyright (C) 2002, 2004, 2005, 2007 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
 
 ; On EV4 there are two classes of resources to consider: resources needed
 ; to issue, and resources needed to execute.  IBUS[01] are in the first
@@ -119,7 +118,7 @@
 (define_insn_reservation "ev4_imulsi" 21
   (and (eq_attr "tune" "ev4")
        (and (eq_attr "type" "imul")
-            (eq_attr "opsize" "si")))
+	    (eq_attr "opsize" "si")))
   "ev4_ib0+ev4_imul,ev4_imul*18,ev4_ebox")
 
 (define_bypass 20 "ev4_imulsi" "ev4_ist" "store_data_bypass_p")
@@ -127,7 +126,7 @@
 (define_insn_reservation "ev4_imuldi" 23
   (and (eq_attr "tune" "ev4")
        (and (eq_attr "type" "imul")
-            (eq_attr "opsize" "!si")))
+	    (eq_attr "opsize" "!si")))
   "ev4_ib0+ev4_imul,ev4_imul*20,ev4_ebox")
 
 (define_bypass 22 "ev4_imuldi" "ev4_ist" "store_data_bypass_p")
@@ -146,13 +145,13 @@
 (define_insn_reservation "ev4_fdivsf" 34
   (and (eq_attr "tune" "ev4")
        (and (eq_attr "type" "fdiv")
-            (eq_attr "opsize" "si")))
+	    (eq_attr "opsize" "si")))
   "ev4_ib1+ev4_fdiv,ev4_fdiv*28,ev4_fdiv+ev4_fbox,ev4_fbox")
 
 (define_insn_reservation "ev4_fdivdf" 63
   (and (eq_attr "tune" "ev4")
        (and (eq_attr "type" "fdiv")
-            (eq_attr "opsize" "di")))
+	    (eq_attr "opsize" "di")))
   "ev4_ib1+ev4_fdiv,ev4_fdiv*57,ev4_fdiv+ev4_fbox,ev4_fbox")
 
 ; Traps don't consume or produce data.

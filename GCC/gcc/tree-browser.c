@@ -1,12 +1,13 @@
 /* Tree browser.
-   Copyright (C) 2002, 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2007, 2008, 2010
+   Free Software Foundation, Inc.
    Contributed by Sebastian Pop <s.pop@laposte.net>
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -15,25 +16,19 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "tree.h"
-#include "tree-inline.h"
-#include "diagnostic.h"
-#include "hashtab.h"
-
+#include "tree-pretty-print.h"
 
 #define TB_OUT_FILE stdout
 #define TB_IN_FILE stdin
 #define TB_NIY fprintf (TB_OUT_FILE, "Sorry this command is not yet implemented.\n")
 #define TB_WF fprintf (TB_OUT_FILE, "Warning, this command failed.\n")
-
 
 /* Structures for handling Tree Browser's commands.  */
 #define DEFTBCODE(COMMAND, STRING, HELP)   COMMAND,
@@ -72,11 +67,14 @@ struct tb_tree_code {
 };
 
 #define DEFTREECODE(SYM, STRING, TYPE, NARGS) { SYM, STRING, sizeof (STRING) - 1 },
+#define END_OF_BASE_TREE_CODES \
+  { LAST_AND_UNUSED_TREE_CODE, "@dummy", sizeof ("@dummy") - 1 },
 static const struct tb_tree_code tb_tree_codes[] =
 {
-#include "tree.def"
+#include "all-tree.def"
 };
 #undef DEFTREECODE
+#undef END_OF_BASE_TREE_CODES
 
 #define TB_TREE_CODE(N) (tb_tree_codes[N].code)
 #define TB_TREE_CODE_TEXT(N) (tb_tree_codes[N].code_string)
@@ -105,7 +103,7 @@ void browse_tree (tree);
 
 /* Static variables.  */
 static htab_t TB_up_ht;
-static tree TB_history_stack = NULL_TREE;
+static VEC(tree,gc) *TB_history_stack;
 static int TB_verbose = 1;
 
 
@@ -123,13 +121,13 @@ browse_tree (tree begin)
   fprintf (TB_OUT_FILE, "\nTree Browser\n");
 
 #define TB_SET_HEAD(N) do {                                           \
-  TB_history_stack = tree_cons (NULL_TREE, (N), TB_history_stack);    \
+  VEC_safe_push (tree, gc, TB_history_stack, N);                      \
   head = N;                                                           \
   if (TB_verbose)                                                     \
     if (head)                                                         \
       {                                                               \
-        print_generic_expr (TB_OUT_FILE, head, 0);                    \
-        fprintf (TB_OUT_FILE, "\n");                                  \
+	print_generic_expr (TB_OUT_FILE, head, 0);                    \
+	fprintf (TB_OUT_FILE, "\n");                                  \
       }                                                               \
 } while (0)
 
@@ -147,361 +145,363 @@ browse_tree (tree begin)
       rd = TB_getline (&input, &input_size, TB_IN_FILE);
 
       if (rd == -1)
-        /* EOF.  */
-        goto ret;
+	/* EOF.  */
+	goto ret;
 
       if (rd != 1)
-        /* Get a new command.  Otherwise the user just pressed enter, and thus
-           she expects the last command to be reexecuted.  */
-        tbc = TB_get_command (input);
+	/* Get a new command.  Otherwise the user just pressed enter, and thus
+	   she expects the last command to be reexecuted.  */
+	tbc = TB_get_command (input);
 
       switch (tbc)
-        {
-        case TB_UPDATE_UP:
-          TB_update_up (head);
-          break;
+	{
+	case TB_UPDATE_UP:
+	  TB_update_up (head);
+	  break;
 
-        case TB_MAX:
-          if (head && (INTEGRAL_TYPE_P (head)
-                       || TREE_CODE (head) == REAL_TYPE))
-            TB_SET_HEAD (TYPE_MAX_VALUE (head));
-          else
-            TB_WF;
-          break;
+	case TB_MAX:
+	  if (head && (INTEGRAL_TYPE_P (head)
+		       || TREE_CODE (head) == REAL_TYPE
+		       || TREE_CODE (head) == FIXED_POINT_TYPE))
+	    TB_SET_HEAD (TYPE_MAX_VALUE (head));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_MIN:
-          if (head && (INTEGRAL_TYPE_P (head)
-                       || TREE_CODE (head) == REAL_TYPE))
-            TB_SET_HEAD (TYPE_MIN_VALUE (head));
-          else
-            TB_WF;
-          break;
+	case TB_MIN:
+	  if (head && (INTEGRAL_TYPE_P (head)
+		       || TREE_CODE (head) == REAL_TYPE
+		       || TREE_CODE (head) == FIXED_POINT_TYPE))
+	    TB_SET_HEAD (TYPE_MIN_VALUE (head));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_ELT:
-          if (head && TREE_CODE (head) == TREE_VEC)
-            {
-              /* This command takes another argument: the element number:
+	case TB_ELT:
+	  if (head && TREE_CODE (head) == TREE_VEC)
+	    {
+	      /* This command takes another argument: the element number:
+		 for example "elt 1".  */
+	      TB_NIY;
+	    }
+	  else if (head && TREE_CODE (head) == VECTOR_CST)
+	    {
+	      /* This command takes another argument: the element number:
                  for example "elt 1".  */
               TB_NIY;
-            }
-          else if (head && TREE_CODE (head) == VECTOR_CST)
-            {
-              /* This command takes another argument: the element number:
-                 for example "elt 1".  */
-              TB_NIY;
-            }
-          else
-            TB_WF;
+	    }
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_VALUE:
+	  if (head && TREE_CODE (head) == TREE_LIST)
+	    TB_SET_HEAD (TREE_VALUE (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_PURPOSE:
+	  if (head && TREE_CODE (head) == TREE_LIST)
+	    TB_SET_HEAD (TREE_PURPOSE (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_IMAG:
+	  if (head && TREE_CODE (head) == COMPLEX_CST)
+	    TB_SET_HEAD (TREE_IMAGPART (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_REAL:
+	  if (head && TREE_CODE (head) == COMPLEX_CST)
+	    TB_SET_HEAD (TREE_REALPART (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_BLOCK:
+	  if (head && TREE_CODE (head) == BIND_EXPR)
+	    TB_SET_HEAD (TREE_OPERAND (head, 2));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_SUBBLOCKS:
+	  if (head && TREE_CODE (head) == BLOCK)
+	    TB_SET_HEAD (BLOCK_SUBBLOCKS (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_SUPERCONTEXT:
+	  if (head && TREE_CODE (head) == BLOCK)
+	    TB_SET_HEAD (BLOCK_SUPERCONTEXT (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_VARS:
+	  if (head && TREE_CODE (head) == BLOCK)
+	    TB_SET_HEAD (BLOCK_VARS (head));
+	  else if (head && TREE_CODE (head) == BIND_EXPR)
+	    TB_SET_HEAD (TREE_OPERAND (head, 0));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_REFERENCE_TO_THIS:
+	  if (head && TYPE_P (head))
+	    TB_SET_HEAD (TYPE_REFERENCE_TO (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_POINTER_TO_THIS:
+	  if (head && TYPE_P (head))
+	    TB_SET_HEAD (TYPE_POINTER_TO (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_BASETYPE:
+	  if (head && TREE_CODE (head) == OFFSET_TYPE)
+	    TB_SET_HEAD (TYPE_OFFSET_BASETYPE (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_ARG_TYPES:
+	  if (head && (TREE_CODE (head) == FUNCTION_TYPE
+		       || TREE_CODE (head) == METHOD_TYPE))
+	    TB_SET_HEAD (TYPE_ARG_TYPES (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_METHOD_BASE_TYPE:
+	  if (head && (TREE_CODE (head) == FUNCTION_TYPE
+		       || TREE_CODE (head) == METHOD_TYPE)
+	      && TYPE_METHOD_BASETYPE (head))
+	    TB_SET_HEAD (TYPE_METHOD_BASETYPE (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_FIELDS:
+	  if (head && (TREE_CODE (head) == RECORD_TYPE
+		       || TREE_CODE (head) == UNION_TYPE
+		       || TREE_CODE (head) == QUAL_UNION_TYPE))
+	    TB_SET_HEAD (TYPE_FIELDS (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_DOMAIN:
+	  if (head && TREE_CODE (head) == ARRAY_TYPE)
+	    TB_SET_HEAD (TYPE_DOMAIN (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_VALUES:
+	  if (head && TREE_CODE (head) == ENUMERAL_TYPE)
+	    TB_SET_HEAD (TYPE_VALUES (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_ARG_TYPE:
+	  if (head && TREE_CODE (head) == PARM_DECL)
+	    TB_SET_HEAD (DECL_ARG_TYPE (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_INITIAL:
+	  if (head && DECL_P (head))
+	    TB_SET_HEAD (DECL_INITIAL (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_RESULT:
+	  if (head && DECL_P (head))
+	    TB_SET_HEAD (DECL_RESULT_FLD (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_ARGUMENTS:
+	  if (head && DECL_P (head))
+	    TB_SET_HEAD (DECL_ARGUMENTS (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_ABSTRACT_ORIGIN:
+	  if (head && DECL_P (head))
+	    TB_SET_HEAD (DECL_ABSTRACT_ORIGIN (head));
+	  else if (head && TREE_CODE (head) == BLOCK)
+	    TB_SET_HEAD (BLOCK_ABSTRACT_ORIGIN (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_ATTRIBUTES:
+	  if (head && DECL_P (head))
+	    TB_SET_HEAD (DECL_ATTRIBUTES (head));
+	  else if (head && TYPE_P (head))
+	    TB_SET_HEAD (TYPE_ATTRIBUTES (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_CONTEXT:
+	  if (head && DECL_P (head))
+	    TB_SET_HEAD (DECL_CONTEXT (head));
+	  else if (head && TYPE_P (head)
+		   && TYPE_CONTEXT (head))
+	    TB_SET_HEAD (TYPE_CONTEXT (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_OFFSET:
+	  if (head && TREE_CODE (head) == FIELD_DECL)
+	    TB_SET_HEAD (DECL_FIELD_OFFSET (head));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_BIT_OFFSET:
+	  if (head && TREE_CODE (head) == FIELD_DECL)
+	    TB_SET_HEAD (DECL_FIELD_BIT_OFFSET (head));
+	  else
+	    TB_WF;
           break;
 
-        case TB_VALUE:
-          if (head && TREE_CODE (head) == TREE_LIST)
-            TB_SET_HEAD (TREE_VALUE (head));
-          else
-            TB_WF;
-          break;
+	case TB_UNIT_SIZE:
+	  if (head && DECL_P (head))
+	    TB_SET_HEAD (DECL_SIZE_UNIT (head));
+	  else if (head && TYPE_P (head))
+	    TB_SET_HEAD (TYPE_SIZE_UNIT (head));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_PURPOSE:
-          if (head && TREE_CODE (head) == TREE_LIST)
-            TB_SET_HEAD (TREE_PURPOSE (head));
-          else
-            TB_WF;
-          break;
+	case TB_SIZE:
+	  if (head && DECL_P (head))
+	    TB_SET_HEAD (DECL_SIZE (head));
+	  else if (head && TYPE_P (head))
+	    TB_SET_HEAD (TYPE_SIZE (head));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_IMAG:
-          if (head && TREE_CODE (head) == COMPLEX_CST)
-            TB_SET_HEAD (TREE_IMAGPART (head));
-          else
-            TB_WF;
-          break;
+	case TB_TYPE:
+	  if (head && TREE_TYPE (head))
+	    TB_SET_HEAD (TREE_TYPE (head));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_REAL:
-          if (head && TREE_CODE (head) == COMPLEX_CST)
-            TB_SET_HEAD (TREE_REALPART (head));
-          else
-            TB_WF;
-          break;
+	case TB_DECL_SAVED_TREE:
+	  if (head && TREE_CODE (head) == FUNCTION_DECL
+	      && DECL_SAVED_TREE (head))
+	    TB_SET_HEAD (DECL_SAVED_TREE (head));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_BLOCK:
-          if (head && TREE_CODE (head) == BIND_EXPR)
-            TB_SET_HEAD (TREE_OPERAND (head, 2));
-          else
-            TB_WF;
-          break;
+	case TB_BODY:
+	  if (head && TREE_CODE (head) == BIND_EXPR)
+	    TB_SET_HEAD (TREE_OPERAND (head, 1));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_SUBBLOCKS:
-          if (head && TREE_CODE (head) == BLOCK)
-            TB_SET_HEAD (BLOCK_SUBBLOCKS (head));
-          else
-            TB_WF;
-          break;
+	case TB_CHILD_0:
+	  if (head && EXPR_P (head) && TREE_OPERAND (head, 0))
+	    TB_SET_HEAD (TREE_OPERAND (head, 0));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_SUPERCONTEXT:
-          if (head && TREE_CODE (head) == BLOCK)
-            TB_SET_HEAD (BLOCK_SUPERCONTEXT (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_VARS:
-          if (head && TREE_CODE (head) == BLOCK)
-            TB_SET_HEAD (BLOCK_VARS (head));
-          else if (head && TREE_CODE (head) == BIND_EXPR)
-            TB_SET_HEAD (TREE_OPERAND (head, 0));
-          else
-            TB_WF;
-          break;
-
-        case TB_REFERENCE_TO_THIS:
-          if (head && TYPE_P (head))
-            TB_SET_HEAD (TYPE_REFERENCE_TO (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_POINTER_TO_THIS:
-          if (head && TYPE_P (head))
-            TB_SET_HEAD (TYPE_POINTER_TO (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_BASETYPE:
-          if (head && TREE_CODE (head) == OFFSET_TYPE)
-            TB_SET_HEAD (TYPE_OFFSET_BASETYPE (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_ARG_TYPES:
-          if (head && (TREE_CODE (head) == FUNCTION_TYPE
-                       || TREE_CODE (head) == METHOD_TYPE))
-            TB_SET_HEAD (TYPE_ARG_TYPES (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_METHOD_BASE_TYPE:
-          if (head && (TREE_CODE (head) == FUNCTION_TYPE
-                       || TREE_CODE (head) == METHOD_TYPE)
-              && TYPE_METHOD_BASETYPE (head))
-            TB_SET_HEAD (TYPE_METHOD_BASETYPE (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_FIELDS:
-          if (head && (TREE_CODE (head) == RECORD_TYPE
-                       || TREE_CODE (head) == UNION_TYPE
-                       || TREE_CODE (head) == QUAL_UNION_TYPE))
-            TB_SET_HEAD (TYPE_FIELDS (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_DOMAIN:
-          if (head && TREE_CODE (head) == ARRAY_TYPE)
-            TB_SET_HEAD (TYPE_DOMAIN (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_VALUES:
-          if (head && TREE_CODE (head) == ENUMERAL_TYPE)
-            TB_SET_HEAD (TYPE_VALUES (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_ARG_TYPE:
-          if (head && TREE_CODE (head) == PARM_DECL)
-            TB_SET_HEAD (DECL_ARG_TYPE (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_INITIAL:
-          if (head && DECL_P (head))
-            TB_SET_HEAD (DECL_INITIAL (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_RESULT:
-          if (head && DECL_P (head))
-            TB_SET_HEAD (DECL_RESULT_FLD (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_ARGUMENTS:
-          if (head && DECL_P (head))
-            TB_SET_HEAD (DECL_ARGUMENTS (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_ABSTRACT_ORIGIN:
-          if (head && DECL_P (head))
-            TB_SET_HEAD (DECL_ABSTRACT_ORIGIN (head));
-          else if (head && TREE_CODE (head) == BLOCK)
-            TB_SET_HEAD (BLOCK_ABSTRACT_ORIGIN (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_ATTRIBUTES:
-          if (head && DECL_P (head))
-            TB_SET_HEAD (DECL_ATTRIBUTES (head));
-          else if (head && TYPE_P (head))
-            TB_SET_HEAD (TYPE_ATTRIBUTES (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_CONTEXT:
-          if (head && DECL_P (head))
-            TB_SET_HEAD (DECL_CONTEXT (head));
-          else if (head && TYPE_P (head)
-                   && TYPE_CONTEXT (head))
-            TB_SET_HEAD (TYPE_CONTEXT (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_OFFSET:
-          if (head && TREE_CODE (head) == FIELD_DECL)
-            TB_SET_HEAD (DECL_FIELD_OFFSET (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_BIT_OFFSET:
-          if (head && TREE_CODE (head) == FIELD_DECL)
-            TB_SET_HEAD (DECL_FIELD_BIT_OFFSET (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_UNIT_SIZE:
-          if (head && DECL_P (head))
-            TB_SET_HEAD (DECL_SIZE_UNIT (head));
-          else if (head && TYPE_P (head))
-            TB_SET_HEAD (TYPE_SIZE_UNIT (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_SIZE:
-          if (head && DECL_P (head))
-            TB_SET_HEAD (DECL_SIZE (head));
-          else if (head && TYPE_P (head))
-            TB_SET_HEAD (TYPE_SIZE (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_TYPE:
-          if (head && TREE_TYPE (head))
-            TB_SET_HEAD (TREE_TYPE (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_DECL_SAVED_TREE:
-          if (head && TREE_CODE (head) == FUNCTION_DECL
-              && DECL_SAVED_TREE (head))
-            TB_SET_HEAD (DECL_SAVED_TREE (head));
-          else
-            TB_WF;
-          break;
-
-        case TB_BODY:
-          if (head && TREE_CODE (head) == BIND_EXPR)
-            TB_SET_HEAD (TREE_OPERAND (head, 1));
-          else
-            TB_WF;
-          break;
-
-        case TB_CHILD_0:
-          if (head && EXPR_P (head) && TREE_OPERAND (head, 0))
-            TB_SET_HEAD (TREE_OPERAND (head, 0));
-          else
-            TB_WF;
-          break;
-
-        case TB_CHILD_1:
+	case TB_CHILD_1:
           if (head && EXPR_P (head) && TREE_OPERAND (head, 1))
-            TB_SET_HEAD (TREE_OPERAND (head, 1));
-          else
-            TB_WF;
+	    TB_SET_HEAD (TREE_OPERAND (head, 1));
+	  else
+	    TB_WF;
           break;
 
-        case TB_CHILD_2:
+	case TB_CHILD_2:
           if (head && EXPR_P (head) && TREE_OPERAND (head, 2))
-            TB_SET_HEAD (TREE_OPERAND (head, 2));
-          else
-            TB_WF;
+	    TB_SET_HEAD (TREE_OPERAND (head, 2));
+	  else
+	    TB_WF;
+	  break;
+
+	case TB_CHILD_3:
+	  if (head && EXPR_P (head) && TREE_OPERAND (head, 3))
+	    TB_SET_HEAD (TREE_OPERAND (head, 3));
+	  else
+	    TB_WF;
           break;
 
-        case TB_CHILD_3:
-          if (head && EXPR_P (head) && TREE_OPERAND (head, 3))
-            TB_SET_HEAD (TREE_OPERAND (head, 3));
-          else
-            TB_WF;
-          break;
+	case TB_PRINT:
+	  if (head)
+	    debug_tree (head);
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_PRINT:
-          if (head)
-            debug_tree (head);
-          else
-            TB_WF;
-          break;
+	case TB_PRETTY_PRINT:
+	  if (head)
+	    {
+	      print_generic_stmt (TB_OUT_FILE, head, 0);
+	      fprintf (TB_OUT_FILE, "\n");
+	    }
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_PRETTY_PRINT:
-          if (head)
-            {
-              print_generic_stmt (TB_OUT_FILE, head, 0);
-              fprintf (TB_OUT_FILE, "\n");
-            }
-          else
-            TB_WF;
-          break;
+	case TB_SEARCH_NAME:
 
-        case TB_SEARCH_NAME:
+	  break;
 
-          break;
+	case TB_SEARCH_CODE:
+	  {
+	    enum tree_code code;
+	    char *arg_text;
 
-        case TB_SEARCH_CODE:
-          {
-            enum tree_code code;
-            char *arg_text;
+	    arg_text = strchr (input, ' ');
+	    if (arg_text == NULL)
+	      {
+		fprintf (TB_OUT_FILE, "First argument is missing.  This isn't a valid search command.  \n");
+		break;
+	      }
+	    code = TB_get_tree_code (arg_text + 1);
 
-            arg_text = strchr (input, ' ');
-            if (arg_text == NULL)
-              {
-                fprintf (TB_OUT_FILE, "First argument is missing.  This isn't a valid search command.  \n");
-                break;
-              }
-            code = TB_get_tree_code (arg_text + 1);
+	    /* Search in the subtree a node with the given code.  */
+	    {
+	      tree res;
 
-            /* Search in the subtree a node with the given code.  */
-            {
-              tree res;
-
-              res = walk_tree (&head, find_node_with_code, &code, NULL);
-              if (res == NULL_TREE)
-                {
-                  fprintf (TB_OUT_FILE, "There's no node with this code (reachable via the walk_tree function from this node).\n");
-                }
-              else
-                {
-                  fprintf (TB_OUT_FILE, "Achoo!  I got this node in the tree.\n");
-                  TB_SET_HEAD (res);
-                }
-            }
-            break;
-          }
+	      res = walk_tree (&head, find_node_with_code, &code, NULL);
+	      if (res == NULL_TREE)
+		{
+		  fprintf (TB_OUT_FILE, "There's no node with this code (reachable via the walk_tree function from this node).\n");
+		}
+	      else
+		{
+		  fprintf (TB_OUT_FILE, "Achoo!  I got this node in the tree.\n");
+		  TB_SET_HEAD (res);
+		}
+	    }
+	    break;
+	  }
 
 #define TB_MOVE_HEAD(FCT) do {       \
   if (head)                          \
@@ -511,105 +511,105 @@ browse_tree (tree begin)
       if (t)                         \
         TB_SET_HEAD (t);             \
       else                           \
-        TB_WF;                       \
+	TB_WF;                       \
     }                                \
   else                               \
     TB_WF;                           \
 } while (0)
 
-        case TB_FIRST:
-          TB_MOVE_HEAD (TB_first_in_bind);
+	case TB_FIRST:
+	  TB_MOVE_HEAD (TB_first_in_bind);
           break;
 
         case TB_LAST:
           TB_MOVE_HEAD (TB_last_in_bind);
           break;
 
-        case TB_UP:
-          TB_MOVE_HEAD (TB_up_expr);
-          break;
+	case TB_UP:
+	  TB_MOVE_HEAD (TB_up_expr);
+	  break;
 
-        case TB_PREV:
-          TB_MOVE_HEAD (TB_prev_expr);
-          break;
+	case TB_PREV:
+	  TB_MOVE_HEAD (TB_prev_expr);
+	  break;
 
-        case TB_NEXT:
-          TB_MOVE_HEAD (TB_next_expr);
-          break;
+	case TB_NEXT:
+	  TB_MOVE_HEAD (TB_next_expr);
+	  break;
 
-        case TB_HPREV:
-          /* This command is a little bit special, since it deals with history
-             stack.  For this reason it should keep the "head = ..." statement
-             and not use TB_MOVE_HEAD.  */
-          if (head)
-            {
-              tree t;
-              t = TB_history_prev ();
-              if (t)
-                {
-                  head = t;
-                  if (TB_verbose)
-                    {
-                      print_generic_expr (TB_OUT_FILE, head, 0);
-                      fprintf (TB_OUT_FILE, "\n");
-                    }
-                }
-              else
-                TB_WF;
-            }
-          else
-            TB_WF;
-          break;
+	case TB_HPREV:
+	  /* This command is a little bit special, since it deals with history
+	     stack.  For this reason it should keep the "head = ..." statement
+	     and not use TB_MOVE_HEAD.  */
+	  if (head)
+	    {
+	      tree t;
+	      t = TB_history_prev ();
+	      if (t)
+		{
+		  head = t;
+		  if (TB_verbose)
+		    {
+		      print_generic_expr (TB_OUT_FILE, head, 0);
+		      fprintf (TB_OUT_FILE, "\n");
+		    }
+		}
+	      else
+		TB_WF;
+	    }
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_CHAIN:
-          /* Don't go further if it's the last node in this chain.  */
-          if (head && TREE_CODE (head) == BLOCK)
-            TB_SET_HEAD (BLOCK_CHAIN (head));
-          else if (head && TREE_CHAIN (head))
-            TB_SET_HEAD (TREE_CHAIN (head));
-          else
-            TB_WF;
-          break;
+	case TB_CHAIN:
+	  /* Don't go further if it's the last node in this chain.  */
+	  if (head && TREE_CODE (head) == BLOCK)
+	    TB_SET_HEAD (BLOCK_CHAIN (head));
+	  else if (head && TREE_CHAIN (head))
+	    TB_SET_HEAD (TREE_CHAIN (head));
+	  else
+	    TB_WF;
+	  break;
 
-        case TB_FUN:
-          /* Go up to the current function declaration.  */
-          TB_SET_HEAD (current_function_decl);
-          fprintf (TB_OUT_FILE, "Current function declaration.\n");
-          break;
+	case TB_FUN:
+	  /* Go up to the current function declaration.  */
+	  TB_SET_HEAD (current_function_decl);
+	  fprintf (TB_OUT_FILE, "Current function declaration.\n");
+	  break;
 
-        case TB_HELP:
-          /* Display a help message.  */
-          {
-            int i;
-            fprintf (TB_OUT_FILE, "Possible commands are:\n\n");
-            for (i = 0; i < TB_UNUSED_COMMAND; i++)
-              {
-                fprintf (TB_OUT_FILE, "%20s  -  %s\n", TB_COMMAND_TEXT (i), TB_COMMAND_HELP (i));
-              }
-          }
-          break;
+	case TB_HELP:
+	  /* Display a help message.  */
+	  {
+	    int i;
+	    fprintf (TB_OUT_FILE, "Possible commands are:\n\n");
+	    for (i = 0; i < TB_UNUSED_COMMAND; i++)
+	      {
+		fprintf (TB_OUT_FILE, "%20s  -  %s\n", TB_COMMAND_TEXT (i), TB_COMMAND_HELP (i));
+	      }
+	  }
+	  break;
 
-        case TB_VERBOSE:
-          if (TB_verbose == 0)
-            {
-              TB_verbose = 1;
-              fprintf (TB_OUT_FILE, "Verbose on.\n");
-            }
-          else
-            {
-              TB_verbose = 0;
-              fprintf (TB_OUT_FILE, "Verbose off.\n");
-            }
-          break;
+	case TB_VERBOSE:
+	  if (TB_verbose == 0)
+	    {
+	      TB_verbose = 1;
+	      fprintf (TB_OUT_FILE, "Verbose on.\n");
+	    }
+	  else
+	    {
+	      TB_verbose = 0;
+	      fprintf (TB_OUT_FILE, "Verbose off.\n");
+	    }
+	  break;
 
-        case TB_EXIT:
-        case TB_QUIT:
-          /* Just exit from this function.  */
-          goto ret;
+	case TB_EXIT:
+	case TB_QUIT:
+	  /* Just exit from this function.  */
+	  goto ret;
 
-        default:
-          TB_NIY;
-        }
+	default:
+	  TB_NIY;
+	}
     }
 
  ret:;
@@ -707,11 +707,11 @@ TB_current_chain_node (tree node)
   if (node)
     {
       if (TREE_CODE (node) == COMPOUND_EXPR)
-        return node;
+	return node;
 
       node = TB_up_expr (node);
       if (TREE_CODE (node) == COMPOUND_EXPR)
-        return node;
+	return node;
     }
 
   return NULL_TREE;
@@ -722,7 +722,7 @@ TB_current_chain_node (tree node)
 
 static tree
 store_child_info (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
-                  void *data ATTRIBUTE_UNUSED)
+		  void *data ATTRIBUTE_UNUSED)
 {
   tree node;
   void **slot;
@@ -730,45 +730,16 @@ store_child_info (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
   node = *tp;
 
   /* 'node' is the parent of 'TREE_OPERAND (node, *)'.  */
-  if (EXPRESSION_CLASS_P (node))
+  if (EXPR_P (node))
     {
-
-#define STORE_CHILD(N) do {                                                \
-  tree op = TREE_OPERAND (node, N);                                        \
-  slot = htab_find_slot (TB_up_ht, op, INSERT);                               \
-  *slot = (void *) node;                                                   \
-} while (0)
-
-      switch (TREE_CODE_LENGTH (TREE_CODE (node)))
-        {
-        case 4:
-          STORE_CHILD (0);
-          STORE_CHILD (1);
-          STORE_CHILD (2);
-          STORE_CHILD (3);
-          break;
-
-        case 3:
-          STORE_CHILD (0);
-          STORE_CHILD (1);
-          STORE_CHILD (2);
-          break;
-
-        case 2:
-          STORE_CHILD (0);
-          STORE_CHILD (1);
-          break;
-
-        case 1:
-          STORE_CHILD (0);
-          break;
-
-        case 0:
-        default:
-          /* No children: nothing to do.  */
-          break;
-        }
-#undef STORE_CHILD
+      int n = TREE_OPERAND_LENGTH (node);
+      int i;
+      for (i = 0; i < n; i++)
+	{
+	  tree op = TREE_OPERAND (node, i);
+	  slot = htab_find_slot (TB_up_ht, op, INSERT);
+	  *slot = (void *) node;
+	}
     }
 
   /* Never stop walk_tree.  */
@@ -780,53 +751,20 @@ store_child_info (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
 static int
 TB_parent_eq (const void *p1, const void *p2)
 {
-  tree node, parent;
-  node = (tree) p2;
-  parent = (tree) p1;
+  const_tree const node = (const_tree)p2;
+  const_tree const parent = (const_tree) p1;
 
   if (p1 == NULL || p2 == NULL)
     return 0;
 
-  if (EXPRESSION_CLASS_P (parent))
+  if (EXPR_P (parent))
     {
-
-#define TEST_CHILD(N) do {               \
-  if (node == TREE_OPERAND (parent, N))  \
-    return 1;                            \
-} while (0)
-
-    switch (TREE_CODE_LENGTH (TREE_CODE (parent)))
-      {
-      case 4:
-        TEST_CHILD (0);
-        TEST_CHILD (1);
-        TEST_CHILD (2);
-        TEST_CHILD (3);
-        break;
-
-      case 3:
-        TEST_CHILD (0);
-        TEST_CHILD (1);
-        TEST_CHILD (2);
-        break;
-
-      case 2:
-        TEST_CHILD (0);
-        TEST_CHILD (1);
-        break;
-
-      case 1:
-        TEST_CHILD (0);
-        break;
-
-      case 0:
-      default:
-        /* No children: nothing to do.  */
-        break;
-      }
-#undef TEST_CHILD
+      int n = TREE_OPERAND_LENGTH (parent);
+      int i;
+      for (i = 0; i < n; i++)
+	if (node == TREE_OPERAND (parent, i))
+	  return 1;
     }
-
   return 0;
 }
 
@@ -868,13 +806,13 @@ TB_get_command (char *input)
   for (mn = 0; mn < TB_UNUSED_COMMAND; mn++)
     {
       if (size_tok != TB_COMMAND_LEN (mn))
-        continue;
+	continue;
 
       comp = memcmp (input, TB_COMMAND_TEXT (mn), TB_COMMAND_LEN (mn));
       if (comp == 0)
-        /* Here we just determined the command.  If this command takes
-           an argument, then the argument is determined later.  */
-        return TB_COMMAND_CODE (mn);
+	/* Here we just determined the command.  If this command takes
+	   an argument, then the argument is determined later.  */
+	return TB_COMMAND_CODE (mn);
     }
 
   /* Not a valid command.  */
@@ -899,14 +837,14 @@ TB_get_tree_code (char *input)
   for (mn = 0; mn < LAST_AND_UNUSED_TREE_CODE; mn++)
     {
       if (size_tok != TB_TREE_CODE_LEN (mn))
-        continue;
+	continue;
 
       comp = memcmp (input, TB_TREE_CODE_TEXT (mn), TB_TREE_CODE_LEN (mn));
       if (comp == 0)
-        {
-          fprintf (TB_OUT_FILE, "%s\n", TB_TREE_CODE_TEXT (mn));
-          return TB_TREE_CODE (mn);
-        }
+	{
+	  fprintf (TB_OUT_FILE, "%s\n", TB_TREE_CODE_TEXT (mn));
+	  return TB_TREE_CODE (mn);
+	}
     }
 
   /* This isn't a valid code.  */
@@ -918,7 +856,7 @@ TB_get_tree_code (char *input)
 
 static tree
 find_node_with_code (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
-                     void *data)
+		     void *data)
 {
   enum tree_code *code;
   code = (enum tree_code *) data;
@@ -933,11 +871,11 @@ find_node_with_code (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
 static tree
 TB_history_prev (void)
 {
-  if (TB_history_stack)
+  if (!VEC_empty (tree, TB_history_stack))
     {
-      TB_history_stack = TREE_CHAIN (TB_history_stack);
-      if (TB_history_stack)
-        return TREE_VALUE (TB_history_stack);
+      tree last = VEC_last (tree, TB_history_stack);
+      VEC_pop (tree, TB_history_stack);
+      return last;
     }
   return NULL_TREE;
 }

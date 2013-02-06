@@ -1,13 +1,13 @@
 /* XCOFF definitions.  These are needed in dbxout.c, final.c,
    and xcoffout.h.
-   Copyright (C) 1998, 2000, 2002, 2003, 2004
+   Copyright (C) 1998, 2000, 2002, 2003, 2004, 2007, 2008
    Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -16,9 +16,8 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 
 /* Tags and typedefs are C_DECL in XCOFF, not C_LSYM.  */
@@ -41,20 +40,20 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 
 /* For static variables, output code to define the start of a static block.  */
 
-#define DBX_STATIC_BLOCK_START(ASMFILE,CODE)                                \
-{                                                                        \
-  if ((CODE) == N_STSYM)                                                \
+#define DBX_STATIC_BLOCK_START(ASMFILE,CODE)				\
+{									\
+  if ((CODE) == N_STSYM)						\
     fprintf ((ASMFILE), "\t.bs\t%s[RW]\n", xcoff_private_data_section_name);\
-  else if ((CODE) == N_LCSYM)                                                \
-    fprintf ((ASMFILE), "\t.bs\t%s\n", xcoff_bss_section_name);        \
+  else if ((CODE) == N_LCSYM)						\
+    fprintf ((ASMFILE), "\t.bs\t%s\n", xcoff_bss_section_name);	\
 }
 
 /* For static variables, output code to define the end of a static block.  */
 
-#define DBX_STATIC_BLOCK_END(ASMFILE,CODE)                                \
-{                                                                        \
-  if ((CODE) == N_STSYM || (CODE) == N_LCSYM)                                \
-    fputs ("\t.es\n", (ASMFILE));                                        \
+#define DBX_STATIC_BLOCK_END(ASMFILE,CODE)				\
+{									\
+  if ((CODE) == N_STSYM || (CODE) == N_LCSYM)				\
+    fputs ("\t.es\n", (ASMFILE));					\
 }
 
 /* We must use N_RPYSM instead of N_RSYM for register parameters.  */
@@ -68,39 +67,39 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 /* Define our own finish symbol function, since xcoff stabs have their
    own different format.  */
 
-#define DBX_FINISH_STABS(SYM, CODE, LINE, ADDR, LABEL, NUMBER) do {        \
-  if (ADDR)                                                                \
-    {                                                                        \
-      /* If we are writing a function name, we must emit a dot in        \
-         order to refer to the function code, not its descriptor.  */        \
-      if (CODE == N_FUN)                                                \
-        putc ('.', asm_out_file);                                        \
-                                                                        \
-      /* If we are writing a function name, we must ensure that                \
-         there is no storage-class suffix on the name.  */                \
-      if (CODE == N_FUN && GET_CODE (ADDR) == SYMBOL_REF)                \
-        {                                                                \
-          const char *_p = XSTR (ADDR, 0);                                \
-          if (*_p == '*')                                                \
-            fputs (_p+1, asm_out_file);                                        \
-          else                                                                \
-            for (; *_p != '[' && *_p; _p++)                                \
-              putc (*_p, asm_out_file);                                        \
-        }                                                                \
-      else                                                                \
-        output_addr_const (asm_out_file, ADDR);                                \
-    }                                                                        \
-  /* Another special case: N_GSYM always gets the symbol name,                \
-     whether or not LABEL or NUMBER are set.  */                        \
-  else if (CODE == N_GSYM)                                                \
-    assemble_name (asm_out_file, XSTR (XEXP (DECL_RTL (SYM), 0), 0));        \
-  else if (LABEL)                                                        \
-    assemble_name (asm_out_file, LABEL);                                \
-  else                                                                        \
-    dbxout_int (NUMBER);                                                \
-  putc (',', asm_out_file);                                                \
-  dbxout_int (stab_to_sclass (CODE));                                        \
-  fputs (",0\n", asm_out_file);                                                \
+#define DBX_FINISH_STABS(SYM, CODE, LINE, ADDR, LABEL, NUMBER) do {	\
+  if (ADDR)								\
+    {									\
+      /* If we are writing a function name, we must emit a dot in	\
+	 order to refer to the function code, not its descriptor.  */	\
+      if (CODE == N_FUN)						\
+	putc ('.', asm_out_file);					\
+									\
+      /* If we are writing a function name, we must ensure that		\
+	 there is no storage-class suffix on the name.  */		\
+      if (CODE == N_FUN && GET_CODE (ADDR) == SYMBOL_REF)		\
+	{								\
+	  const char *_p = XSTR (ADDR, 0);				\
+	  if (*_p == '*')						\
+	    fputs (_p+1, asm_out_file);					\
+	  else								\
+	    for (; *_p != '[' && *_p; _p++)				\
+	      putc (*_p != '$' ? *_p : '_', asm_out_file);		\
+	}								\
+      else								\
+	output_addr_const (asm_out_file, ADDR);				\
+    }									\
+  /* Another special case: N_GSYM always gets the symbol name,		\
+     whether or not LABEL or NUMBER are set.  */			\
+  else if (CODE == N_GSYM)						\
+    assemble_name (asm_out_file, XSTR (XEXP (DECL_RTL (SYM), 0), 0));	\
+  else if (LABEL)							\
+    assemble_name (asm_out_file, LABEL);				\
+  else									\
+    dbxout_int (NUMBER);						\
+  putc (',', asm_out_file);						\
+  dbxout_int (stab_to_sclass (CODE));					\
+  fputs (",0\n", asm_out_file);						\
 } while (0)
 
 /* These are IBM XCOFF extensions we need to reference in dbxout.c
@@ -145,15 +144,15 @@ extern const char *xcoff_lastfile;
   xcoff_lastfile = (FILENAME)
 
 /* If we are still in an include file, its end must be marked.  */
-#define DBX_OUTPUT_MAIN_SOURCE_FILE_END(FILE, FILENAME)        \
-do {                                                        \
-  if (xcoff_current_include_file)                        \
-    {                                                        \
-      fputs ("\t.ei\t", (FILE));                        \
-      output_quoted_string ((FILE), xcoff_current_include_file);        \
-      putc ('\n', (FILE));                                \
-      xcoff_current_include_file = NULL;                \
-    }                                                        \
+#define DBX_OUTPUT_MAIN_SOURCE_FILE_END(FILE, FILENAME)	\
+do {							\
+  if (xcoff_current_include_file)			\
+    {							\
+      fputs ("\t.ei\t", (FILE));			\
+      output_quoted_string ((FILE), xcoff_current_include_file);	\
+      putc ('\n', (FILE));				\
+      xcoff_current_include_file = NULL;		\
+    }							\
 } while (0)
 
 /* Do not emit any marker for XCOFF until assembler allows XFT_CV.  */
@@ -183,4 +182,4 @@ extern void xcoffout_end_function (unsigned int);
 extern void xcoffout_end_block (unsigned, unsigned);
 extern int xcoff_assign_fundamental_type_number (tree);
 extern void xcoffout_declare_function (FILE *, tree, const char *);
-extern void xcoffout_source_line (unsigned int, const char *);
+extern void xcoffout_source_line (unsigned int, const char *, int, bool);

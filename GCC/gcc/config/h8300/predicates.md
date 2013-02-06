@@ -1,11 +1,11 @@
 ;; Predicate definitions for Renesas H8/300.
-;; Copyright (C) 2005 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2007, 2010 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
 
 ;; Return true if OP is a valid source operand for an integer move
 ;; instruction.
@@ -72,7 +71,7 @@
   (match_code "const_int")
 {
   return (GET_CODE (op) == CONST_INT && TARGET_H8300SX
-          && INTVAL (op) >= 0 && INTVAL (op) <= 15);
+	  && INTVAL (op) >= 0 && INTVAL (op) <= 15);
 })
 
 ;; Check that an operand is either a register or an unsigned 4-bit
@@ -90,8 +89,8 @@
   (match_code "ashiftrt,lshiftrt,ashift,rotate")
 {
   return (BINARY_P (op) && NON_COMMUTATIVE_P (op)
-          && (h8sx_classify_shift (GET_MODE (op), GET_CODE (op), XEXP (op, 1))
-              == H8SX_SHIFT_UNARY));
+	  && (h8sx_classify_shift (GET_MODE (op), GET_CODE (op), XEXP (op, 1))
+	      == H8SX_SHIFT_UNARY));
 })
 
 ;; Likewise H8SX_SHIFT_BINARY.
@@ -100,8 +99,8 @@
   (match_code "ashiftrt,lshiftrt,ashift")
 {
   return (BINARY_P (op) && NON_COMMUTATIVE_P (op)
-          && (h8sx_classify_shift (GET_MODE (op), GET_CODE (op), XEXP (op, 1))
-              == H8SX_SHIFT_BINARY));
+	  && (h8sx_classify_shift (GET_MODE (op), GET_CODE (op), XEXP (op, 1))
+	      == H8SX_SHIFT_BINARY));
 })
 
 ;; Return true if OP is a binary operator in which it would be safe to
@@ -190,9 +189,9 @@
   if (GET_CODE (op) == CONST_INT)
     {
       /* We really need to do this masking because 0x80 in QImode is
-         represented as -128 for example.  */
+	 represented as -128 for example.  */
       if (exact_log2 (INTVAL (op) & GET_MODE_MASK (mode)) >= 0)
-        return 1;
+	return 1;
     }
 
   return 0;
@@ -207,9 +206,9 @@
   if (GET_CODE (op) == CONST_INT)
     {
       /* We really need to do this masking because 0x80 in QImode is
-         represented as -128 for example.  */
+	 represented as -128 for example.  */
       if (exact_log2 (~INTVAL (op) & GET_MODE_MASK (mode)) >= 0)
-        return 1;
+	return 1;
     }
 
   return 0;
@@ -224,9 +223,9 @@
     {
       rtx inside = XEXP (op, 0);
       if (register_operand (inside, Pmode))
-        return 1;
+	return 1;
       if (CONSTANT_ADDRESS_P (inside))
-        return 1;
+	return 1;
     }
   return 0;
 })
@@ -243,12 +242,12 @@
 
       /* Register indirect is a small call.  */
       if (register_operand (inside, Pmode))
-        return 1;
+	return 1;
 
       /* A call through the function vector is a small call too.  */
       if (GET_CODE (inside) == SYMBOL_REF
-          && (SYMBOL_REF_FLAGS (inside) & SYMBOL_FLAG_FUNCVEC_FUNCTION))
-        return 1;
+	  && (SYMBOL_REF_FLAGS (inside) & SYMBOL_FLAG_FUNCVEC_FUNCTION))
+	return 1;
     }
   /* Otherwise it's a large call.  */
   return 0;
@@ -260,15 +259,15 @@
   (match_code "reg,mem")
 {
   if (GET_CODE (op) == REG)
-    return mode == Pmode;
+    return GET_MODE (op) == Pmode;
 
   if (GET_CODE (op) == MEM)
     {
       rtx inside = XEXP (op, 0);
       if (register_operand (inside, Pmode))
-        return 1;
+	return 1;
       if (CONSTANT_ADDRESS_P (inside))
-        return 1;
+	return 1;
     }
   return 0;
 })
@@ -290,31 +289,31 @@
       /* Force VALUE to be positive so that we do not have to consider
          the negative case.  */
       if (value < 0)
-        value = -value;
+	value = -value;
       if (TARGET_H8300H || TARGET_H8300S)
-        {
-          /* A constant addition/subtraction takes 2 states in QImode,
-             4 states in HImode, and 6 states in SImode.  Thus, the
-             only case we can win is when SImode is used, in which
-             case, two adds/subs are used, taking 4 states.  */
-          if (mode == SImode
-              && (value == 2 + 1
-                  || value == 4 + 1
-                  || value == 4 + 2
-                  || value == 4 + 4))
-            return 1;
-        }
+	{
+	  /* A constant addition/subtraction takes 2 states in QImode,
+	     4 states in HImode, and 6 states in SImode.  Thus, the
+	     only case we can win is when SImode is used, in which
+	     case, two adds/subs are used, taking 4 states.  */
+	  if (mode == SImode
+	      && (value == 2 + 1
+		  || value == 4 + 1
+		  || value == 4 + 2
+		  || value == 4 + 4))
+	    return 1;
+	}
       else
-        {
-          /* We do not profit directly by splitting addition or
-             subtraction of 3 and 4.  However, since these are
-             implemented as a sequence of adds or subs, they do not
-             clobber (cc0) unlike a sequence of add.b and add.x.  */
-          if (mode == HImode
-              && (value == 2 + 1
-                  || value == 2 + 2))
-            return 1;
-        }
+	{
+	  /* We do not profit directly by splitting addition or
+	     subtraction of 3 and 4.  However, since these are
+	     implemented as a sequence of adds or subs, they do not
+	     clobber (cc0) unlike a sequence of add.b and add.x.  */
+	  if (mode == HImode
+	      && (value == 2 + 1
+		  || value == 2 + 2))
+	    return 1;
+	}
     }
 
   return 0;
@@ -327,7 +326,7 @@
 {
   /* We can accept any nonimmediate operand, except that MEM operands must
      be limited to those that use addresses valid for the 'U' constraint.  */
-  if (!nonimmediate_operand (op, mode))
+  if (!nonimmediate_operand (op, mode) && !satisfies_constraint_U (op))
     return 0;
 
   /* H8SX accepts pretty much anything here.  */
@@ -345,7 +344,7 @@
   if (GET_CODE (op) == SUBREG)
     return 1;
   return (GET_CODE (op) == MEM
-          && OK_FOR_U (op));
+	  && satisfies_constraint_U (op));
 })
 
 ;; Return nonzero if OP is a MEM suitable for bit manipulation insns.
@@ -354,7 +353,18 @@
   (match_code "mem")
 {
   return (GET_CODE (op) == MEM
-          && OK_FOR_U (op));
+	  && satisfies_constraint_U (op));
+})
+
+;; Return nonzero if OP is indirect register or constant memory
+;; suitable for bit manipulation insns.
+
+(define_predicate "bit_register_indirect_operand"
+  (match_code "mem")
+{
+  return (GET_CODE (op) == MEM
+          && (GET_CODE (XEXP (op, 0)) == REG
+              || GET_CODE (XEXP (op, 0)) == CONST_INT));
 })
 
 ;; Return nonzero if X is a stack pointer.
@@ -365,6 +375,20 @@
   return op == stack_pointer_rtx;
 })
 
+;; False if X is anything that might eliminate to the stack pointer.
+
+(define_predicate "register_no_sp_elim_operand"
+  (match_operand 0 "register_operand")
+{
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  return !(op == stack_pointer_rtx
+	   || op == arg_pointer_rtx
+	   || op == frame_pointer_rtx
+	   || IN_RANGE (REGNO (op),
+			FIRST_PSEUDO_REGISTER, LAST_VIRTUAL_REGISTER));
+})
+
 ;; Return nonzero if X is a constant whose absolute value is greater
 ;; than 2.
 
@@ -372,7 +396,7 @@
   (match_code "const_int")
 {
   return (GET_CODE (op) == CONST_INT
-          && abs (INTVAL (op)) > 2);
+	  && abs (INTVAL (op)) > 2);
 })
 
 ;; Return nonzero if X is a constant whose absolute value is no
@@ -382,7 +406,7 @@
   (match_code "const_int")
 {
   return (GET_CODE (op) == CONST_INT
-          && abs (INTVAL (op)) >= 8);
+	  && abs (INTVAL (op)) >= 8);
 })
 
 ;; Return nonzero if X is a constant expressible in QImode.
@@ -391,7 +415,7 @@
   (match_code "const_int")
 {
   return (GET_CODE (op) == CONST_INT
-          && (INTVAL (op) & 0xff) == INTVAL (op));
+	  && (INTVAL (op) & 0xff) == INTVAL (op));
 })
 
 ;; Return nonzero if X is a constant expressible in HImode.
@@ -400,18 +424,15 @@
   (match_code "const_int")
 {
   return (GET_CODE (op) == CONST_INT
-          && (INTVAL (op) & 0xffff) == INTVAL (op));
+	  && (INTVAL (op) & 0xffff) == INTVAL (op));
 })
 
 ;; Return nonzero if X is a constant suitable for inc/dec.
 
 (define_predicate "incdec_operand"
-  (match_code "const_int")
-{
-  return (GET_CODE (op) == CONST_INT
-          && (CONST_OK_FOR_M (INTVAL (op))
-              || CONST_OK_FOR_O (INTVAL (op))));
-})
+  (and (match_code "const_int")
+       (ior (match_test "satisfies_constraint_M (op)")
+	    (match_test "satisfies_constraint_O (op)"))))
 
 ;; Recognize valid operators for bit instructions.
 
@@ -421,8 +442,8 @@
   enum rtx_code code = GET_CODE (op);
 
   return (code == XOR
-          || code == AND
-          || code == IOR);
+	  || code == AND
+	  || code == IOR);
 })
 
 ;; Return nonzero if OP is a shift operator.

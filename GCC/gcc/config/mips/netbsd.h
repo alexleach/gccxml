@@ -1,12 +1,12 @@
 /* Definitions of target machine for GNU compiler, for MIPS NetBSD systems.
-   Copyright (C) 1993, 1995, 1996, 1997, 1999, 2000, 2001, 2002, 2003, 2004
-   Free Software Foundation, Inc.
+   Copyright (C) 1993, 1995, 1996, 1997, 1999, 2000, 2001, 2002, 2003, 2004,
+   2007, 2010, 2011 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -15,41 +15,33 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 
 /* Define default target values.  */
 
-#undef MACHINE_TYPE
-#if TARGET_ENDIAN_DEFAULT != 0
-#define MACHINE_TYPE "NetBSD/mipseb ELF"
-#else
-#define MACHINE_TYPE "NetBSD/mipsel ELF"
-#endif
-
-#define TARGET_OS_CPP_BUILTINS()                        \
-  do                                                        \
-    {                                                        \
-      NETBSD_OS_CPP_BUILTINS_ELF();                        \
-      builtin_define ("__NO_LEADING_UNDERSCORES__");        \
-      builtin_define ("__GP_SUPPORT__");                \
-      if (TARGET_LONG64)                                \
-        builtin_define ("__LONG64");                        \
-                                                        \
-      if (TARGET_ABICALLS)                                \
-        builtin_define ("__ABICALLS__");                \
-                                                        \
-      if (mips_abi == ABI_EABI)                                \
-        builtin_define ("__mips_eabi");                        \
-      else if (mips_abi == ABI_N32)                        \
-        builtin_define ("__mips_n32");                        \
-      else if (mips_abi == ABI_64)                        \
-        builtin_define ("__mips_n64");                        \
-      else if (mips_abi == ABI_O64)                        \
-        builtin_define ("__mips_o64");                        \
-    }                                                        \
+#define TARGET_OS_CPP_BUILTINS()			\
+  do							\
+    {							\
+      NETBSD_OS_CPP_BUILTINS_ELF();			\
+      builtin_define ("__NO_LEADING_UNDERSCORES__");	\
+      builtin_define ("__GP_SUPPORT__");		\
+      if (TARGET_LONG64)				\
+	builtin_define ("__LONG64");			\
+							\
+      if (TARGET_ABICALLS)				\
+	builtin_define ("__ABICALLS__");		\
+							\
+      if (mips_abi == ABI_EABI)				\
+	builtin_define ("__mips_eabi");			\
+      else if (mips_abi == ABI_N32)			\
+	builtin_define ("__mips_n32");			\
+      else if (mips_abi == ABI_64)			\
+	builtin_define ("__mips_n64");			\
+      else if (mips_abi == ABI_O64)			\
+	builtin_define ("__mips_o64");			\
+    }							\
   while (0)
 
 /* The generic MIPS TARGET_CPU_CPP_BUILTINS are incorrect for NetBSD.
@@ -61,82 +53,78 @@ Boston, MA 02110-1301, USA.  */
    of something better, it will have to do, for now.  */
 
 #undef TARGET_CPU_CPP_BUILTINS
-#define TARGET_CPU_CPP_BUILTINS()                                \
-  do                                                                \
-    {                                                                \
-      builtin_assert ("cpu=mips");                                \
-      builtin_define ("__mips__");                                \
-      builtin_define ("_mips");                                        \
-                                                                \
-      /* No _R3000 or _R4000.  */                                \
-      if (TARGET_64BIT)                                                \
-        builtin_define ("__mips64");                                \
-                                                                \
-      if (TARGET_FLOAT64)                                        \
-        builtin_define ("__mips_fpr=64");                        \
-      else                                                        \
-        builtin_define ("__mips_fpr=32");                        \
-                                                                \
-      if (TARGET_MIPS16)                                        \
-        builtin_define ("__mips16");                                \
-                                                                \
-      MIPS_CPP_SET_PROCESSOR ("_MIPS_ARCH", mips_arch_info);        \
-      MIPS_CPP_SET_PROCESSOR ("_MIPS_TUNE", mips_tune_info);        \
-                                                                \
-      if (ISA_MIPS1)                                                \
-        builtin_define ("__mips=1");                                \
-      else if (ISA_MIPS2)                                        \
-        builtin_define ("__mips=2");                                \
-      else if (ISA_MIPS3)                                        \
-        builtin_define ("__mips=3");                                \
-      else if (ISA_MIPS4)                                        \
-        builtin_define ("__mips=4");                                \
-      else if (ISA_MIPS32)                                        \
-        {                                                        \
-          builtin_define ("__mips=32");                                \
-          builtin_define ("__mips_isa_rev=1");                        \
-        }                                                        \
-      else if (ISA_MIPS32R2)                                        \
-        {                                                        \
-          builtin_define ("__mips=32");                                \
-          builtin_define ("__mips_isa_rev=2");                        \
-        }                                                        \
-      else if (ISA_MIPS64)                                        \
-        {                                                        \
-          builtin_define ("__mips=64");                                \
-          builtin_define ("__mips_isa_rev=1");                        \
-        }                                                        \
-                                                                \
-      if (TARGET_HARD_FLOAT)                                        \
-        builtin_define ("__mips_hard_float");                        \
-      else if (TARGET_SOFT_FLOAT)                                \
-        builtin_define ("__mips_soft_float");                        \
-                                                                \
-      if (TARGET_SINGLE_FLOAT)                                        \
-        builtin_define ("__mips_single_float");                        \
-                                                                \
-      if (TARGET_BIG_ENDIAN)                                        \
-        builtin_define ("__MIPSEB__");                                \
-      else                                                        \
-        builtin_define ("__MIPSEL__");                                \
-                                                                \
-      /* No language dialect defines.  */                        \
-                                                                \
-      /* ABIs handled in TARGET_OS_CPP_BUILTINS.  */                \
-    }                                                                \
+#define TARGET_CPU_CPP_BUILTINS()				\
+  do								\
+    {								\
+      builtin_assert ("cpu=mips");				\
+      builtin_define ("__mips__");				\
+      builtin_define ("_mips");					\
+								\
+      /* No _R3000 or _R4000.  */				\
+      if (TARGET_64BIT)						\
+	builtin_define ("__mips64");				\
+								\
+      if (TARGET_FLOAT64)					\
+	builtin_define ("__mips_fpr=64");			\
+      else							\
+	builtin_define ("__mips_fpr=32");			\
+								\
+      if (TARGET_MIPS16)					\
+	builtin_define ("__mips16");				\
+								\
+      MIPS_CPP_SET_PROCESSOR ("_MIPS_ARCH", mips_arch_info);	\
+      MIPS_CPP_SET_PROCESSOR ("_MIPS_TUNE", mips_tune_info);	\
+								\
+      if (ISA_MIPS1)						\
+	builtin_define ("__mips=1");				\
+      else if (ISA_MIPS2)					\
+	builtin_define ("__mips=2");				\
+      else if (ISA_MIPS3)					\
+	builtin_define ("__mips=3");				\
+      else if (ISA_MIPS4)					\
+	builtin_define ("__mips=4");				\
+      else if (ISA_MIPS32)					\
+	{							\
+	  builtin_define ("__mips=32");				\
+	  builtin_define ("__mips_isa_rev=1");			\
+	}							\
+      else if (ISA_MIPS32R2)					\
+	{							\
+	  builtin_define ("__mips=32");				\
+	  builtin_define ("__mips_isa_rev=2");			\
+	}							\
+      else if (ISA_MIPS64)					\
+	{							\
+	  builtin_define ("__mips=64");				\
+	  builtin_define ("__mips_isa_rev=1");			\
+	}							\
+								\
+      if (TARGET_HARD_FLOAT)					\
+	builtin_define ("__mips_hard_float");			\
+      else if (TARGET_SOFT_FLOAT)				\
+	builtin_define ("__mips_soft_float");			\
+								\
+      if (TARGET_SINGLE_FLOAT)					\
+	builtin_define ("__mips_single_float");			\
+								\
+      if (TARGET_BIG_ENDIAN)					\
+	builtin_define ("__MIPSEB__");				\
+      else							\
+	builtin_define ("__MIPSEL__");				\
+								\
+      /* No language dialect defines.  */			\
+								\
+      /* ABIs handled in TARGET_OS_CPP_BUILTINS.  */		\
+    }								\
   while (0)
 
 
-/* Clean up after the generic MIPS/ELF configuration.  */
-#undef MD_EXEC_PREFIX
-#undef MD_STARTFILE_PREFIX
-
 /* Extra specs we need.  */
 #undef SUBTARGET_EXTRA_SPECS
-#define SUBTARGET_EXTRA_SPECS                                                \
-  { "netbsd_cpp_spec",                NETBSD_CPP_SPEC },                        \
-  { "netbsd_link_spec",                NETBSD_LINK_SPEC_ELF },                        \
-  { "netbsd_entry_point",        NETBSD_ENTRY_POINT },
+#define SUBTARGET_EXTRA_SPECS						\
+  { "netbsd_cpp_spec",		NETBSD_CPP_SPEC },			\
+  { "netbsd_link_spec",		NETBSD_LINK_SPEC_ELF },			\
+  { "netbsd_entry_point",	NETBSD_ENTRY_POINT },
 
 /* Provide a SUBTARGET_CPP_SPEC appropriate for NetBSD.  */
 
@@ -153,7 +141,6 @@ Boston, MA 02110-1301, USA.  */
    %{EB:-m elf32bmip} \
    %(endian_spec) \
    %{G*} %{mips1} %{mips2} %{mips3} %{mips4} %{mips32} %{mips32r2} %{mips64} \
-   %{bestGnum} %{call_shared} %{no_archive} %{exact_version} \
    %(netbsd_link_spec)"
 
 #define NETBSD_ENTRY_POINT "__start"
@@ -169,16 +156,6 @@ Boston, MA 02110-1301, USA.  */
 
 #undef MIPS_DEFAULT_GVALUE
 #define MIPS_DEFAULT_GVALUE 0
-
-
-/* This defines which switch letters take arguments.  -G is a MIPS
-   special.  */
-
-#undef SWITCH_TAKES_ARG
-#define SWITCH_TAKES_ARG(CHAR)                                                \
-  (DEFAULT_SWITCH_TAKES_ARG (CHAR)                                        \
-   || (CHAR) == 'R'                                                        \
-   || (CHAR) == 'G')
 
 
 #undef ASM_FINAL_SPEC

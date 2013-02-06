@@ -1,6 +1,7 @@
 /* Function declarations for libiberty.
 
-   Copyright 2001, 2002, 2005 Free Software Foundation, Inc.
+   Copyright 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+   2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
    
    Note - certain prototypes declared in this header file are for
    functions whoes implementation copyright does not belong to the
@@ -86,6 +87,14 @@ extern char **dupargv (char **) ATTRIBUTE_MALLOC;
 
 extern void expandargv PARAMS ((int *, char ***));
 
+/* Write argv to an @-file, inserting necessary quoting.  */
+
+extern int writeargv PARAMS ((char **, FILE *));
+
+/* Return the number of elements in argv.  */
+
+extern int countargv (char**);
+
 /* Return the last component of a path name.  Note that we can't use a
    prototype here because the parameter is declared inconsistently
    across different systems, sometimes as "char *" and sometimes as
@@ -110,6 +119,17 @@ extern char *basename (const char *);
 /* A well-defined basename () that is always compiled in.  */
 
 extern const char *lbasename (const char *);
+
+/* Same, but assumes DOS semantics (drive name, backslash is also a
+   dir separator) regardless of host.  */
+
+extern const char *dos_lbasename (const char *);
+
+/* Same, but assumes Unix semantics (absolute paths always start with
+   a slash, only forward slash is accepted as dir separator)
+   regardless of host.  */
+
+extern const char *unix_lbasename (const char *);
 
 /* A well-defined realpath () that is always compiled in.  */
 
@@ -196,6 +216,13 @@ extern long get_run_time (void);
 
 extern char *make_relative_prefix (const char *, const char *,
                                    const char *) ATTRIBUTE_MALLOC;
+
+/* Generate a relocated path to some installation directory without
+   attempting to follow any soft links.  Allocates
+   return value using malloc.  */
+
+extern char *make_relative_prefix_ignore_links (const char *, const char *,
+						const char *) ATTRIBUTE_MALLOC;
 
 /* Choose a temporary directory to use for scratch files.  */
 
@@ -300,6 +327,8 @@ extern void *xmemdup (const void *, size_t, size_t) ATTRIBUTE_MALLOC;
 extern double physmem_total (void);
 extern double physmem_available (void);
 
+/* Compute the 32-bit CRC of a block of memory.  */
+extern unsigned int xcrc32 (const unsigned char *, int, unsigned int);
 
 /* These macros provide a K&R/C89/C++-friendly way of allocating structures
    with nice encapsulation.  The XDELETE*() macros are technically
@@ -309,60 +338,68 @@ extern double physmem_available (void);
 
 /* Scalar allocators.  */
 
-#define XNEW(T)                        ((T *) xmalloc (sizeof (T)))
-#define XCNEW(T)                ((T *) xcalloc (1, sizeof (T)))
-#define XDELETE(P)                free ((void*) (P))
+#define XALLOCA(T)		((T *) alloca (sizeof (T)))
+#define XNEW(T)			((T *) xmalloc (sizeof (T)))
+#define XCNEW(T)		((T *) xcalloc (1, sizeof (T)))
+#define XDUP(T, P)		((T *) xmemdup ((P), sizeof (T), sizeof (T)))
+#define XDELETE(P)		free ((void*) (P))
 
 /* Array allocators.  */
 
-#define XNEWVEC(T, N)                ((T *) xmalloc (sizeof (T) * (N)))
-#define XCNEWVEC(T, N)                ((T *) xcalloc ((N), sizeof (T)))
-#define XRESIZEVEC(T, P, N)        ((T *) xrealloc ((void *) (P), sizeof (T) * (N)))
-#define XDELETEVEC(P)                free ((void*) (P))
+#define XALLOCAVEC(T, N)	((T *) alloca (sizeof (T) * (N)))
+#define XNEWVEC(T, N)		((T *) xmalloc (sizeof (T) * (N)))
+#define XCNEWVEC(T, N)		((T *) xcalloc ((N), sizeof (T)))
+#define XDUPVEC(T, P, N)	((T *) xmemdup ((P), sizeof (T) * (N), sizeof (T) * (N)))
+#define XRESIZEVEC(T, P, N)	((T *) xrealloc ((void *) (P), sizeof (T) * (N)))
+#define XDELETEVEC(P)		free ((void*) (P))
 
 /* Allocators for variable-sized structures and raw buffers.  */
 
-#define XNEWVAR(T, S)                ((T *) xmalloc ((S)))
-#define XCNEWVAR(T, S)                ((T *) xcalloc (1, (S)))
-#define XRESIZEVAR(T, P, S)        ((T *) xrealloc ((P), (S)))
+#define XALLOCAVAR(T, S)	((T *) alloca ((S)))
+#define XNEWVAR(T, S)		((T *) xmalloc ((S)))
+#define XCNEWVAR(T, S)		((T *) xcalloc (1, (S)))
+#define XDUPVAR(T, P, S1, S2)	((T *) xmemdup ((P), (S1), (S2)))
+#define XRESIZEVAR(T, P, S)	((T *) xrealloc ((P), (S)))
 
 /* Type-safe obstack allocator.  */
 
-#define XOBNEW(O, T)                ((T *) obstack_alloc ((O), sizeof (T)))
+#define XOBNEW(O, T)		((T *) obstack_alloc ((O), sizeof (T)))
+#define XOBNEWVEC(O, T, N)	((T *) obstack_alloc ((O), sizeof (T) * (N)))
+#define XOBNEWVAR(O, T, S)	((T *) obstack_alloc ((O), (S)))
 #define XOBFINISH(O, T)         ((T) obstack_finish ((O)))
 
 /* hex character manipulation routines */
 
 #define _hex_array_size 256
-#define _hex_bad        99
+#define _hex_bad	99
 extern const unsigned char _hex_value[_hex_array_size];
 extern void hex_init (void);
-#define hex_p(c)        (hex_value (c) != _hex_bad)
+#define hex_p(c)	(hex_value (c) != _hex_bad)
 /* If you change this, note well: Some code relies on side effects in
    the argument being performed exactly once.  */
-#define hex_value(c)        ((unsigned int) _hex_value[(unsigned char) (c)])
+#define hex_value(c)	((unsigned int) _hex_value[(unsigned char) (c)])
 
 /* Flags for pex_init.  These are bits to be or'ed together.  */
 
 /* Record subprocess times, if possible.  */
-#define PEX_RECORD_TIMES        0x1
+#define PEX_RECORD_TIMES	0x1
 
 /* Use pipes for communication between processes, if possible.  */
-#define PEX_USE_PIPES                0x2
+#define PEX_USE_PIPES		0x2
 
 /* Save files used for communication between processes.  */
-#define PEX_SAVE_TEMPS                0x4
+#define PEX_SAVE_TEMPS		0x4
 
 /* Prepare to execute one or more programs, with standard output of
    each program fed to standard input of the next.
-   FLAGS        As above.
-   PNAME        The name of the program to report in error messages.
-   TEMPBASE        A base name to use for temporary files; may be NULL to
-                   use a random name.
+   FLAGS	As above.
+   PNAME	The name of the program to report in error messages.
+   TEMPBASE	A base name to use for temporary files; may be NULL to
+   		use a random name.
    Returns NULL on error.  */
 
 extern struct pex_obj *pex_init (int flags, const char *pname,
-                                 const char *tempbase);
+				 const char *tempbase);
 
 /* Flags for pex_run.  These are bits to be or'ed together.  */
 
@@ -371,99 +408,112 @@ extern struct pex_obj *pex_init (int flags, const char *pname,
    not set this if you want to call pex_read_output.  After this is
    set, pex_run may no longer be called with the same struct
    pex_obj.  */
-#define PEX_LAST                0x1
+#define PEX_LAST		0x1
 
 /* Search for program in executable search path.  */
-#define PEX_SEARCH                0x2
+#define PEX_SEARCH		0x2
 
 /* OUTNAME is a suffix.  */
-#define PEX_SUFFIX                0x4
+#define PEX_SUFFIX		0x4
 
 /* Send program's standard error to standard output.  */
-#define PEX_STDERR_TO_STDOUT        0x8
+#define PEX_STDERR_TO_STDOUT	0x8
 
 /* Input file should be opened in binary mode.  This flag is ignored
    on Unix.  */
-#define PEX_BINARY_INPUT        0x10
+#define PEX_BINARY_INPUT	0x10
 
 /* Output file should be opened in binary mode.  This flag is ignored
    on Unix.  For proper behaviour PEX_BINARY_INPUT and
    PEX_BINARY_OUTPUT have to match appropriately--i.e., a call using
    PEX_BINARY_OUTPUT should be followed by a call using
    PEX_BINARY_INPUT.  */
-#define PEX_BINARY_OUTPUT        0x20
+#define PEX_BINARY_OUTPUT	0x20
+
+/* Capture stderr to a pipe.  The output can be read by
+   calling pex_read_err and reading from the returned
+   FILE object.  This flag may be specified only for
+   the last program in a pipeline.  
+
+   This flag is supported only on Unix and Windows.  */
+#define PEX_STDERR_TO_PIPE	0x40
+
+/* Capture stderr in binary mode.  This flag is ignored
+   on Unix.  */
+#define PEX_BINARY_ERROR	0x80
+
 
 /* Execute one program.  Returns NULL on success.  On error returns an
    error string (typically just the name of a system call); the error
    string is statically allocated.
 
-   OBJ                Returned by pex_init.
+   OBJ		Returned by pex_init.
 
-   FLAGS        As above.
+   FLAGS	As above.
 
-   EXECUTABLE        The program to execute.
+   EXECUTABLE	The program to execute.
 
-   ARGV                NULL terminated array of arguments to pass to the program.
+   ARGV		NULL terminated array of arguments to pass to the program.
 
-   OUTNAME        Sets the output file name as follows:
+   OUTNAME	Sets the output file name as follows:
 
-                PEX_SUFFIX set (OUTNAME may not be NULL):
-                  TEMPBASE parameter to pex_init not NULL:
-                    Output file name is the concatenation of TEMPBASE
-                    and OUTNAME.
-                  TEMPBASE is NULL:
-                    Output file name is a random file name ending in
-                    OUTNAME.
-                PEX_SUFFIX not set:
-                  OUTNAME not NULL:
-                    Output file name is OUTNAME.
-                  OUTNAME NULL, TEMPBASE not NULL:
-                    Output file name is randomly chosen using
-                    TEMPBASE.
-                  OUTNAME NULL, TEMPBASE NULL:
-                    Output file name is randomly chosen.
+		PEX_SUFFIX set (OUTNAME may not be NULL):
+		  TEMPBASE parameter to pex_init not NULL:
+		    Output file name is the concatenation of TEMPBASE
+		    and OUTNAME.
+		  TEMPBASE is NULL:
+		    Output file name is a random file name ending in
+		    OUTNAME.
+		PEX_SUFFIX not set:
+		  OUTNAME not NULL:
+		    Output file name is OUTNAME.
+		  OUTNAME NULL, TEMPBASE not NULL:
+		    Output file name is randomly chosen using
+		    TEMPBASE.
+		  OUTNAME NULL, TEMPBASE NULL:
+		    Output file name is randomly chosen.
 
-                If PEX_LAST is not set, the output file name is the
-                   name to use for a temporary file holding stdout, if
-                   any (there will not be a file if PEX_USE_PIPES is set
-                   and the system supports pipes).  If a file is used, it
-                   will be removed when no longer needed unless
-                   PEX_SAVE_TEMPS is set.
+		If PEX_LAST is not set, the output file name is the
+   		name to use for a temporary file holding stdout, if
+   		any (there will not be a file if PEX_USE_PIPES is set
+   		and the system supports pipes).  If a file is used, it
+   		will be removed when no longer needed unless
+   		PEX_SAVE_TEMPS is set.
 
-                If PEX_LAST is set, and OUTNAME is not NULL, standard
-                   output is written to the output file name.  The file
-                   will not be removed.  If PEX_LAST and PEX_SUFFIX are
-                   both set, TEMPBASE may not be NULL.
+		If PEX_LAST is set, and OUTNAME is not NULL, standard
+   		output is written to the output file name.  The file
+   		will not be removed.  If PEX_LAST and PEX_SUFFIX are
+   		both set, TEMPBASE may not be NULL.
 
-   ERRNAME        If not NULL, this is the name of a file to which
-                standard error is written.  If NULL, standard error of
-                the program is standard error of the caller.
+   ERRNAME	If not NULL, this is the name of a file to which
+		standard error is written.  If NULL, standard error of
+		the program is standard error of the caller.
 
-   ERR                On an error return, *ERR is set to an errno value, or
-                   to 0 if there is no relevant errno.
+   ERR		On an error return, *ERR is set to an errno value, or
+   		to 0 if there is no relevant errno.
 */
 
 extern const char *pex_run (struct pex_obj *obj, int flags,
-                            const char *executable, char * const *argv,
-                            const char *outname, const char *errname,
-                            int *err);
+			    const char *executable, char * const *argv,
+			    const char *outname, const char *errname,
+			    int *err);
 
 /* As for pex_run (), but takes an extra parameter to enable the
    environment for the child process to be specified.
 
-   ENV                The environment for the child process, specified as
-                an array of character pointers.  Each element of the
-                array should point to a string of the form VAR=VALUE,
+   ENV		The environment for the child process, specified as
+		an array of character pointers.  Each element of the
+		array should point to a string of the form VAR=VALUE,
                 with the exception of the last element which must be
                 a null pointer.
 */
 
 extern const char *pex_run_in_environment (struct pex_obj *obj, int flags,
-                                           const char *executable,
+			                   const char *executable,
                                            char * const *argv,
                                            char * const *env,
-                                                   const char *outname,
-                                           const char *errname, int *err);
+              	          		   const char *outname,
+					   const char *errname, int *err);
 
 /* Return a stream for a temporary file to pass to the first program
    in the pipeline as input.  The file name is chosen as for pex_run.
@@ -487,6 +537,14 @@ extern FILE *pex_input_pipe (struct pex_obj *obj, int binary);
 
 extern FILE *pex_read_output (struct pex_obj *, int binary);
 
+/* Read the standard error of the last program to be executed.
+   pex_run can not be called after this.  BINARY should be non-zero if
+   the file should be opened in binary mode; this is ignored on Unix.
+   Returns NULL on error.  Don't call fclose on the returned FILE; it
+   will be closed by pex_free.  */
+
+extern FILE *pex_read_err (struct pex_obj *, int binary);
+
 /* Return exit status of all programs in VECTOR.  COUNT indicates the
    size of VECTOR.  The status codes in the vector are in the order of
    the calls to pex_run.  Returns 0 on error, 1 on success.  */
@@ -507,27 +565,28 @@ struct pex_time
 };
 
 extern int pex_get_times (struct pex_obj *, int count,
-                          struct pex_time *vector);
+			  struct pex_time *vector);
 
-/* Clean up a pex_obj.  */
+/* Clean up a pex_obj.  If you have not called pex_get_times or
+   pex_get_status, this will try to kill the subprocesses.  */
 
 extern void pex_free (struct pex_obj *);
 
 /* Just execute one program.  Return value is as for pex_run.
-   FLAGS        Combination of PEX_SEARCH and PEX_STDERR_TO_STDOUT.
-   EXECUTABLE        As for pex_run.
-   ARGV                As for pex_run.
-   PNAME        As for pex_init.
-   OUTNAME        As for pex_run when PEX_LAST is set.
-   ERRNAME        As for pex_run.
-   STATUS        Set to exit status on success.
-   ERR                As for pex_run.
+   FLAGS	Combination of PEX_SEARCH and PEX_STDERR_TO_STDOUT.
+   EXECUTABLE	As for pex_run.
+   ARGV		As for pex_run.
+   PNAME	As for pex_init.
+   OUTNAME	As for pex_run when PEX_LAST is set.
+   ERRNAME	As for pex_run.
+   STATUS	Set to exit status on success.
+   ERR		As for pex_run.
 */
 
 extern const char *pex_one (int flags, const char *executable,
-                            char * const *argv, const char *pname,
-                            const char *outname, const char *errname,
-                            int *status, int *err);
+			    char * const *argv, const char *pname,
+			    const char *outname, const char *errname,
+			    int *status, int *err);
 
 /* pexecute and pwait are the old pexecute interface, still here for
    backward compatibility.  Don't use these for new code.  Instead,
@@ -578,6 +637,12 @@ extern int vsnprintf (char *, size_t, const char *, va_list) ATTRIBUTE_PRINTF(3,
 /* Compare version strings.  */
 extern int strverscmp (const char *, const char *);
 #endif
+
+/* Set the title of a process */
+extern void setproctitle (const char *name, ...);
+
+/* Increase stack limit if possible.  */
+extern void stack_limit_increase (unsigned long);
 
 #define ARRAY_SIZE(a) (sizeof (a) / sizeof ((a)[0]))
 

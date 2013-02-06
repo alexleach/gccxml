@@ -2,13 +2,14 @@
    - prototype declarations for operand predicates (tm-preds.h)
    - function definitions of operand predicates, if defined new-style
      (insn-preds.c)
-   Copyright (C) 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -17,9 +18,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "bconfig.h"
 #include "system.h"
@@ -28,6 +28,7 @@ Boston, MA 02110-1301, USA.  */
 #include "rtl.h"
 #include "errors.h"
 #include "obstack.h"
+#include "read-md.h"
 #include "gensupport.h"
 
 /* Given a predicate expression EXP, from form NAME at line LINENO,
@@ -48,12 +49,12 @@ validate_exp (rtx exp, const char *name, int lineno)
       /* Ternary, binary, unary expressions: recurse into subexpressions.  */
     case IF_THEN_ELSE:
       if (validate_exp (XEXP (exp, 2), name, lineno))
-        return true;
+	return true;
       /* else fall through */
     case AND:
     case IOR:
       if (validate_exp (XEXP (exp, 1), name, lineno))
-        return true;
+	return true;
       /* else fall through */
     case NOT:
       return validate_exp (XEXP (exp, 0), name, lineno);
@@ -61,17 +62,16 @@ validate_exp (rtx exp, const char *name, int lineno)
       /* MATCH_CODE might have a syntax error in its path expression.  */
     case MATCH_CODE:
       {
-        const char *p;
-        for (p = XSTR (exp, 1); *p; p++)
-          {
-            if (!ISDIGIT (*p) && !ISLOWER (*p))
-              {
-                message_with_line (lineno, "%s: invalid character in path "
-                                   "string '%s'", name, XSTR (exp, 1));
-                have_error = 1;
-                return true;
-              }
-          }
+	const char *p;
+	for (p = XSTR (exp, 1); *p; p++)
+	  {
+	    if (!ISDIGIT (*p) && !ISLOWER (*p))
+	      {
+		error_with_line (lineno, "%s: invalid character in path "
+				 "string '%s'", name, XSTR (exp, 1));
+		return true;
+	      }
+	  }
       }
       /* fall through */
 
@@ -81,10 +81,9 @@ validate_exp (rtx exp, const char *name, int lineno)
       return false;
 
     default:
-      message_with_line (lineno,
-                         "%s: cannot use '%s' in a predicate expression",
-                         name, GET_RTX_NAME (GET_CODE (exp)));
-      have_error = 1;
+      error_with_line (lineno,
+		       "%s: cannot use '%s' in a predicate expression",
+		       name, GET_RTX_NAME (GET_CODE (exp)));
       return true;
     }
 }
@@ -94,35 +93,7 @@ validate_exp (rtx exp, const char *name, int lineno)
 static void
 process_define_predicate (rtx defn, int lineno)
 {
-  struct pred_data *pred;
-  const char *p;
-
-  if (!ISALPHA (XSTR (defn, 0)[0]) && XSTR (defn, 0)[0] != '_')
-    goto bad_name;
-  for (p = XSTR (defn, 0) + 1; *p; p++)
-    if (!ISALNUM (*p) && *p != '_')
-      goto bad_name;
-  
-  if (validate_exp (XEXP (defn, 1), XSTR (defn, 0), lineno))
-    return;
-
-  pred = XCNEW (struct pred_data);
-  pred->name = XSTR (defn, 0);
-  pred->exp = XEXP (defn, 1);
-  pred->c_block = XSTR (defn, 2);
-
-  if (GET_CODE (defn) == DEFINE_SPECIAL_PREDICATE)
-    pred->special = true;
-
-  add_predicate (pred);
-  return;
-
- bad_name:
-  message_with_line (lineno,
-                     "%s: predicate name must be a valid C function name",
-                     XSTR (defn, 0));
-  have_error = 1;
-  return;
+  validate_exp (XEXP (defn, 1), XSTR (defn, 0), lineno);
 }
 
 /* Given a predicate, if it has an embedded C block, write the block
@@ -148,12 +119,12 @@ process_define_predicate (rtx defn, int lineno)
 
        (define_predicate "basereg_operand"
          (and (match_operand 0 "register_operand")
-              (match_test "basereg_operand_1 (op, mode)")))
+	      (match_test "basereg_operand_1 (op, mode)")))
 
    The only wart is that there's no way to insist on a { } string in
    an RTL template, so we have to handle "" strings.  */
 
-   
+
 static void
 write_predicate_subfunction (struct pred_data *p)
 {
@@ -166,7 +137,7 @@ write_predicate_subfunction (struct pred_data *p)
   /* Construct the function-call expression.  */
   obstack_grow (rtl_obstack, p->name, strlen (p->name));
   obstack_grow (rtl_obstack, "_1 (op, mode)",
-                sizeof "_1 (op, mode)");
+		sizeof "_1 (op, mode)");
   match_test_str = XOBFINISH (rtl_obstack, const char *);
 
   /* Add the function-call expression to the complete expression to be
@@ -181,9 +152,9 @@ write_predicate_subfunction (struct pred_data *p)
   p->exp = and_exp;
 
   printf ("static inline int\n"
-          "%s_1 (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)\n",
-          p->name);
-  print_rtx_ptr_loc (p->c_block);
+	  "%s_1 (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)\n",
+	  p->name);
+  print_md_ptr_loc (p->c_block);
   if (p->c_block[0] == '{')
     fputs (p->c_block, stdout);
   else
@@ -199,15 +170,15 @@ needs_variable (rtx exp, const char *var)
   switch (GET_CODE (exp))
     {
       /* Ternary, binary, unary expressions need a variable if
-         any of their subexpressions do.  */
+	 any of their subexpressions do.  */
     case IF_THEN_ELSE:
       if (needs_variable (XEXP (exp, 2), var))
-        return true;
+	return true;
       /* else fall through */
     case AND:
     case IOR:
       if (needs_variable (XEXP (exp, 1), var))
-        return true;
+	return true;
       /* else fall through */
     case NOT:
       return needs_variable (XEXP (exp, 0), var);
@@ -219,23 +190,23 @@ needs_variable (rtx exp, const char *var)
       /* MATCH_OPERAND uses "op" and may use "mode".  */
     case MATCH_OPERAND:
       if (!strcmp (var, "op"))
-        return true;
+	return true;
       if (!strcmp (var, "mode") && GET_MODE (exp) == VOIDmode)
-        return true;
+	return true;
       return false;
 
       /* MATCH_TEST uses var if XSTR (exp, 0) =~ /\b${var}\b/o; */
     case MATCH_TEST:
       {
-        const char *p = XSTR (exp, 0);
-        const char *q = strstr (p, var);
-        if (!q)
-          return false;
-        if (q != p && (ISALNUM (q[-1]) || q[-1] == '_'))
-          return false;
-        q += strlen (var);
-        if (ISALNUM (q[0] || q[0] == '_'))
-          return false;
+	const char *p = XSTR (exp, 0);
+	const char *q = strstr (p, var);
+	if (!q)
+	  return false;
+	if (q != p && (ISALNUM (q[-1]) || q[-1] == '_'))
+	  return false;
+	q += strlen (var);
+	if (ISALNUM (q[0]) || q[0] == '_')
+	  return false;
       }
       return true;
 
@@ -263,19 +234,19 @@ mark_mode_tests (rtx exp)
     {
     case MATCH_OPERAND:
       {
-        struct pred_data *p = lookup_predicate (XSTR (exp, 1));
-        if (!p)
-          error ("reference to undefined predicate '%s'", XSTR (exp, 1));
-        else if (p->special || GET_MODE (exp) != VOIDmode)
-          NO_MODE_TEST (exp) = 1;
+	struct pred_data *p = lookup_predicate (XSTR (exp, 1));
+	if (!p)
+	  error ("reference to undefined predicate '%s'", XSTR (exp, 1));
+	else if (p->special || GET_MODE (exp) != VOIDmode)
+	  NO_MODE_TEST (exp) = 1;
       }
       break;
 
     case MATCH_CODE:
       if (XSTR (exp, 1)[0] != '\0'
-          || (!strstr (XSTR (exp, 0), "const_int")
-              && !strstr (XSTR (exp, 0), "const_double")))
-        NO_MODE_TEST (exp) = 1;
+	  || (!strstr (XSTR (exp, 0), "const_int")
+	      && !strstr (XSTR (exp, 0), "const_double")))
+	NO_MODE_TEST (exp) = 1;
       break;
 
     case MATCH_TEST:
@@ -288,27 +259,27 @@ mark_mode_tests (rtx exp)
       mark_mode_tests (XEXP (exp, 1));
 
       NO_MODE_TEST (exp) = (NO_MODE_TEST (XEXP (exp, 0))
-                            && NO_MODE_TEST (XEXP (exp, 1)));
+			    && NO_MODE_TEST (XEXP (exp, 1)));
       break;
-      
+
     case IOR:
       mark_mode_tests (XEXP (exp, 0));
       mark_mode_tests (XEXP (exp, 1));
 
       NO_MODE_TEST (exp) = (NO_MODE_TEST (XEXP (exp, 0))
-                            || NO_MODE_TEST (XEXP (exp, 1)));
+			    || NO_MODE_TEST (XEXP (exp, 1)));
       break;
 
     case IF_THEN_ELSE:
       /* A ? B : C does a mode test if (one of A and B) does a mode
-         test, and C does too.  */
+	 test, and C does too.  */
       mark_mode_tests (XEXP (exp, 0));
       mark_mode_tests (XEXP (exp, 1));
       mark_mode_tests (XEXP (exp, 2));
 
       NO_MODE_TEST (exp) = ((NO_MODE_TEST (XEXP (exp, 0))
-                             && NO_MODE_TEST (XEXP (exp, 1)))
-                            || NO_MODE_TEST (XEXP (exp, 2)));
+			     && NO_MODE_TEST (XEXP (exp, 1)))
+			    || NO_MODE_TEST (XEXP (exp, 2)));
       break;
 
     default:
@@ -322,7 +293,7 @@ static bool
 generate_switch_p (rtx exp)
 {
   return GET_CODE (exp) == MATCH_CODE
-         && strchr (XSTR (exp, 0), ',');
+	 && strchr (XSTR (exp, 0), ',');
 }
 
 /* Given a predicate, work out where in its RTL expression to add
@@ -369,52 +340,52 @@ add_mode_tests (struct pred_data *p)
       rtx subexp = *pos;
 
       switch (GET_CODE (subexp))
-        {
-        case AND:
-          /* The switch code generation in write_predicate_stmts prefers
-             rtx code tests to be at the top of the expression tree.  So
-             push this AND down into the second operand of an existing
-             AND expression.  */
-          if (generate_switch_p (XEXP (subexp, 0)))
-            pos = &XEXP (subexp, 1);
-          goto break_loop;
+	{
+	case AND:
+	  /* The switch code generation in write_predicate_stmts prefers
+	     rtx code tests to be at the top of the expression tree.  So
+	     push this AND down into the second operand of an existing
+	     AND expression.  */
+	  if (generate_switch_p (XEXP (subexp, 0)))
+	    pos = &XEXP (subexp, 1);
+	  goto break_loop;
 
-        case IOR:
-          {
-            int test0 = NO_MODE_TEST (XEXP (subexp, 0));
-            int test1 = NO_MODE_TEST (XEXP (subexp, 1));
-            
-            gcc_assert (test0 || test1);
-            
-            if (test0 && test1)
-              goto break_loop;
-            pos = test0 ? &XEXP (subexp, 0) : &XEXP (subexp, 1);
-          }
-          break;
-          
-        case IF_THEN_ELSE:
-          {
-            int test0 = NO_MODE_TEST (XEXP (subexp, 0));
-            int test1 = NO_MODE_TEST (XEXP (subexp, 1));
-            int test2 = NO_MODE_TEST (XEXP (subexp, 2));
-            
-            gcc_assert ((test0 && test1) || test2);
-            
-            if (test0 && test1 && test2)
-              goto break_loop;
-            if (test0 && test1)
-              /* Must put it on the dependent clause, not the
-                       controlling expression, or we change the meaning of
-                       the test.  */
-              pos = &XEXP (subexp, 1);
-            else
-              pos = &XEXP (subexp, 2);
-          }
-          break;
-          
-        default:
-          goto break_loop;
-        }
+	case IOR:
+	  {
+	    int test0 = NO_MODE_TEST (XEXP (subexp, 0));
+	    int test1 = NO_MODE_TEST (XEXP (subexp, 1));
+
+	    gcc_assert (test0 || test1);
+
+	    if (test0 && test1)
+	      goto break_loop;
+	    pos = test0 ? &XEXP (subexp, 0) : &XEXP (subexp, 1);
+	  }
+	  break;
+
+	case IF_THEN_ELSE:
+	  {
+	    int test0 = NO_MODE_TEST (XEXP (subexp, 0));
+	    int test1 = NO_MODE_TEST (XEXP (subexp, 1));
+	    int test2 = NO_MODE_TEST (XEXP (subexp, 2));
+
+	    gcc_assert ((test0 && test1) || test2);
+
+	    if (test0 && test1 && test2)
+	      goto break_loop;
+	    if (test0 && test1)
+	      /* Must put it on the dependent clause, not the
+	      	 controlling expression, or we change the meaning of
+	      	 the test.  */
+	      pos = &XEXP (subexp, 1);
+	    else
+	      pos = &XEXP (subexp, 2);
+	  }
+	  break;
+
+	default:
+	  goto break_loop;
+	}
     }
  break_loop:
   XEXP (and_exp, 0) = *pos;
@@ -436,11 +407,11 @@ write_extract_subexp (const char *path)
   for (i = len - 1; i >= 0; i--)
     {
       if (ISLOWER (path[i]))
-        fputs ("XVECEXP (", stdout);
+	fputs ("XVECEXP (", stdout);
       else if (ISDIGIT (path[i]))
-        fputs ("XEXP (", stdout);
+	fputs ("XEXP (", stdout);
       else
-        gcc_unreachable ();
+	gcc_unreachable ();
     }
 
   fputs ("op", stdout);
@@ -448,11 +419,11 @@ write_extract_subexp (const char *path)
   for (i = 0; i < len; i++)
     {
       if (ISLOWER (path[i]))
-        printf (", 0, %d)", path[i] - 'a');
+	printf (", 0, %d)", path[i] - 'a');
       else if (ISDIGIT (path[i]))
-        printf (", %d)", path[i] - '0');
+	printf (", %d)", path[i] - '0');
       else
-        gcc_unreachable ();
+	gcc_unreachable ();
     }
 }
 
@@ -469,13 +440,13 @@ write_match_code (const char *path, const char *codes)
       write_extract_subexp (path);
       fputs (") == ", stdout);
       while (code < codes)
-        {
-          putchar (TOUPPER (*code));
-          code++;
-        }
-      
+	{
+	  putchar (TOUPPER (*code));
+	  code++;
+	}
+
       if (*codes == ',')
-        fputs (" || ", stdout);
+	fputs (" || ", stdout);
     }
 }
 
@@ -493,7 +464,7 @@ write_predicate_expr (rtx exp)
       write_predicate_expr (XEXP (exp, 1));
       putchar (')');
       break;
-  
+
     case IOR:
       putchar ('(');
       write_predicate_expr (XEXP (exp, 0));
@@ -555,10 +526,10 @@ write_match_code_switch (rtx exp)
     {
       fputs ("    case ", stdout);
       while (code < codes)
-        {
-          putchar (TOUPPER (*code));
-          code++;
-        }
+	{
+	  putchar (TOUPPER (*code));
+	  code++;
+	}
       fputs(":\n", stdout);
     }
 }
@@ -574,52 +545,52 @@ write_predicate_stmts (rtx exp)
     {
     case MATCH_CODE:
       if (generate_switch_p (exp))
-        {
-          write_match_code_switch (exp);
-          puts ("      return true;\n"
-                "    default:\n"
-                "      break;\n"
-                "    }\n"
-                "  return false;");
-          return;
-        }
+	{
+	  write_match_code_switch (exp);
+	  puts ("      return true;\n"
+		"    default:\n"
+		"      break;\n"
+		"    }\n"
+		"  return false;");
+	  return;
+	}
       break;
 
     case AND:
       if (generate_switch_p (XEXP (exp, 0)))
-        {
-          write_match_code_switch (XEXP (exp, 0));
-          puts ("      break;\n"
-                "    default:\n"
-                "      return false;\n"
-                "    }");
-          exp = XEXP (exp, 1);
-        }
+	{
+	  write_match_code_switch (XEXP (exp, 0));
+	  puts ("      break;\n"
+		"    default:\n"
+		"      return false;\n"
+		"    }");
+	  exp = XEXP (exp, 1);
+	}
       break;
 
     case IOR:
       if (generate_switch_p (XEXP (exp, 0)))
-        {
-          write_match_code_switch (XEXP (exp, 0));
-          puts ("      return true;\n"
-                "    default:\n"
-                "      break;\n"
-                "    }");
-          exp = XEXP (exp, 1);
-        }
+	{
+	  write_match_code_switch (XEXP (exp, 0));
+	  puts ("      return true;\n"
+		"    default:\n"
+		"      break;\n"
+		"    }");
+	  exp = XEXP (exp, 1);
+	}
       break;
 
     case NOT:
       if (generate_switch_p (XEXP (exp, 0)))
-        {
-          write_match_code_switch (XEXP (exp, 0));
-          puts ("      return false;\n"
-                "    default:\n"
-                "      break;\n"
-                "    }\n"
-                "  return true;");
-          return;
-        }
+	{
+	  write_match_code_switch (XEXP (exp, 0));
+	  puts ("      return false;\n"
+		"    default:\n"
+		"      break;\n"
+		"    }\n"
+		"  return true;");
+	  return;
+	}
       break;
 
     default:
@@ -644,7 +615,7 @@ write_one_predicate_function (struct pred_data *p)
   /* A normal predicate can legitimately not look at enum machine_mode
      if it accepts only CONST_INTs and/or CONST_DOUBLEs.  */
   printf ("int\n%s (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)\n{\n",
-          p->name);
+	  p->name);
   write_predicate_stmts (p->exp);
   fputs ("}\n\n", stdout);
 }
@@ -690,8 +661,11 @@ static struct constraint_data **last_constraint_ptr = &first_constraint;
   for (iter_ = first_constraint; iter_; iter_ = iter_->next_textual)
 
 /* These letters, and all names beginning with them, are reserved for
-   generic constraints.  */
-static const char generic_constraint_letters[] = "EFVXgimnoprs";
+   generic constraints.
+   The 'm' constraint is not mentioned here since that constraint
+   letter can be overridden by the back end by defining the
+   TARGET_MEM_CONSTRAINT macro.  */
+static const char generic_constraint_letters[] = "EFVXginoprs";
 
 /* Machine-independent code expects that constraints with these
    (initial) letters will allow only (a subset of all) CONST_INTs.  */
@@ -723,13 +697,13 @@ mangle (const char *name)
     switch (*name)
       {
       case '_': obstack_grow (rtl_obstack, "__", 2); break;
-      case '<':        obstack_grow (rtl_obstack, "_l", 2); break;
-      case '>':        obstack_grow (rtl_obstack, "_g", 2); break;
+      case '<':	obstack_grow (rtl_obstack, "_l", 2); break;
+      case '>':	obstack_grow (rtl_obstack, "_g", 2); break;
       default: obstack_1grow (rtl_obstack, *name); break;
       }
 
   obstack_1grow (rtl_obstack, '\0');
-  return obstack_finish (rtl_obstack);
+  return XOBFINISH (rtl_obstack, const char *);
 }
 
 /* Add one constraint, of any sort, to the tables.  NAME is its name;
@@ -745,8 +719,8 @@ mangle (const char *name)
 
 static void
 add_constraint (const char *name, const char *regclass,
-                rtx exp, bool is_memory, bool is_address,
-                int lineno)
+		rtx exp, bool is_memory, bool is_address,
+		int lineno)
 {
   struct constraint_data *c, **iter, **slot;
   const char *p;
@@ -761,79 +735,73 @@ add_constraint (const char *name, const char *regclass,
   if (!ISALPHA (name[0]) && name[0] != '_')
     {
       if (name[1] == '\0')
-        message_with_line (lineno, "constraint name '%s' is not "
-                           "a letter or underscore", name);
+	error_with_line (lineno, "constraint name '%s' is not "
+			 "a letter or underscore", name);
       else
-        message_with_line (lineno, "constraint name '%s' does not begin "
-                           "with a letter or underscore", name);
-      have_error = 1;
+	error_with_line (lineno, "constraint name '%s' does not begin "
+			 "with a letter or underscore", name);
       return;
     }
   for (p = name; *p; p++)
     if (!ISALNUM (*p))
       {
-        if (*p == '<' || *p == '>' || *p == '_')
-          need_mangled_name = true;
-        else
-          {
-            message_with_line (lineno,
-                               "constraint name '%s' must be composed of "
-                               "letters, digits, underscores, and "
-                               "angle brackets", name);
-            have_error = 1;
-            return;
-          }
+	if (*p == '<' || *p == '>' || *p == '_')
+	  need_mangled_name = true;
+	else
+	  {
+	    error_with_line (lineno,
+			     "constraint name '%s' must be composed of "
+			     "letters, digits, underscores, and "
+			     "angle brackets", name);
+	    return;
+	  }
       }
 
   if (strchr (generic_constraint_letters, name[0]))
     {
       if (name[1] == '\0')
-        message_with_line (lineno, "constraint letter '%s' cannot be "
-                           "redefined by the machine description", name);
+	error_with_line (lineno, "constraint letter '%s' cannot be "
+			 "redefined by the machine description", name);
       else
-        message_with_line (lineno, "constraint name '%s' cannot be defined by "
-                           "the machine description, as it begins with '%c'",
-                           name, name[0]);
-      have_error = 1;
+	error_with_line (lineno, "constraint name '%s' cannot be defined by "
+			 "the machine description, as it begins with '%c'",
+			 name, name[0]);
       return;
     }
 
-  
+
   namelen = strlen (name);
   slot = &constraints_by_letter_table[(unsigned int)name[0]];
   for (iter = slot; *iter; iter = &(*iter)->next_this_letter)
     {
       /* This causes slot to end up pointing to the
-         next_this_letter field of the last constraint with a name
-         of equal or greater length than the new constraint; hence
-         the new constraint will be inserted after all previous
-         constraints with names of the same length.  */
+	 next_this_letter field of the last constraint with a name
+	 of equal or greater length than the new constraint; hence
+	 the new constraint will be inserted after all previous
+	 constraints with names of the same length.  */
       if ((*iter)->namelen >= namelen)
-        slot = iter;
+	slot = iter;
 
       if (!strcmp ((*iter)->name, name))
-        {
-          message_with_line (lineno, "redefinition of constraint '%s'", name);
-          message_with_line ((*iter)->lineno, "previous definition is here");
-          have_error = 1;
-          return;
-        }
+	{
+	  error_with_line (lineno, "redefinition of constraint '%s'", name);
+	  message_with_line ((*iter)->lineno, "previous definition is here");
+	  return;
+	}
       else if (!strncmp ((*iter)->name, name, (*iter)->namelen))
-        {
-          message_with_line (lineno, "defining constraint '%s' here", name);
-          message_with_line ((*iter)->lineno, "renders constraint '%s' "
-                             "(defined here) a prefix", (*iter)->name);
-          have_error = 1;
-          return;
-        }
+	{
+	  error_with_line (lineno, "defining constraint '%s' here", name);
+	  message_with_line ((*iter)->lineno, "renders constraint '%s' "
+			     "(defined here) a prefix", (*iter)->name);
+	  return;
+	}
       else if (!strncmp ((*iter)->name, name, namelen))
-        {
-          message_with_line (lineno, "constraint '%s' is a prefix", name);
-          message_with_line ((*iter)->lineno, "of constraint '%s' "
-                             "(defined here)", (*iter)->name);
-          have_error = 1;
-          return;
-        }
+	{
+	  error_with_line (lineno, "constraint '%s' is a prefix", name);
+	  message_with_line ((*iter)->lineno, "of constraint '%s' "
+			     "(defined here)", (*iter)->name);
+	  return;
+	}
     }
 
   is_const_int = strchr (const_int_constraints, name[0]) != 0;
@@ -842,59 +810,52 @@ add_constraint (const char *name, const char *regclass,
   if (is_const_int || is_const_dbl)
     {
       enum rtx_code appropriate_code
-        = is_const_int ? CONST_INT : CONST_DOUBLE;
+	= is_const_int ? CONST_INT : CONST_DOUBLE;
 
       /* Consider relaxing this requirement in the future.  */
       if (regclass
-          || GET_CODE (exp) != AND
-          || GET_CODE (XEXP (exp, 0)) != MATCH_CODE
-          || strcmp (XSTR (XEXP (exp, 0), 0),
-                     GET_RTX_NAME (appropriate_code)))
-        {
-          if (name[1] == '\0')
-            message_with_line (lineno, "constraint letter '%c' is reserved "
-                               "for %s constraints",
-                               name[0], GET_RTX_NAME (appropriate_code));
-          else
-            message_with_line (lineno, "constraint names beginning with '%c' "
-                               "(%s) are reserved for %s constraints",
-                               name[0], name, 
-                               GET_RTX_NAME (appropriate_code));
-
-          have_error = 1;
-          return;
-        }
+	  || GET_CODE (exp) != AND
+	  || GET_CODE (XEXP (exp, 0)) != MATCH_CODE
+	  || strcmp (XSTR (XEXP (exp, 0), 0),
+		     GET_RTX_NAME (appropriate_code)))
+	{
+	  if (name[1] == '\0')
+	    error_with_line (lineno, "constraint letter '%c' is reserved "
+			     "for %s constraints",
+			     name[0], GET_RTX_NAME (appropriate_code));
+	  else
+	    error_with_line (lineno, "constraint names beginning with '%c' "
+			     "(%s) are reserved for %s constraints",
+			     name[0], name, GET_RTX_NAME (appropriate_code));
+	  return;
+	}
 
       if (is_memory)
-        {
-          if (name[1] == '\0')
-            message_with_line (lineno, "constraint letter '%c' cannot be a "
-                               "memory constraint", name[0]);
-          else
-            message_with_line (lineno, "constraint name '%s' begins with '%c', "
-                               "and therefore cannot be a memory constraint",
-                               name, name[0]);
-
-          have_error = 1;
-          return;
-        }
+	{
+	  if (name[1] == '\0')
+	    error_with_line (lineno, "constraint letter '%c' cannot be a "
+			     "memory constraint", name[0]);
+	  else
+	    error_with_line (lineno, "constraint name '%s' begins with '%c', "
+			     "and therefore cannot be a memory constraint",
+			     name, name[0]);
+	  return;
+	}
       else if (is_address)
-        {
-          if (name[1] == '\0')
-            message_with_line (lineno, "constraint letter '%c' cannot be a "
-                               "memory constraint", name[0]);
-          else
-            message_with_line (lineno, "constraint name '%s' begins with '%c', "
-                               "and therefore cannot be a memory constraint",
-                               name, name[0]);
-
-          have_error = 1;
-          return;
-        }
+	{
+	  if (name[1] == '\0')
+	    error_with_line (lineno, "constraint letter '%c' cannot be a "
+			     "memory constraint", name[0]);
+	  else
+	    error_with_line (lineno, "constraint name '%s' begins with '%c', "
+			     "and therefore cannot be a memory constraint",
+			     name, name[0]);
+	  return;
+	}
     }
 
-  
-  c = obstack_alloc (rtl_obstack, sizeof (struct constraint_data));
+
+  c = XOBNEW (rtl_obstack, struct constraint_data);
   c->name = name;
   c->c_name = need_mangled_name ? mangle (name) : name;
   c->lineno = lineno;
@@ -932,9 +893,9 @@ static void
 process_define_constraint (rtx c, int lineno)
 {
   add_constraint (XSTR (c, 0), 0, XEXP (c, 2),
-                  GET_CODE (c) == DEFINE_MEMORY_CONSTRAINT,
-                  GET_CODE (c) == DEFINE_ADDRESS_CONSTRAINT,
-                  lineno);
+		  GET_CODE (c) == DEFINE_MEMORY_CONSTRAINT,
+		  GET_CODE (c) == DEFINE_ADDRESS_CONSTRAINT,
+		  lineno);
 }
 
 /* Process a DEFINE_REGISTER_CONSTRAINT expression, C.  */
@@ -951,12 +912,13 @@ write_enum_constraint_num (void)
 {
   struct constraint_data *c;
 
+  fputs ("#define CONSTRAINT_NUM_DEFINED_P 1\n", stdout);
   fputs ("enum constraint_num\n"
-         "{\n"
-         "  CONSTRAINT__UNKNOWN = 0", stdout);
+	 "{\n"
+	 "  CONSTRAINT__UNKNOWN = 0", stdout);
   FOR_ALL_CONSTRAINTS (c)
     printf (",\n  CONSTRAINT_%s", c->c_name);
-  puts ("\n};\n");
+  puts (",\n  CONSTRAINT__LIMIT\n};\n");
 }
 
 /* Write out a function which looks at a string and determines what
@@ -966,67 +928,85 @@ write_lookup_constraint (void)
 {
   unsigned int i;
   puts ("enum constraint_num\n"
-        "lookup_constraint (const char *str)\n"
-        "{\n"
-        "  switch (str[0])\n"
-        "    {");
+	"lookup_constraint (const char *str)\n"
+	"{\n"
+	"  switch (str[0])\n"
+	"    {");
 
   for (i = 0; i < ARRAY_SIZE(constraints_by_letter_table); i++)
     {
       struct constraint_data *c = constraints_by_letter_table[i];
       if (!c)
-        continue;
+	continue;
 
       printf ("    case '%c':\n", i);
       if (c->namelen == 1)
-        printf ("      return CONSTRAINT_%s;\n", c->c_name);
+	printf ("      return CONSTRAINT_%s;\n", c->c_name);
       else
-        {
-          do
-            {
-              printf ("      if (!strncmp (str, \"%s\", %lu))\n"
-                      "        return CONSTRAINT_%s;\n",
-                      c->name, (unsigned long int) c->namelen, c->c_name);
-              c = c->next_this_letter;
-            }
-          while (c);
-          puts ("      break;");
-        }
+	{
+	  do
+	    {
+	      printf ("      if (!strncmp (str, \"%s\", %lu))\n"
+		      "        return CONSTRAINT_%s;\n",
+		      c->name, (unsigned long int) c->namelen, c->c_name);
+	      c = c->next_this_letter;
+	    }
+	  while (c);
+	  puts ("      break;");
+	}
     }
 
   puts ("    default: break;\n"
-        "    }\n"
-        "  return CONSTRAINT__UNKNOWN;\n"
-        "}\n");
+	"    }\n"
+	"  return CONSTRAINT__UNKNOWN;\n"
+	"}\n");
 }
 
-/* Write out the function which computes constraint name lengths from
-   their enumerators. */
+/* Write out a function which looks at a string and determines what
+   the constraint name length is.  */
 static void
 write_insn_constraint_len (void)
 {
-  struct constraint_data *c;
+  unsigned int i;
 
-  if (constraint_max_namelen == 1)
-    return;
+  puts ("static inline size_t\n"
+	"insn_constraint_len (char fc, const char *str ATTRIBUTE_UNUSED)\n"
+	"{\n"
+	"  switch (fc)\n"
+	"    {");
 
-  puts ("size_t\n"
-        "insn_constraint_len (enum constraint_num c)\n"
-        "{\n"
-        "  switch (c)\n"
-        "    {");
+  for (i = 0; i < ARRAY_SIZE(constraints_by_letter_table); i++)
+    {
+      struct constraint_data *c = constraints_by_letter_table[i];
 
-  FOR_ALL_CONSTRAINTS (c)
-    if (c->namelen > 1)
-      printf ("    case CONSTRAINT_%s: return %lu;\n", c->c_name,
-              (unsigned long int) c->namelen);
+      if (!c
+      	  || c->namelen == 1)
+	continue;
+
+      /* Constraints with multiple characters should have the same
+	 length.  */
+      {
+	struct constraint_data *c2 = c->next_this_letter;
+	size_t len = c->namelen;
+	while (c2)
+	  {
+	    if (c2->namelen != len)
+	      error ("Multi-letter constraints with first letter '%c' "
+		     "should have same length", i);
+	    c2 = c2->next_this_letter;
+	  }
+      }
+
+      printf ("    case '%c': return %lu;\n",
+	      i, (unsigned long int) c->namelen);
+    }
 
   puts ("    default: break;\n"
-        "    }\n"
-        "  return 1;\n"
-        "}\n");
+	"    }\n"
+	"  return 1;\n"
+	"}\n");
 }
-  
+
 /* Write out the function which computes the register class corresponding
    to a register constraint.  */
 static void
@@ -1035,19 +1015,19 @@ write_regclass_for_constraint (void)
   struct constraint_data *c;
 
   puts ("enum reg_class\n"
-        "regclass_for_constraint (enum constraint_num c)\n"
-        "{\n"
-        "  switch (c)\n"
-        "    {");
+	"regclass_for_constraint (enum constraint_num c)\n"
+	"{\n"
+	"  switch (c)\n"
+	"    {");
 
   FOR_ALL_CONSTRAINTS (c)
     if (c->is_register)
       printf ("    case CONSTRAINT_%s: return %s;\n", c->c_name, c->regclass);
 
   puts ("    default: break;\n"
-        "    }\n"
-        "  return NO_REGS;\n"
-        "}\n");
+	"    }\n"
+	"  return NO_REGS;\n"
+	"}\n");
 }
 
 /* Write out the functions which compute whether a given value matches
@@ -1068,45 +1048,45 @@ write_tm_constrs_h (void)
   FOR_ALL_CONSTRAINTS (c)
     if (!c->is_register)
       {
-        bool needs_ival = needs_variable (c->exp, "ival");
-        bool needs_hval = needs_variable (c->exp, "hval");
-        bool needs_lval = needs_variable (c->exp, "lval");
-        bool needs_rval = needs_variable (c->exp, "rval");
-        bool needs_mode = (needs_variable (c->exp, "mode")
-                           || needs_hval || needs_lval || needs_rval);
-        bool needs_op = (needs_variable (c->exp, "op")
-                         || needs_ival || needs_mode);
+	bool needs_ival = needs_variable (c->exp, "ival");
+	bool needs_hval = needs_variable (c->exp, "hval");
+	bool needs_lval = needs_variable (c->exp, "lval");
+	bool needs_rval = needs_variable (c->exp, "rval");
+	bool needs_mode = (needs_variable (c->exp, "mode")
+			   || needs_hval || needs_lval || needs_rval);
+	bool needs_op = (needs_variable (c->exp, "op")
+			 || needs_ival || needs_mode);
 
-        printf ("static inline bool\n"
-                "satisfies_constraint_%s (rtx %s)\n"
-                "{\n", c->c_name,
-                needs_op ? "op" : "ARG_UNUSED (op)");
-        if (needs_mode)
-          puts ("enum machine_mode mode = GET_MODE (op);");
-        if (needs_ival)
-          puts ("  HOST_WIDE_INT ival = 0;");
-        if (needs_hval)
-          puts ("  HOST_WIDE_INT hval = 0;");
-        if (needs_lval)
-          puts ("  unsigned HOST_WIDE_INT lval = 0;");
-        if (needs_rval)
-          puts ("  const REAL_VALUE_TYPE *rval = 0;");
+	printf ("static inline bool\n"
+		"satisfies_constraint_%s (rtx %s)\n"
+		"{\n", c->c_name,
+		needs_op ? "op" : "ARG_UNUSED (op)");
+	if (needs_mode)
+	  puts ("  enum machine_mode mode = GET_MODE (op);");
+	if (needs_ival)
+	  puts ("  HOST_WIDE_INT ival = 0;");
+	if (needs_hval)
+	  puts ("  HOST_WIDE_INT hval = 0;");
+	if (needs_lval)
+	  puts ("  unsigned HOST_WIDE_INT lval = 0;");
+	if (needs_rval)
+	  puts ("  const REAL_VALUE_TYPE *rval = 0;");
 
-        if (needs_ival)
-          puts ("  if (GET_CODE (op) == CONST_INT)\n"
-                "    ival = INTVAL (op);");
-        if (needs_hval)
-          puts ("  if (GET_CODE (op) == CONST_DOUBLE && mode == VOIDmode)"
-                "    hval = CONST_DOUBLE_HIGH (op);");
-        if (needs_lval)
-          puts ("  if (GET_CODE (op) == CONST_DOUBLE && mode == VOIDmode)"
-                "    lval = CONST_DOUBLE_LOW (op);");
-        if (needs_rval)
-          puts ("  if (GET_CODE (op) == CONST_DOUBLE && mode != VOIDmode)"
-                "    rval = CONST_DOUBLE_REAL_VALUE (op);");
+	if (needs_ival)
+	  puts ("  if (CONST_INT_P (op))\n"
+		"    ival = INTVAL (op);");
+	if (needs_hval)
+	  puts ("  if (GET_CODE (op) == CONST_DOUBLE && mode == VOIDmode)"
+		"    hval = CONST_DOUBLE_HIGH (op);");
+	if (needs_lval)
+	  puts ("  if (GET_CODE (op) == CONST_DOUBLE && mode == VOIDmode)"
+		"    lval = CONST_DOUBLE_LOW (op);");
+	if (needs_rval)
+	  puts ("  if (GET_CODE (op) == CONST_DOUBLE && mode != VOIDmode)"
+		"    rval = CONST_DOUBLE_REAL_VALUE (op);");
 
-        write_predicate_stmts (c->exp);
-        fputs ("}\n", stdout);
+	write_predicate_stmts (c->exp);
+	fputs ("}\n", stdout);
       }
   puts ("#endif /* tm-constrs.h */");
 }
@@ -1120,21 +1100,21 @@ write_constraint_satisfied_p (void)
   struct constraint_data *c;
 
   puts ("bool\n"
-        "constraint_satisfied_p (rtx op, enum constraint_num c)\n"
-        "{\n"
-        "  switch (c)\n"
-        "    {");
+	"constraint_satisfied_p (rtx op, enum constraint_num c)\n"
+	"{\n"
+	"  switch (c)\n"
+	"    {");
 
   FOR_ALL_CONSTRAINTS (c)
     if (!c->is_register)
       printf ("    case CONSTRAINT_%s: "
-              "return satisfies_constraint_%s (op);\n",
-              c->c_name, c->c_name);
+	      "return satisfies_constraint_%s (op);\n",
+	      c->c_name, c->c_name);
 
   puts ("    default: break;\n"
-        "    }\n"
-        "  return false;\n"
-        "}\n");
+	"    }\n"
+	"  return false;\n"
+	"}\n");
 }
 
 /* Write out the function which computes whether a given value matches
@@ -1146,27 +1126,27 @@ write_insn_const_int_ok_for_constraint (void)
   struct constraint_data *c;
 
   puts ("bool\n"
-        "insn_const_int_ok_for_constraint (HOST_WIDE_INT ival, "
-                                          "enum constraint_num c)\n"
-        "{\n"
-        "  switch (c)\n"
-        "    {");
+	"insn_const_int_ok_for_constraint (HOST_WIDE_INT ival, "
+	                                  "enum constraint_num c)\n"
+	"{\n"
+	"  switch (c)\n"
+	"    {");
 
   FOR_ALL_CONSTRAINTS (c)
     if (c->is_const_int)
       {
-        printf ("    case CONSTRAINT_%s:\n      return ", c->c_name);
-        /* c->exp is guaranteed to be (and (match_code "const_int") (...));
-           we know at this point that we have a const_int, so we need not
-           bother with that part of the test.  */
-        write_predicate_expr (XEXP (c->exp, 1));
-        fputs (";\n\n", stdout);
+	printf ("    case CONSTRAINT_%s:\n      return ", c->c_name);
+	/* c->exp is guaranteed to be (and (match_code "const_int") (...));
+	   we know at this point that we have a const_int, so we need not
+	   bother with that part of the test.  */
+	write_predicate_expr (XEXP (c->exp, 1));
+	fputs (";\n\n", stdout);
       }
 
   puts ("    default: break;\n"
-        "    }\n"
-        "  return false;\n"
-        "}\n");
+	"    }\n"
+	"  return false;\n"
+	"}\n");
 }
 
 
@@ -1178,19 +1158,19 @@ write_insn_extra_memory_constraint (void)
   struct constraint_data *c;
 
   puts ("bool\n"
-        "insn_extra_memory_constraint (enum constraint_num c)\n"
-        "{\n"
-        "  switch (c)\n"
-        "    {");
+	"insn_extra_memory_constraint (enum constraint_num c)\n"
+	"{\n"
+	"  switch (c)\n"
+	"    {");
 
   FOR_ALL_CONSTRAINTS (c)
     if (c->is_memory)
       printf ("    case CONSTRAINT_%s:\n      return true;\n\n", c->c_name);
 
   puts ("    default: break;\n"
-        "    }\n"
-        "  return false;\n"
-        "}\n");
+	"    }\n"
+	"  return false;\n"
+	"}\n");
 }
 
 /* Write out the function which computes whether a given constraint is
@@ -1201,19 +1181,19 @@ write_insn_extra_address_constraint (void)
   struct constraint_data *c;
 
   puts ("bool\n"
-        "insn_extra_address_constraint (enum constraint_num c)\n"
-        "{\n"
-        "  switch (c)\n"
-        "    {");
+	"insn_extra_address_constraint (enum constraint_num c)\n"
+	"{\n"
+	"  switch (c)\n"
+	"    {");
 
   FOR_ALL_CONSTRAINTS (c)
     if (c->is_address)
       printf ("    case CONSTRAINT_%s:\n      return true;\n\n", c->c_name);
 
   puts ("    default: break;\n"
-        "    }\n"
-        "  return false;\n"
-        "}\n");
+	"    }\n"
+	"  return false;\n"
+	"}\n");
 }
 
 
@@ -1244,55 +1224,61 @@ write_tm_preds_h (void)
     {
       write_enum_constraint_num ();
       puts ("extern enum constraint_num lookup_constraint (const char *);\n"
-            "extern bool constraint_satisfied_p (rtx, enum constraint_num);\n");
+	    "extern bool constraint_satisfied_p (rtx, enum constraint_num);\n");
 
       if (constraint_max_namelen > 1)
-        puts ("extern size_t insn_constraint_len (enum constraint_num);\n"
-              "#define CONSTRAINT_LEN(c_,s_) "
-              "insn_constraint_len (lookup_constraint (s_))\n");
+        {
+	  write_insn_constraint_len ();
+	  puts ("#define CONSTRAINT_LEN(c_,s_) "
+		"insn_constraint_len (c_,s_)\n");
+	}
       else
-        puts ("#define CONSTRAINT_LEN(c_,s_) 1\n");
+	puts ("#define CONSTRAINT_LEN(c_,s_) 1\n");
       if (have_register_constraints)
-        puts ("extern enum reg_class regclass_for_constraint "
-              "(enum constraint_num);\n"
-              "#define REG_CLASS_FROM_CONSTRAINT(c_,s_) \\\n"
-              "    regclass_for_constraint (lookup_constraint (s_))\n");
+	puts ("extern enum reg_class regclass_for_constraint "
+	      "(enum constraint_num);\n"
+	      "#define REG_CLASS_FROM_CONSTRAINT(c_,s_) \\\n"
+	      "    regclass_for_constraint (lookup_constraint (s_))\n"
+	      "#define REG_CLASS_FOR_CONSTRAINT(x_) \\\n"
+	      "    regclass_for_constraint (x_)\n");
       else
-        puts ("#define REG_CLASS_FROM_CONSTRAINT(c_,s_) NO_REGS");
+	puts ("#define REG_CLASS_FROM_CONSTRAINT(c_,s_) NO_REGS\n"
+	      "#define REG_CLASS_FOR_CONSTRAINT(x_) \\\n"
+	      "    NO_REGS\n");
       if (have_const_int_constraints)
-        puts ("extern bool insn_const_int_ok_for_constraint "
-              "(HOST_WIDE_INT, enum constraint_num);\n"
-              "#define CONST_OK_FOR_CONSTRAINT_P(v_,c_,s_) \\\n"
-              "    insn_const_int_ok_for_constraint (v_, "
-              "lookup_constraint (s_))\n");
+	puts ("extern bool insn_const_int_ok_for_constraint "
+	      "(HOST_WIDE_INT, enum constraint_num);\n"
+	      "#define CONST_OK_FOR_CONSTRAINT_P(v_,c_,s_) \\\n"
+	      "    insn_const_int_ok_for_constraint (v_, "
+	      "lookup_constraint (s_))\n");
       if (have_const_dbl_constraints)
-        puts ("#define CONST_DOUBLE_OK_FOR_CONSTRAINT_P(v_,c_,s_) \\\n"
-              "    constraint_satisfied_p (v_, lookup_constraint (s_))\n");
+	puts ("#define CONST_DOUBLE_OK_FOR_CONSTRAINT_P(v_,c_,s_) \\\n"
+	      "    constraint_satisfied_p (v_, lookup_constraint (s_))\n");
       else
-        puts ("#define CONST_DOUBLE_OK_FOR_CONSTRAINT_P(v_,c_,s_) 0\n");
+	puts ("#define CONST_DOUBLE_OK_FOR_CONSTRAINT_P(v_,c_,s_) 0\n");
       if (have_extra_constraints)
-        puts ("#define EXTRA_CONSTRAINT_STR(v_,c_,s_) \\\n"
-              "    constraint_satisfied_p (v_, lookup_constraint (s_))\n");
+	puts ("#define EXTRA_CONSTRAINT_STR(v_,c_,s_) \\\n"
+	      "    constraint_satisfied_p (v_, lookup_constraint (s_))\n");
       if (have_memory_constraints)
-        puts ("extern bool "
-              "insn_extra_memory_constraint (enum constraint_num);\n"
-              "#define EXTRA_MEMORY_CONSTRAINT(c_,s_) "
-              "insn_extra_memory_constraint (lookup_constraint (s_))\n");
+	puts ("extern bool "
+	      "insn_extra_memory_constraint (enum constraint_num);\n"
+	      "#define EXTRA_MEMORY_CONSTRAINT(c_,s_) "
+	      "insn_extra_memory_constraint (lookup_constraint (s_))\n");
       else
-        puts ("#define EXTRA_MEMORY_CONSTRAINT(c_,s_) false\n");
+	puts ("#define EXTRA_MEMORY_CONSTRAINT(c_,s_) false\n");
       if (have_address_constraints)
-        puts ("extern bool "
-              "insn_extra_address_constraint (enum constraint_num);\n"
-              "#define EXTRA_ADDRESS_CONSTRAINT(c_,s_) "
-              "insn_extra_address_constraint (lookup_constraint (s_))\n");
+	puts ("extern bool "
+	      "insn_extra_address_constraint (enum constraint_num);\n"
+	      "#define EXTRA_ADDRESS_CONSTRAINT(c_,s_) "
+	      "insn_extra_address_constraint (lookup_constraint (s_))\n");
       else
-        puts ("#define EXTRA_ADDRESS_CONSTRAINT(c_,s_) false\n");
+	puts ("#define EXTRA_ADDRESS_CONSTRAINT(c_,s_) false\n");
     }
 
   puts ("#endif /* tm-preds.h */");
 }
 
-/* Write insn-preds.c.  
+/* Write insn-preds.c.
    N.B. the list of headers to include was copied from genrecog; it
    may not be ideal.
 
@@ -1320,12 +1306,11 @@ write_insn_preds_c (void)
 #include \"function.h\"\n\
 #include \"insn-config.h\"\n\
 #include \"recog.h\"\n\
-#include \"real.h\"\n\
 #include \"output.h\"\n\
 #include \"flags.h\"\n\
 #include \"hard-reg-set.h\"\n\
 #include \"resource.h\"\n\
-#include \"toplev.h\"\n\
+#include \"diagnostic-core.h\"\n\
 #include \"reload.h\"\n\
 #include \"regs.h\"\n\
 #include \"tm-constrs.h\"\n");
@@ -1336,19 +1321,17 @@ write_insn_preds_c (void)
   if (constraint_max_namelen > 0)
     {
       write_lookup_constraint ();
-      write_regclass_for_constraint ();
+      if (have_register_constraints)
+	write_regclass_for_constraint ();
       write_constraint_satisfied_p ();
-      
-      if (constraint_max_namelen > 1)
-        write_insn_constraint_len ();
 
       if (have_const_int_constraints)
-        write_insn_const_int_ok_for_constraint ();
+	write_insn_const_int_ok_for_constraint ();
 
       if (have_memory_constraints)
-        write_insn_extra_memory_constraint ();
+	write_insn_extra_memory_constraint ();
       if (have_address_constraints)
-        write_insn_extra_address_constraint ();
+	write_insn_extra_address_constraint ();
     }
 }
 
@@ -1380,14 +1363,10 @@ main (int argc, char **argv)
   rtx defn;
   int pattern_lineno, next_insn_code = 0;
 
-/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-  gccxml_fix_printf();
-/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
-
   progname = argv[0];
   if (argc <= 1)
     fatal ("no input file name");
-  if (init_md_reader_args_cb (argc, argv, parse_option) != SUCCESS_EXIT_CODE)
+  if (!init_rtx_reader_args_cb (argc, argv, parse_option))
     return FATAL_EXIT_CODE;
 
   while ((defn = read_md_rtx (&pattern_lineno, &next_insn_code)) != 0)
@@ -1395,21 +1374,21 @@ main (int argc, char **argv)
       {
       case DEFINE_PREDICATE:
       case DEFINE_SPECIAL_PREDICATE:
-        process_define_predicate (defn, pattern_lineno);
-        break;
+	process_define_predicate (defn, pattern_lineno);
+	break;
 
       case DEFINE_CONSTRAINT:
       case DEFINE_MEMORY_CONSTRAINT:
       case DEFINE_ADDRESS_CONSTRAINT:
-        process_define_constraint (defn, pattern_lineno);
-        break;
+	process_define_constraint (defn, pattern_lineno);
+	break;
 
       case DEFINE_REGISTER_CONSTRAINT:
-        process_define_register_constraint (defn, pattern_lineno);
-        break;
+	process_define_register_constraint (defn, pattern_lineno);
+	break;
 
       default:
-        break;
+	break;
       }
 
   if (gen_header)

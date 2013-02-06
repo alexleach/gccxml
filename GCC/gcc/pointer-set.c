@@ -1,11 +1,11 @@
 /* Set operations on pointers
-   Copyright (C) 2004, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2006, 2007 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
@@ -32,10 +31,10 @@ Boston, MA 02110-1301, USA.  */
 struct pointer_set_t
 {
   size_t log_slots;
-  size_t n_slots;                /* n_slots = 2^log_slots */
+  size_t n_slots;		/* n_slots = 2^log_slots */
   size_t n_elements;
 
-  void **slots;
+  const void **slots;
 };
 
 /* Use the multiplicative method, as described in Knuth 6.4, to obtain
@@ -78,7 +77,7 @@ pointer_set_create (void)
   result->log_slots = 8;
   result->n_slots = (size_t) 1 << result->log_slots;
 
-  result->slots = XCNEWVEC (void *, result->n_slots);
+  result->slots = XCNEWVEC (const void *, result->n_slots);
   return result;
 }
 
@@ -94,7 +93,7 @@ pointer_set_destroy (struct pointer_set_t *pset)
 
    Collisions are resolved by linear probing.  */
 int
-pointer_set_contains (struct pointer_set_t *pset, void *p)
+pointer_set_contains (const struct pointer_set_t *pset, const void *p)
 {
   size_t n = hash1 (p, pset->n_slots, pset->log_slots);
 
@@ -116,26 +115,26 @@ pointer_set_contains (struct pointer_set_t *pset, void *p)
 /* Subroutine of pointer_set_insert.  Return the insertion slot for P into
    an empty element of SLOTS, an array of length N_SLOTS.  */
 static inline size_t
-insert_aux (void *p, void **slots, size_t n_slots, size_t log_slots)
+insert_aux (const void *p, const void **slots, size_t n_slots, size_t log_slots)
 {
   size_t n = hash1 (p, n_slots, log_slots);
   while (true)
     {
       if (slots[n] == p || slots[n] == 0)
-        return n;
+	return n;
       else
-        {
-          ++n;
-          if (n == n_slots)
-            n = 0;
-        }
+	{
+	  ++n;
+	  if (n == n_slots)
+	    n = 0;
+	}
     }
 }
 
 /* Inserts P into PSET if it wasn't already there.  Returns nonzero
    if it was already there. P must be nonnull.  */
 int
-pointer_set_insert (struct pointer_set_t *pset, void *p)
+pointer_set_insert (struct pointer_set_t *pset, const void *p)
 {
   size_t n;
 
@@ -145,15 +144,15 @@ pointer_set_insert (struct pointer_set_t *pset, void *p)
     {
       size_t new_log_slots = pset->log_slots + 1;
       size_t new_n_slots = pset->n_slots * 2;
-      void **new_slots = XCNEWVEC (void *, new_n_slots);
+      const void **new_slots = XCNEWVEC (const void *, new_n_slots);
       size_t i;
 
       for (i = 0; i < pset->n_slots; ++i)
         {
-          void *value = pset->slots[i];
-          n = insert_aux (value, new_slots, new_n_slots, new_log_slots);
-          new_slots[n] = value;
-        }
+	  const void *value = pset->slots[i];
+	  n = insert_aux (value, new_slots, new_n_slots, new_log_slots);
+	  new_slots[n] = value;
+	}
 
       XDELETEVEC (pset->slots);
       pset->n_slots = new_n_slots;
@@ -173,8 +172,8 @@ pointer_set_insert (struct pointer_set_t *pset, void *p)
 /* Pass each pointer in PSET to the function in FN, together with the fixed
    parameter DATA.  If FN returns false, the iteration stops.  */
 
-void pointer_set_traverse (struct pointer_set_t *pset,
-                           bool (*fn) (void *, void *), void *data)
+void pointer_set_traverse (const struct pointer_set_t *pset,
+			   bool (*fn) (const void *, void *), void *data)
 {
   size_t i;
   for (i = 0; i < pset->n_slots; ++i)
@@ -192,10 +191,10 @@ void pointer_set_traverse (struct pointer_set_t *pset,
 struct pointer_map_t
 {
   size_t log_slots;
-  size_t n_slots;                /* n_slots = 2^log_slots */
+  size_t n_slots;		/* n_slots = 2^log_slots */
   size_t n_elements;
 
-  void **keys;
+  const void **keys;
   void **values;
 };
 
@@ -209,7 +208,7 @@ pointer_map_create (void)
   result->log_slots = 8;
   result->n_slots = (size_t) 1 << result->log_slots;
 
-  result->keys = XCNEWVEC (void *, result->n_slots);
+  result->keys = XCNEWVEC (const void *, result->n_slots);
   result->values = XCNEWVEC (void *, result->n_slots);
   return result;
 }
@@ -227,16 +226,16 @@ void pointer_map_destroy (struct pointer_map_t *pmap)
 
    Collisions are resolved by linear probing.  */
 void **
-pointer_map_contains (struct pointer_map_t *pmap, void *p)
+pointer_map_contains (const struct pointer_map_t *pmap, const void *p)
 {
   size_t n = hash1 (p, pmap->n_slots, pmap->log_slots);
 
   while (true)
     {
       if (pmap->keys[n] == p)
-        return &pmap->values[n];
+	return &pmap->values[n];
       else if (pmap->keys[n] == 0)
-        return NULL;
+	return NULL;
       else
        {
          ++n;
@@ -249,7 +248,7 @@ pointer_map_contains (struct pointer_map_t *pmap, void *p)
 /* Inserts P into PMAP if it wasn't already there.  Returns a pointer
    to the value.  P must be nonnull.  */
 void **
-pointer_map_insert (struct pointer_map_t *pmap, void *p)
+pointer_map_insert (struct pointer_map_t *pmap, const void *p)
 {
   size_t n;
 
@@ -259,18 +258,18 @@ pointer_map_insert (struct pointer_map_t *pmap, void *p)
     {
       size_t new_log_slots = pmap->log_slots + 1;
       size_t new_n_slots = pmap->n_slots * 2;
-      void **new_keys = XCNEWVEC (void *, new_n_slots);
+      const void **new_keys = XCNEWVEC (const void *, new_n_slots);
       void **new_values = XCNEWVEC (void *, new_n_slots);
       size_t i;
 
       for (i = 0; i < pmap->n_slots; ++i)
-        if (pmap->keys[i])
-          {
-            void *key = pmap->keys[i];
-            n = insert_aux (key, new_keys, new_n_slots, new_log_slots);
-            new_keys[n] = key;
-            new_values[n] = pmap->values[i];
-          }
+	if (pmap->keys[i])
+	  {
+	    const void *key = pmap->keys[i];
+	    n = insert_aux (key, new_keys, new_n_slots, new_log_slots);
+	    new_keys[n] = key;
+	    new_values[n] = pmap->values[i];
+	  }
 
       XDELETEVEC (pmap->keys);
       XDELETEVEC (pmap->values);
@@ -294,8 +293,8 @@ pointer_map_insert (struct pointer_map_t *pmap, void *p)
    to the value and the fixed parameter DATA.  If FN returns false, the
    iteration stops.  */
 
-void pointer_map_traverse (struct pointer_map_t *pmap,
-                           bool (*fn) (void *, void **, void *), void *data)
+void pointer_map_traverse (const struct pointer_map_t *pmap,
+			   bool (*fn) (const void *, void **, void *), void *data)
 {
   size_t i;
   for (i = 0; i < pmap->n_slots; ++i)

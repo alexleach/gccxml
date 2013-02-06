@@ -1,11 +1,12 @@
 /* Loop unswitching for GNU compiler.
-   Copyright (C) 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2012
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -14,9 +15,8 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
@@ -41,7 +41,7 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
        if (cond)
          branch1;
        else
-         branch2;
+	 branch2;
        B;
        if (cond)
          branch3;
@@ -53,23 +53,23 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
    if (cond)
      {
        while (loop_cond)
-         {
-           A;
-           branch1;
-           B;
-           branch3;
-           C;
-         }
+	 {
+	   A;
+	   branch1;
+	   B;
+	   branch3;
+	   C;
+	 }
      }
    else
      {
        while (loop_cond)
-         {
-           A;
-           branch2;
-           B;
-           C;
-         }
+	 {
+	   A;
+	   branch2;
+	   B;
+	   C;
+	 }
      }
 
   Duplicating the loop might lead to code growth exponential in number of
@@ -79,9 +79,8 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
   containing subloops would not be very large compared to complications
   with handling this case.  */
 
-static struct loop *unswitch_loop (struct loops *, struct loop *,
-                                   basic_block, rtx, rtx);
-static void unswitch_single_loop (struct loops *, struct loop *, rtx, int);
+static struct loop *unswitch_loop (struct loop *, basic_block, rtx, rtx);
+static void unswitch_single_loop (struct loop *, rtx, int);
 static rtx may_unswitch_on (basic_block, struct loop *, rtx *);
 
 /* Prepare a sequence comparing OP0 with OP1 using COMP and jumping to LABEL if
@@ -90,7 +89,7 @@ static rtx may_unswitch_on (basic_block, struct loop *, rtx *);
 
 rtx
 compare_and_jump_seq (rtx op0, rtx op1, enum rtx_code comp, rtx label, int prob,
-                      rtx cinsn)
+		      rtx cinsn)
 {
   rtx seq, jump, cond;
   enum machine_mode mode;
@@ -103,7 +102,7 @@ compare_and_jump_seq (rtx op0, rtx op1, enum rtx_code comp, rtx label, int prob,
   if (GET_MODE_CLASS (mode) == MODE_CC)
     {
       /* A hack -- there seems to be no easy generic way how to make a
-         conditional jump from a ccmode comparison.  */
+	 conditional jump from a ccmode comparison.  */
       gcc_assert (cinsn);
       cond = XEXP (SET_SRC (pc_set (cinsn)), 0);
       gcc_assert (GET_CODE (cond) == comp);
@@ -111,6 +110,7 @@ compare_and_jump_seq (rtx op0, rtx op1, enum rtx_code comp, rtx label, int prob,
       gcc_assert (rtx_equal_p (op1, XEXP (cond, 1)));
       emit_jump_insn (copy_insn (PATTERN (cinsn)));
       jump = get_last_insn ();
+      gcc_assert (JUMP_P (jump));
       JUMP_LABEL (jump) = JUMP_LABEL (cinsn);
       LABEL_NUSES (JUMP_LABEL (jump))++;
       redirect_jump (jump, label, 0);
@@ -122,43 +122,35 @@ compare_and_jump_seq (rtx op0, rtx op1, enum rtx_code comp, rtx label, int prob,
       op0 = force_operand (op0, NULL_RTX);
       op1 = force_operand (op1, NULL_RTX);
       do_compare_rtx_and_jump (op0, op1, comp, 0,
-                               mode, NULL_RTX, NULL_RTX, label);
+			       mode, NULL_RTX, NULL_RTX, label, -1);
       jump = get_last_insn ();
+      gcc_assert (JUMP_P (jump));
       JUMP_LABEL (jump) = label;
       LABEL_NUSES (label)++;
     }
-  REG_NOTES (jump) = gen_rtx_EXPR_LIST (REG_BR_PROB, GEN_INT (prob),
-                                        REG_NOTES (jump));
+  add_reg_note (jump, REG_BR_PROB, GEN_INT (prob));
+
   seq = get_insns ();
   end_sequence ();
 
   return seq;
 }
 
-/* Main entry point.  Perform loop unswitching on all suitable LOOPS.  */
+/* Main entry point.  Perform loop unswitching on all suitable loops.  */
 void
-unswitch_loops (struct loops *loops)
+unswitch_loops (void)
 {
-  int i, num;
+  loop_iterator li;
   struct loop *loop;
 
   /* Go through inner loops (only original ones).  */
-  num = loops->num;
 
-  for (i = 1; i < num; i++)
+  FOR_EACH_LOOP (li, loop, LI_ONLY_INNERMOST)
     {
-      /* Removed loop?  */
-      loop = loops->parray[i];
-      if (!loop)
-        continue;
-
-      if (loop->inner)
-        continue;
-
-      unswitch_single_loop (loops, loop, NULL_RTX, 0);
+      unswitch_single_loop (loop, NULL_RTX, 0);
 #ifdef ENABLE_CHECKING
       verify_dominators (CDI_DOMINATORS);
-      verify_loop_structure (loops);
+      verify_loop_structure ();
 #endif
     }
 
@@ -203,13 +195,13 @@ may_unswitch_on (basic_block bb, struct loop *loop, rtx *cinsn)
       op[i] = XEXP (test, i);
 
       if (CONSTANT_P (op[i]))
-        continue;
+	continue;
 
       if (!iv_analyze (at, op[i], &iv))
-        return NULL_RTX;
+	return NULL_RTX;
       if (iv.step != const0_rtx
-          || iv.first_special)
-        return NULL_RTX;
+	  || iv.first_special)
+	return NULL_RTX;
 
       op[i] = get_iv_value (&iv, const0_rtx);
     }
@@ -220,24 +212,24 @@ may_unswitch_on (basic_block bb, struct loop *loop, rtx *cinsn)
   if (GET_MODE_CLASS (mode) == MODE_CC)
     {
       if (at != BB_END (bb))
-        return NULL_RTX;
+	return NULL_RTX;
 
       if (!rtx_equal_p (op[0], XEXP (test, 0))
-          || !rtx_equal_p (op[1], XEXP (test, 1)))
-        return NULL_RTX;
+	  || !rtx_equal_p (op[1], XEXP (test, 1)))
+	return NULL_RTX;
 
       *cinsn = BB_END (bb);
       return test;
     }
 
   stest = simplify_gen_relational (GET_CODE (test), SImode,
-                                   mode, op[0], op[1]);
+				   mode, op[0], op[1]);
   if (stest == const0_rtx
       || stest == const_true_rtx)
     return stest;
 
   return canon_condition (gen_rtx_fmt_ee (GET_CODE (test), SImode,
-                                          op[0], op[1]));
+					  op[0], op[1]));
 }
 
 /* Reverses CONDition; returns NULL if we cannot.  */
@@ -250,8 +242,8 @@ reversed_condition (rtx cond)
     return NULL_RTX;
   else
     return gen_rtx_fmt_ee (reversed,
-                           GET_MODE (cond), XEXP (cond, 0),
-                           XEXP (cond, 1));
+			   GET_MODE (cond), XEXP (cond, 0),
+			   XEXP (cond, 1));
 }
 
 /* Unswitch single LOOP.  COND_CHECKED holds list of conditions we already
@@ -259,8 +251,7 @@ reversed_condition (rtx cond)
    number of unswitchings done; do not allow it to grow too much, it is too
    easy to create example on that the code would grow exponentially.  */
 static void
-unswitch_single_loop (struct loops *loops, struct loop *loop,
-                      rtx cond_checked, int num)
+unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
 {
   basic_block *bbs;
   struct loop *nloop;
@@ -273,7 +264,7 @@ unswitch_single_loop (struct loops *loops, struct loop *loop,
   if (num > PARAM_VALUE (PARAM_MAX_UNSWITCH_LEVEL))
     {
       if (dump_file)
-        fprintf (dump_file, ";; Not unswitching anymore, hit max level\n");
+	fprintf (dump_file, ";; Not unswitching anymore, hit max level\n");
       return;
     }
 
@@ -281,7 +272,7 @@ unswitch_single_loop (struct loops *loops, struct loop *loop,
   if (loop->inner)
     {
       if (dump_file)
-        fprintf (dump_file, ";; Not unswitching, not innermost loop\n");
+	fprintf (dump_file, ";; Not unswitching, not innermost loop\n");
       return;
     }
 
@@ -289,7 +280,7 @@ unswitch_single_loop (struct loops *loops, struct loop *loop,
   if (!can_duplicate_loop_p (loop))
     {
       if (dump_file)
-        fprintf (dump_file, ";; Not unswitching, can't duplicate loop\n");
+	fprintf (dump_file, ";; Not unswitching, can't duplicate loop\n");
       return;
     }
 
@@ -297,15 +288,15 @@ unswitch_single_loop (struct loops *loops, struct loop *loop,
   if (num_loop_insns (loop) > PARAM_VALUE (PARAM_MAX_UNSWITCH_INSNS))
     {
       if (dump_file)
-        fprintf (dump_file, ";; Not unswitching, loop too big\n");
+	fprintf (dump_file, ";; Not unswitching, loop too big\n");
       return;
     }
 
   /* Do not unswitch in cold areas.  */
-  if (!maybe_hot_bb_p (loop->header))
+  if (optimize_loop_for_size_p (loop))
     {
       if (dump_file)
-        fprintf (dump_file, ";; Not unswitching, not hot area\n");
+	fprintf (dump_file, ";; Not unswitching, not hot area\n");
       return;
     }
 
@@ -313,7 +304,7 @@ unswitch_single_loop (struct loops *loops, struct loop *loop,
   if (expected_loop_iterations (loop) < 1)
     {
       if (dump_file)
-        fprintf (dump_file, ";; Not unswitching, loop iterations < 1\n");
+	fprintf (dump_file, ";; Not unswitching, loop iterations < 1\n");
       return;
     }
 
@@ -326,43 +317,43 @@ unswitch_single_loop (struct loops *loops, struct loop *loop,
       bbs = get_loop_body (loop);
       iv_analysis_loop_init (loop);
       for (i = 0; i < loop->num_nodes; i++)
-        if ((cond = may_unswitch_on (bbs[i], loop, &cinsn)))
-          break;
+	if ((cond = may_unswitch_on (bbs[i], loop, &cinsn)))
+	  break;
 
       if (i == loop->num_nodes)
-        {
-          free (bbs);
-          return;
-        }
+	{
+	  free (bbs);
+	  return;
+	}
 
       if (cond != const0_rtx
-          && cond != const_true_rtx)
-        {
-          rcond = reversed_condition (cond);
-          if (rcond)
-            rcond = canon_condition (rcond);
+	  && cond != const_true_rtx)
+	{
+	  rcond = reversed_condition (cond);
+	  if (rcond)
+	    rcond = canon_condition (rcond);
 
-          /* Check whether the result can be predicted.  */
-          for (acond = cond_checked; acond; acond = XEXP (acond, 1))
-            simplify_using_condition (XEXP (acond, 0), &cond, NULL);
-        }
+	  /* Check whether the result can be predicted.  */
+	  for (acond = cond_checked; acond; acond = XEXP (acond, 1))
+	    simplify_using_condition (XEXP (acond, 0), &cond, NULL);
+	}
 
       if (cond == const_true_rtx)
-        {
-          /* Remove false path.  */
-          e = FALLTHRU_EDGE (bbs[i]);
-          remove_path (loops, e);
-          free (bbs);
-          repeat = 1;
-        }
+	{
+	  /* Remove false path.  */
+	  e = FALLTHRU_EDGE (bbs[i]);
+	  remove_path (e);
+	  free (bbs);
+	  repeat = 1;
+	}
       else if (cond == const0_rtx)
-        {
-          /* Remove true path.  */
-          e = BRANCH_EDGE (bbs[i]);
-          remove_path (loops, e);
-          free (bbs);
-          repeat = 1;
-        }
+	{
+	  /* Remove true path.  */
+	  e = BRANCH_EDGE (bbs[i]);
+	  remove_path (e);
+	  free (bbs);
+	  repeat = 1;
+	}
     } while (repeat);
 
   /* We found the condition we can unswitch on.  */
@@ -376,12 +367,12 @@ unswitch_single_loop (struct loops *loops, struct loop *loop,
     fprintf (dump_file, ";; Unswitching loop\n");
 
   /* Unswitch the loop on this condition.  */
-  nloop = unswitch_loop (loops, loop, bbs[i], cond, cinsn);
+  nloop = unswitch_loop (loop, bbs[i], copy_rtx_if_shared (cond), cinsn);
   gcc_assert (nloop);
 
   /* Invoke itself on modified loops.  */
-  unswitch_single_loop (loops, nloop, rconds, num + 1);
-  unswitch_single_loop (loops, loop, conds, num + 1);
+  unswitch_single_loop (nloop, rconds, num + 1);
+  unswitch_single_loop (loop, conds, num + 1);
 
   free_EXPR_LIST_node (conds);
   if (rcond)
@@ -398,13 +389,11 @@ unswitch_single_loop (struct loops *loops, struct loop *loop,
    NULL, it is the insn in that COND is compared.  */
 
 static struct loop *
-unswitch_loop (struct loops *loops, struct loop *loop, basic_block unswitch_on,
-               rtx cond, rtx cinsn)
+unswitch_loop (struct loop *loop, basic_block unswitch_on, rtx cond, rtx cinsn)
 {
   edge entry, latch_edge, true_edge, false_edge, e;
   basic_block switch_bb, unswitch_on_alt;
   struct loop *nloop;
-  sbitmap zero_bitmap;
   int irred_flag, prob;
   rtx seq;
 
@@ -421,15 +410,9 @@ unswitch_loop (struct loops *loops, struct loop *loop, basic_block unswitch_on,
   /* Make a copy.  */
   irred_flag = entry->flags & EDGE_IRREDUCIBLE_LOOP;
   entry->flags &= ~EDGE_IRREDUCIBLE_LOOP;
-  zero_bitmap = sbitmap_alloc (2);
-  sbitmap_zero (zero_bitmap);
-  if (!duplicate_loop_to_header_edge (loop, entry, loops, 1,
-        zero_bitmap, NULL, NULL, NULL, 0))
-    {
-      sbitmap_free (zero_bitmap);
-      return NULL;
-    }
-  sbitmap_free (zero_bitmap);
+  if (!duplicate_loop_to_header_edge (loop, entry, 1,
+			      	      NULL, NULL, NULL, 0))
+    return NULL;
   entry->flags |= irred_flag;
 
   /* Record the block with condition we unswitch on.  */
@@ -442,8 +425,8 @@ unswitch_loop (struct loops *loops, struct loop *loop, basic_block unswitch_on,
   prob = true_edge->probability;
   switch_bb = create_empty_bb (EXIT_BLOCK_PTR->prev_bb);
   seq = compare_and_jump_seq (XEXP (cond, 0), XEXP (cond, 1), GET_CODE (cond),
-                              block_label (true_edge->dest),
-                              prob, cinsn);
+			      block_label (true_edge->dest),
+			      prob, cinsn);
   emit_insn_after (seq, BB_END (switch_bb));
   e = make_edge (switch_bb, true_edge->dest, 0);
   e->probability = prob;
@@ -466,22 +449,18 @@ unswitch_loop (struct loops *loops, struct loop *loop, basic_block unswitch_on,
     }
 
   /* Loopify from the copy of LOOP body, constructing the new loop.  */
-  nloop = loopify (loops, latch_edge,
-                   single_pred_edge (get_bb_copy (loop->header)), switch_bb,
-                   BRANCH_EDGE (switch_bb), FALLTHRU_EDGE (switch_bb), true);
+  nloop = loopify (latch_edge,
+		   single_pred_edge (get_bb_copy (loop->header)), switch_bb,
+		   BRANCH_EDGE (switch_bb), FALLTHRU_EDGE (switch_bb), true,
+		   prob, REG_BR_PROB_BASE - prob);
 
   /* Remove branches that are now unreachable in new loops.  */
-  remove_path (loops, true_edge);
-  remove_path (loops, false_edge);
-
-  /* One of created loops do not have to be subloop of the outer loop now,
-     so fix its placement in loop data structure.  */
-  fix_loop_placement (loop);
-  fix_loop_placement (nloop);
+  remove_path (true_edge);
+  remove_path (false_edge);
 
   /* Preserve the simple loop preheaders.  */
-  loop_split_edge_with (loop_preheader_edge (loop), NULL_RTX);
-  loop_split_edge_with (loop_preheader_edge (nloop), NULL_RTX);
+  split_edge (loop_preheader_edge (loop));
+  split_edge (loop_preheader_edge (nloop));
 
   return nloop;
 }

@@ -3,7 +3,8 @@
 
 /*
 
-@deftypefn Supplemental int strncmp (const char *@var{s1}, const char *@var{s2}, size_t @var{n})
+@deftypefn Supplemental int strncmp (const char *@var{s1}, @
+  const char *@var{s2}, size_t @var{n})
 
 Compares the first @var{n} bytes of two strings, returning a value as
 @code{strcmp}.
@@ -25,9 +26,9 @@ strncmp(const char *s1, const char *s2, register size_t n)
       u1 = (unsigned char) *s1++;
       u2 = (unsigned char) *s2++;
       if (u1 != u2)
-        return u1 - u2;
+	return u1 - u2;
       if (u1 == '\0')
-        return 0;
+	return 0;
     }
   return 0;
 }

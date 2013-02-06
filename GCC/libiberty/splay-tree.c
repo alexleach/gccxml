@@ -1,5 +1,6 @@
 /* A splay-tree datatype.  
-   Copyright (C) 1998, 1999, 2000, 2001 Free Software Foundation, Inc.
+   Copyright (C) 1998, 1999, 2000, 2001, 2009,
+   2010, 2011 Free Software Foundation, Inc.
    Contributed by Mark Mitchell (mark@markmitchell.com).
 
 This file is part of GNU CC.
@@ -39,11 +40,11 @@ Boston, MA 02110-1301, USA.  */
 
 static void splay_tree_delete_helper (splay_tree, splay_tree_node);
 static inline void rotate_left (splay_tree_node *,
-                                splay_tree_node, splay_tree_node);
+				splay_tree_node, splay_tree_node);
 static inline void rotate_right (splay_tree_node *,
-                                splay_tree_node, splay_tree_node);
+				splay_tree_node, splay_tree_node);
 static void splay_tree_splay (splay_tree, splay_tree_key);
-static int splay_tree_foreach_helper (splay_tree, splay_tree_node,
+static int splay_tree_foreach_helper (splay_tree_node,
                                       splay_tree_foreach_fn, void*);
 
 /* Deallocate NODE (a member of SP), and all its sub-trees.  */
@@ -76,38 +77,38 @@ splay_tree_delete_helper (splay_tree sp, splay_tree_node node)
       active = pending;
       pending = 0;
       while (active)
-        {
-          splay_tree_node temp;
+	{
+	  splay_tree_node temp;
 
-          /* active points to a node which has its key and value
-             deallocated, we just need to process left and right.  */
+	  /* active points to a node which has its key and value
+	     deallocated, we just need to process left and right.  */
 
-          if (active->left)
-            {
-              KDEL (active->left->key);
-              VDEL (active->left->value);
-              active->left->key = (splay_tree_key)pending;
-              pending = (splay_tree_node)(active->left);
-            }
-          if (active->right)
-            {
-              KDEL (active->right->key);
-              VDEL (active->right->value);
-              active->right->key = (splay_tree_key)pending;
-              pending = (splay_tree_node)(active->right);
-            }
+	  if (active->left)
+	    {
+	      KDEL (active->left->key);
+	      VDEL (active->left->value);
+	      active->left->key = (splay_tree_key)pending;
+	      pending = (splay_tree_node)(active->left);
+	    }
+	  if (active->right)
+	    {
+	      KDEL (active->right->key);
+	      VDEL (active->right->value);
+	      active->right->key = (splay_tree_key)pending;
+	      pending = (splay_tree_node)(active->right);
+	    }
 
-          temp = active;
-          active = (splay_tree_node)(temp->key);
-          (*sp->deallocate) ((char*) temp, sp->allocate_data);
-        }
+	  temp = active;
+	  active = (splay_tree_node)(temp->key);
+	  (*sp->deallocate) ((char*) temp, sp->allocate_data);
+	}
     }
 #undef KDEL
 #undef VDEL
 }
 
 /* Rotate the edge joining the left child N with its parent P.  PP is the
-   grandparents pointer to P.  */
+   grandparents' pointer to P.  */
 
 static inline void
 rotate_left (splay_tree_node *pp, splay_tree_node p, splay_tree_node n)
@@ -120,7 +121,7 @@ rotate_left (splay_tree_node *pp, splay_tree_node p, splay_tree_node n)
 }
 
 /* Rotate the edge joining the right child N with its parent P.  PP is the
-   grandparents pointer to P.  */
+   grandparents' pointer to P.  */
 
 static inline void
 rotate_right (splay_tree_node *pp, splay_tree_node p, splay_tree_node n)
@@ -166,33 +167,33 @@ splay_tree_splay (splay_tree sp, splay_tree_key key)
         || (cmp2 < 0 && !c->left)
         || (cmp2 > 0 && !c->right))
       {
-        if (cmp1 < 0)
-          rotate_left (&sp->root, n, c);
-        else
-          rotate_right (&sp->root, n, c);
+	if (cmp1 < 0)
+	  rotate_left (&sp->root, n, c);
+	else
+	  rotate_right (&sp->root, n, c);
         return;
       }
 
     /* Now we have the four cases of double-rotation.  */
     if (cmp1 < 0 && cmp2 < 0)
       {
-        rotate_left (&n->left, c, c->left);
-        rotate_left (&sp->root, n, n->left);
+	rotate_left (&n->left, c, c->left);
+	rotate_left (&sp->root, n, n->left);
       }
     else if (cmp1 > 0 && cmp2 > 0)
       {
-        rotate_right (&n->right, c, c->right);
-        rotate_right (&sp->root, n, n->right);
+	rotate_right (&n->right, c, c->right);
+	rotate_right (&sp->root, n, n->right);
       }
     else if (cmp1 < 0 && cmp2 > 0)
       {
-        rotate_right (&n->left, c, c->right);
-        rotate_left (&sp->root, n, n->left);
+	rotate_right (&n->left, c, c->right);
+	rotate_left (&sp->root, n, n->left);
       }
     else if (cmp1 > 0 && cmp2 < 0)
       {
-        rotate_left (&n->right, c, c->left);
-        rotate_right (&sp->root, n, n->right);
+	rotate_left (&n->right, c, c->left);
+	rotate_right (&sp->root, n, n->right);
       }
   } while (1);
 }
@@ -203,25 +204,51 @@ splay_tree_splay (splay_tree sp, splay_tree_key key)
    value is returned.  Otherwise, this function returns 0.  */
 
 static int
-splay_tree_foreach_helper (splay_tree sp, splay_tree_node node,
+splay_tree_foreach_helper (splay_tree_node node,
                            splay_tree_foreach_fn fn, void *data)
 {
   int val;
+  splay_tree_node *stack;
+  int stack_ptr, stack_size;
 
-  if (!node)
-    return 0;
+  /* A non-recursive implementation is used to avoid filling the stack
+     for large trees.  Splay trees are worst case O(n) in the depth of
+     the tree.  */
 
-  val = splay_tree_foreach_helper (sp, node->left, fn, data);
-  if (val)
-    return val;
+#define INITIAL_STACK_SIZE 100
+  stack_size = INITIAL_STACK_SIZE;
+  stack_ptr = 0;
+  stack = XNEWVEC (splay_tree_node, stack_size);
+  val = 0;
 
-  val = (*fn)(node, data);
-  if (val)
-    return val;
+  for (;;)
+    {
+      while (node != NULL)
+	{
+	  if (stack_ptr == stack_size)
+	    {
+	      stack_size *= 2;
+	      stack = XRESIZEVEC (splay_tree_node, stack, stack_size);
+	    }
+	  stack[stack_ptr++] = node;
+	  node = node->left;
+	}
 
-  return splay_tree_foreach_helper (sp, node->right, fn, data);
+      if (stack_ptr == 0)
+	break;
+
+      node = stack[--stack_ptr];
+
+      val = (*fn) (node, data);
+      if (val)
+	break;
+
+      node = node->right;
+    }
+
+  XDELETEVEC (stack);
+  return val;
 }
-
 
 /* An allocator and deallocator based on xmalloc.  */
 static void *
@@ -265,13 +292,53 @@ splay_tree_new_with_allocator (splay_tree_compare_fn compare_fn,
                                splay_tree_deallocate_fn deallocate_fn,
                                void *allocate_data)
 {
-  splay_tree sp = (splay_tree) (*allocate_fn) (sizeof (struct splay_tree_s),
-                                               allocate_data);
+  return
+    splay_tree_new_typed_alloc (compare_fn, delete_key_fn, delete_value_fn,
+				allocate_fn, allocate_fn, deallocate_fn,
+				allocate_data);
+}
+
+/*
+
+@deftypefn Supplemental splay_tree splay_tree_new_with_typed_alloc @
+(splay_tree_compare_fn @var{compare_fn}, @
+splay_tree_delete_key_fn @var{delete_key_fn}, @
+splay_tree_delete_value_fn @var{delete_value_fn}, @
+splay_tree_allocate_fn @var{tree_allocate_fn}, @
+splay_tree_allocate_fn @var{node_allocate_fn}, @
+splay_tree_deallocate_fn @var{deallocate_fn}, @
+void * @var{allocate_data})
+
+This function creates a splay tree that uses two different allocators
+@var{tree_allocate_fn} and @var{node_allocate_fn} to use for allocating the
+tree itself and its nodes respectively.  This is useful when variables of
+different types need to be allocated with different allocators.
+
+The splay tree will use @var{compare_fn} to compare nodes,
+@var{delete_key_fn} to deallocate keys, and @var{delete_value_fn} to
+deallocate values.
+
+@end deftypefn
+
+*/
+
+splay_tree
+splay_tree_new_typed_alloc (splay_tree_compare_fn compare_fn,
+			    splay_tree_delete_key_fn delete_key_fn,
+			    splay_tree_delete_value_fn delete_value_fn,
+			    splay_tree_allocate_fn tree_allocate_fn,
+			    splay_tree_allocate_fn node_allocate_fn,
+			    splay_tree_deallocate_fn deallocate_fn,
+			    void * allocate_data)
+{
+  splay_tree sp = (splay_tree) (*tree_allocate_fn)
+    (sizeof (struct splay_tree_s), allocate_data);
+
   sp->root = 0;
   sp->comp = compare_fn;
   sp->delete_key = delete_key_fn;
   sp->delete_value = delete_value_fn;
-  sp->allocate = allocate_fn;
+  sp->allocate = node_allocate_fn;
   sp->deallocate = deallocate_fn;
   sp->allocate_data = allocate_data;
 
@@ -304,36 +371,36 @@ splay_tree_insert (splay_tree sp, splay_tree_key key, splay_tree_value value)
   if (sp->root && comparison == 0)
     {
       /* If the root of the tree already has the indicated KEY, just
-         replace the value with VALUE.  */
+	 replace the value with VALUE.  */
       if (sp->delete_value)
-        (*sp->delete_value)(sp->root->value);
+	(*sp->delete_value)(sp->root->value);
       sp->root->value = value;
     } 
   else 
     {
       /* Create a new node, and insert it at the root.  */
       splay_tree_node node;
-      
+
       node = ((splay_tree_node)
-              (*sp->allocate) (sizeof (struct splay_tree_node_s),
-                               sp->allocate_data));
+	      (*sp->allocate) (sizeof (struct splay_tree_node_s),
+			       sp->allocate_data));
       node->key = key;
       node->value = value;
       
       if (!sp->root)
-        node->left = node->right = 0;
+	node->left = node->right = 0;
       else if (comparison < 0)
-        {
-          node->left = sp->root;
-          node->right = node->left->right;
-          node->left->right = 0;
-        }
+	{
+	  node->left = sp->root;
+	  node->right = node->left->right;
+	  node->left->right = 0;
+	}
       else
-        {
-          node->right = sp->root;
-          node->left = node->right->left;
-          node->right->left = 0;
-        }
+	{
+	  node->right = sp->root;
+	  node->left = node->right->left;
+	  node->right->left = 0;
+	}
 
       sp->root = node;
     }
@@ -357,26 +424,26 @@ splay_tree_remove (splay_tree sp, splay_tree_key key)
 
       /* Delete the root node itself.  */
       if (sp->delete_value)
-        (*sp->delete_value) (sp->root->value);
+	(*sp->delete_value) (sp->root->value);
       (*sp->deallocate) (sp->root, sp->allocate_data);
 
       /* One of the children is now the root.  Doesn't matter much
-         which, so long as we preserve the properties of the tree.  */
+	 which, so long as we preserve the properties of the tree.  */
       if (left)
-        {
-          sp->root = left;
+	{
+	  sp->root = left;
 
-          /* If there was a right child as well, hang it off the 
-             right-most leaf of the left child.  */
-          if (right)
-            {
-              while (left->right)
-                left = left->right;
-              left->right = right;
-            }
-        }
+	  /* If there was a right child as well, hang it off the 
+	     right-most leaf of the left child.  */
+	  if (right)
+	    {
+	      while (left->right)
+		left = left->right;
+	      left->right = right;
+	    }
+	}
       else
-        sp->root = right;
+	sp->root = right;
     }
 }
 
@@ -496,7 +563,7 @@ splay_tree_successor (splay_tree sp, splay_tree_key key)
 int
 splay_tree_foreach (splay_tree sp, splay_tree_foreach_fn fn, void *data)
 {
-  return splay_tree_foreach_helper (sp, sp->root, fn, data);
+  return splay_tree_foreach_helper (sp->root, fn, data);
 }
 
 /* Splay-tree comparison function, treating the keys as ints.  */

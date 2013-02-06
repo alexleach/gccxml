@@ -1,11 +1,11 @@
 ;; Predicate definitions for Vitesse IQ2000.
-;; Copyright (C) 2005 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2007 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,11 +14,10 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
 
-;; Return 1 if OP can be used as an operand where a register or 16 bit
+;; Return 1 if OP can be used as an operand where a register or 16-bit
 ;; unsigned integer is needed.
 
 (define_predicate "uns_arith_operand"
@@ -30,7 +29,7 @@
   return register_operand (op, mode);
 })
 
-;; Return 1 if OP can be used as an operand where a 16 bit integer is
+;; Return 1 if OP can be used as an operand where a 16-bit integer is
 ;; needed.
 
 (define_predicate "arith_operand"
@@ -42,6 +41,14 @@
   return register_operand (op, mode);
 })
 
+;; Return 1 if OP is a register or a constant.  gen_int_relational
+;; takes care of forcing out-of-range constants into a register.
+
+(define_predicate "reg_or_const_operand"
+  (ior (match_code "const_int")
+       (and (match_code "reg,subreg")
+            (match_operand 0 "register_operand"))))
+
 ;; Return 1 if OP is a integer which fits in 16 bits.
 
 (define_predicate "small_int"
@@ -50,7 +57,7 @@
   return (GET_CODE (op) == CONST_INT && SMALL_INT (op));
 })
 
-;; Return 1 if OP is a 32 bit integer which is too big to be loaded
+;; Return 1 if OP is a 32-bit integer which is too big to be loaded
 ;; with one instruction.
 
 (define_predicate "large_int"
@@ -133,17 +140,17 @@
       plus0 = XEXP (addr, 0);
       plus1 = XEXP (addr, 1);
       if (GET_CODE (plus0) == REG
-          && GET_CODE (plus1) == CONST_INT && SMALL_INT (plus1)
-          && SMALL_INT_UNSIGNED (plus1) /* No negative offsets.  */)
-        return 1;
+	  && GET_CODE (plus1) == CONST_INT && SMALL_INT (plus1)
+	  && SMALL_INT_UNSIGNED (plus1) /* No negative offsets.  */)
+	return 1;
 
       else if (GET_CODE (plus1) == REG
-               && GET_CODE (plus0) == CONST_INT && SMALL_INT (plus0)
-               && SMALL_INT_UNSIGNED (plus1) /* No negative offsets.  */)
-        return 1;
+	       && GET_CODE (plus0) == CONST_INT && SMALL_INT (plus0)
+	       && SMALL_INT_UNSIGNED (plus1) /* No negative offsets.  */)
+	return 1;
 
       else
-        return 0;
+	return 0;
 
     case SYMBOL_REF:
       return 0;
@@ -198,9 +205,9 @@
   (match_code "const_int,const,symbol_ref,reg")
 {
   return (CONSTANT_ADDRESS_P (op)
-          || (GET_CODE (op) == REG && op != arg_pointer_rtx
-              && ! (REGNO (op) >= FIRST_PSEUDO_REGISTER
-                    && REGNO (op) <= LAST_VIRTUAL_REGISTER)));
+	  || (GET_CODE (op) == REG && op != arg_pointer_rtx
+	      && ! (REGNO (op) >= FIRST_PSEUDO_REGISTER
+		    && REGNO (op) <= LAST_VIRTUAL_REGISTER)));
 })
 
 ;; Return nonzero if OP is valid as a source operand for a move
@@ -213,8 +220,8 @@
      avoids losing if reload does an in-place replacement of a register
      with a SYMBOL_REF or CONST.  */
   return (general_operand (op, mode)
-          && (! (iq2000_check_split (op, mode))
-              || reload_in_progress || reload_completed));
+	  && (! (iq2000_check_split (op, mode))
+	      || reload_in_progress || reload_completed));
 })
 
 ;; Return nonzero if OP is a constant power of 2.

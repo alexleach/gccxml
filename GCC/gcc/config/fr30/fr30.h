@@ -1,15 +1,15 @@
 /*{{{  Comment.  */ 
 
 /* Definitions of FR30 target. 
-   Copyright (C) 1998, 1999, 2000, 2001, 2002, 2004
-   Free Software Foundation, Inc.
+   Copyright (C) 1998, 1999, 2000, 2001, 2002, 2004, 2007, 2008, 2009, 2010,
+   2011 Free Software Foundation, Inc.
    Contributed by Cygnus Solutions.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -18,40 +18,26 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
-
-/*}}}*/ 
-/*{{{  Driver configuration.  */ 
-
-/* Defined in svr4.h.  */
-#undef SWITCH_TAKES_ARG
-
-/* Defined in svr4.h.  */
-#undef WORD_SWITCH_TAKES_ARG
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 /*}}}*/ 
 /*{{{  Run-time target specifications.  */ 
 
 #undef  ASM_SPEC
-#define ASM_SPEC "%{v}"
+#define ASM_SPEC ""
 
 /* Define this to be a string constant containing `-D' options to define the
    predefined macros that identify this machine and system.  These macros will
    be predefined unless the `-ansi' option is specified.  */
 
-#define TARGET_CPU_CPP_BUILTINS()                \
-  do                                                \
-    {                                                \
-      builtin_define_std ("fr30");                \
-      builtin_assert ("machine=fr30");                \
-    }                                                \
+#define TARGET_CPU_CPP_BUILTINS()		\
+  do						\
+    {						\
+      builtin_define_std ("fr30");		\
+      builtin_assert ("machine=fr30");		\
+    }						\
    while (0)
-
-#define TARGET_VERSION fprintf (stderr, " (fr30)");
-
-#define CAN_DEBUG_WITHOUT_FP
 
 #undef  STARTFILE_SPEC
 #define STARTFILE_SPEC "crt0.o%s crti.o%s crtbegin.o%s"
@@ -63,6 +49,13 @@ Boston, MA 02110-1301, USA.  */
 #undef  ENDFILE_SPEC
 #define ENDFILE_SPEC  "%{!mno-lsim:-lsim} crtend.o%s crtn.o%s"
 
+#undef  LIB_SPEC
+#define LIB_SPEC "-lc"
+
+#undef  LINK_SPEC
+#define LINK_SPEC "%{h*} %{v:-V} \
+		   %{static:-Bstatic} %{shared:-shared} %{symbolic:-Bsymbolic}"
+
 /*}}}*/ 
 /*{{{  Storage Layout.  */ 
 
@@ -72,15 +65,15 @@ Boston, MA 02110-1301, USA.  */
 
 #define WORDS_BIG_ENDIAN 1
 
-#define UNITS_PER_WORD         4
+#define UNITS_PER_WORD 	4
 
-#define PROMOTE_MODE(MODE,UNSIGNEDP,TYPE)        \
-  do                                                \
-    {                                                \
-      if (GET_MODE_CLASS (MODE) == MODE_INT        \
-          && GET_MODE_SIZE (MODE) < 4)                \
-        (MODE) = SImode;                        \
-    }                                                \
+#define PROMOTE_MODE(MODE,UNSIGNEDP,TYPE)	\
+  do						\
+    {						\
+      if (GET_MODE_CLASS (MODE) == MODE_INT	\
+	  && GET_MODE_SIZE (MODE) < 4)		\
+	(MODE) = SImode;			\
+    }						\
   while (0)
 
 #define PARM_BOUNDARY 32
@@ -91,32 +84,43 @@ Boston, MA 02110-1301, USA.  */
 
 #define BIGGEST_ALIGNMENT 32
 
-#define DATA_ALIGNMENT(TYPE, ALIGN)                \
-  (TREE_CODE (TYPE) == ARRAY_TYPE                \
-   && TYPE_MODE (TREE_TYPE (TYPE)) == QImode        \
+#define DATA_ALIGNMENT(TYPE, ALIGN)		\
+  (TREE_CODE (TYPE) == ARRAY_TYPE		\
+   && TYPE_MODE (TREE_TYPE (TYPE)) == QImode	\
    && (ALIGN) < BITS_PER_WORD ? BITS_PER_WORD : (ALIGN))
 
 #define CONSTANT_ALIGNMENT(EXP, ALIGN)  \
-  (TREE_CODE (EXP) == STRING_CST        \
+  (TREE_CODE (EXP) == STRING_CST	\
    && (ALIGN) < BITS_PER_WORD ? BITS_PER_WORD : (ALIGN))
 
 #define STRICT_ALIGNMENT 1
 
-/* Defined in svr4.h.  */
 #define PCC_BITFIELD_TYPE_MATTERS 1
 
 /*}}}*/ 
 /*{{{  Layout of Source Language Data Types.  */ 
 
-#define SHORT_TYPE_SIZE         16
-#define INT_TYPE_SIZE                 32
-#define LONG_TYPE_SIZE                 32
-#define LONG_LONG_TYPE_SIZE         64
-#define FLOAT_TYPE_SIZE         32
-#define DOUBLE_TYPE_SIZE         64
-#define LONG_DOUBLE_TYPE_SIZE         64
+#define SHORT_TYPE_SIZE 	16
+#define INT_TYPE_SIZE 		32
+#define LONG_TYPE_SIZE 		32
+#define LONG_LONG_TYPE_SIZE 	64
+#define FLOAT_TYPE_SIZE 	32
+#define DOUBLE_TYPE_SIZE 	64
+#define LONG_DOUBLE_TYPE_SIZE 	64
 
 #define DEFAULT_SIGNED_CHAR 1
+
+#undef  SIZE_TYPE
+#define SIZE_TYPE "unsigned int"
+
+#undef  PTRDIFF_TYPE
+#define PTRDIFF_TYPE "int"
+
+#undef  WCHAR_TYPE
+#define WCHAR_TYPE "long int"
+
+#undef  WCHAR_TYPE_SIZE
+#define WCHAR_TYPE_SIZE BITS_PER_WORD
 
 /*}}}*/ 
 /*{{{  REGISTER BASICS.  */ 
@@ -124,7 +128,7 @@ Boston, MA 02110-1301, USA.  */
 /* Number of hardware registers known to the compiler.  They receive numbers 0
    through `FIRST_PSEUDO_REGISTER-1'; thus, the first pseudo register's number
    really is assigned the number `FIRST_PSEUDO_REGISTER'.  */
-#define FIRST_PSEUDO_REGISTER        21
+#define FIRST_PSEUDO_REGISTER	21
 
 /* Fixed register assignments: */
 
@@ -136,13 +140,13 @@ Boston, MA 02110-1301, USA.  */
 #define COMPILER_SCRATCH_REGISTER 0
 
 /* The register that contains the result of a function call.  */
-#define RETURN_VALUE_REGNUM         4
+#define RETURN_VALUE_REGNUM	 4
 
 /* The first register that can contain the arguments to a function.  */
-#define FIRST_ARG_REGNUM         4
+#define FIRST_ARG_REGNUM	 4
 
 /* A call-used register that can be used during the function prologue.  */
-#define PROLOGUE_TMP_REGNUM         COMPILER_SCRATCH_REGISTER
+#define PROLOGUE_TMP_REGNUM	 COMPILER_SCRATCH_REGISTER
      
 /* Register numbers used for passing a function's static chain pointer.  If
    register windows are used, the register number as seen by the called
@@ -154,29 +158,29 @@ Boston, MA 02110-1301, USA.  */
 
    If the static chain is passed in memory, these macros should not be defined;
    instead, the next two macros should be defined.  */
-#define STATIC_CHAIN_REGNUM         12
+#define STATIC_CHAIN_REGNUM 	12
 /* #define STATIC_CHAIN_INCOMING_REGNUM */
 
 /* An FR30 specific hardware register.  */
-#define ACCUMULATOR_REGNUM        13
+#define ACCUMULATOR_REGNUM	13
 
 /* The register number of the frame pointer register, which is used to access
    automatic variables in the stack frame.  On some machines, the hardware
    determines which register this is.  On other machines, you can choose any
    register you wish for this purpose.  */
-#define FRAME_POINTER_REGNUM        14
+#define FRAME_POINTER_REGNUM	14
      
 /* The register number of the stack pointer register, which must also be a
    fixed register according to `FIXED_REGISTERS'.  On most machines, the
    hardware determines which register this is.  */
-#define STACK_POINTER_REGNUM        15
+#define STACK_POINTER_REGNUM	15
 
 /* The following a fake hard registers that describe some of the dedicated
    registers on the FR30.  */
-#define CONDITION_CODE_REGNUM        16
-#define RETURN_POINTER_REGNUM        17
-#define MD_HIGH_REGNUM                18
-#define MD_LOW_REGNUM                19
+#define CONDITION_CODE_REGNUM	16
+#define RETURN_POINTER_REGNUM	17
+#define MD_HIGH_REGNUM		18
+#define MD_LOW_REGNUM		19
 
 /* An initializer that says which registers are used for fixed purposes all
    throughout the compiled code and are therefore not available for general
@@ -192,12 +196,13 @@ Boston, MA 02110-1301, USA.  */
 
    The table initialized from this macro, and the table initialized by the
    following one, may be overridden at run time either automatically, by the
-   actions of the macro `CONDITIONAL_REGISTER_USAGE', or by the user with the
-   command options `-ffixed-REG', `-fcall-used-REG' and `-fcall-saved-REG'.  */
-#define FIXED_REGISTERS                         \
-  { 1, 0, 0, 0, 0, 0, 0, 0,         /*  0 -  7 */         \
-    0, 0, 0, 0, 0, 0, 0, 1,        /*  8 - 15 */         \
-    1, 1, 1, 1, 1 }                /* 16 - 20 */
+   actions of the macro `TARGET_CONDITIONAL_REGISTER_USAGE', or by the user
+   with the command options `-ffixed-REG', `-fcall-used-REG' and
+   `-fcall-saved-REG'.  */
+#define FIXED_REGISTERS 			\
+  { 1, 0, 0, 0, 0, 0, 0, 0, 	/*  0 -  7 */ 	\
+    0, 0, 0, 0, 0, 0, 0, 1,	/*  8 - 15 */ 	\
+    1, 1, 1, 1, 1 }		/* 16 - 20 */
 
 /* XXX - MDL and MDH set as fixed for now - this is until I can get the
    mul patterns working.  */
@@ -210,26 +215,26 @@ Boston, MA 02110-1301, USA.  */
    If a register has 0 in `CALL_USED_REGISTERS', the compiler automatically
    saves it on function entry and restores it on function exit, if the register
    is used within the function.  */
-#define CALL_USED_REGISTERS                         \
-  { 1, 1, 1, 1, 1, 1, 1, 1,        /*  0 -  7 */         \
-    0, 0, 0, 0, 1, 1, 0, 1,        /*  8 - 15 */         \
-    1, 1, 1, 1, 1 }                /* 16 - 20 */
+#define CALL_USED_REGISTERS 			\
+  { 1, 1, 1, 1, 1, 1, 1, 1,	/*  0 -  7 */ 	\
+    0, 0, 0, 0, 1, 1, 0, 1,	/*  8 - 15 */ 	\
+    1, 1, 1, 1, 1 }		/* 16 - 20 */
 
 /* A C initializer containing the assembler's names for the machine registers,
    each one as a C string constant.  This is what translates register numbers
    in the compiler into assembler language.  */
-#define REGISTER_NAMES                                                 \
-{   "r0", "r1", "r2",  "r3",  "r4",  "r5", "r6", "r7",        \
-    "r8", "r9", "r10", "r11", "r12", "ac", "fp", "sp",        \
-    "cc", "rp", "mdh", "mdl", "ap"                        \
+#define REGISTER_NAMES 						\
+{   "r0", "r1", "r2",  "r3",  "r4",  "r5", "r6", "r7",	\
+    "r8", "r9", "r10", "r11", "r12", "ac", "fp", "sp",	\
+    "cc", "rp", "mdh", "mdl", "ap"			\
 }
 
 /* If defined, a C initializer for an array of structures containing a name and
    a register number.  This macro defines additional names for hard registers,
    thus allowing the `asm' option in declarations to refer to registers using
    alternate names.  */
-#define ADDITIONAL_REGISTER_NAMES                                 \
-{                                                                \
+#define ADDITIONAL_REGISTER_NAMES 				\
+{								\
   {"r13", 13}, {"r14", 14}, {"r15", 15}, {"usp", 15}, {"ps", 16}\
 }
 
@@ -239,7 +244,7 @@ Boston, MA 02110-1301, USA.  */
 /* A C expression for the number of consecutive hard registers, starting at
    register number REGNO, required to hold a value of mode MODE.  */
 
-#define HARD_REGNO_NREGS(REGNO, MODE)                         \
+#define HARD_REGNO_NREGS(REGNO, MODE) 			\
   ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
 
 /* A C expression that is nonzero if it is permissible to store a value of mode
@@ -271,29 +276,29 @@ Boston, MA 02110-1301, USA.  */
 enum reg_class
 {
   NO_REGS,
-  MULTIPLY_32_REG,        /* the MDL register as used by the MULH, MULUH insns */
-  MULTIPLY_64_REG,        /* the MDH,MDL register pair as used by MUL and MULU */
-  LOW_REGS,                /* registers 0 through 7 */
-  HIGH_REGS,                /* registers 8 through 15 */
-  REAL_REGS,                /* i.e. all the general hardware registers on the FR30 */
+  MULTIPLY_32_REG,	/* the MDL register as used by the MULH, MULUH insns */
+  MULTIPLY_64_REG,	/* the MDH,MDL register pair as used by MUL and MULU */
+  LOW_REGS,		/* registers 0 through 7 */
+  HIGH_REGS,		/* registers 8 through 15 */
+  REAL_REGS,		/* i.e. all the general hardware registers on the FR30 */
   ALL_REGS,
   LIM_REG_CLASSES
 };
 
-#define GENERAL_REGS         REAL_REGS
-#define N_REG_CLASSES         ((int) LIM_REG_CLASSES)
+#define GENERAL_REGS 	REAL_REGS
+#define N_REG_CLASSES 	((int) LIM_REG_CLASSES)
 
 /* An initializer containing the names of the register classes as C string
    constants.  These names are used in writing some of the debugging dumps.  */
 #define REG_CLASS_NAMES \
-{                        \
-  "NO_REGS",                \
-  "MULTIPLY_32_REG",        \
-  "MULTIPLY_64_REG",        \
-  "LOW_REGS",                 \
-  "HIGH_REGS",                 \
-  "REAL_REGS",                \
-  "ALL_REGS"                \
+{			\
+  "NO_REGS",		\
+  "MULTIPLY_32_REG",	\
+  "MULTIPLY_64_REG",	\
+  "LOW_REGS", 		\
+  "HIGH_REGS", 		\
+  "REAL_REGS",		\
+  "ALL_REGS"		\
  }
 
 /* An initializer containing the contents of the register classes, as integers
@@ -306,61 +311,37 @@ enum reg_class
    containing several integers.  Each sub-initializer must be suitable as an
    initializer for the type `HARD_REG_SET' which is defined in
    `hard-reg-set.h'.  */
-#define REG_CLASS_CONTENTS                                 \
-{                                                         \
-  { 0 },                                                \
-  { 1 << MD_LOW_REGNUM },                                \
-  { (1 << MD_LOW_REGNUM) | (1 << MD_HIGH_REGNUM) },        \
-  { (1 << 8) - 1 },                                        \
-  { ((1 << 8) - 1) << 8 },                                \
-  { (1 << CONDITION_CODE_REGNUM) - 1 },                        \
-  { (1 << FIRST_PSEUDO_REGISTER) - 1 }                        \
+#define REG_CLASS_CONTENTS 				\
+{ 							\
+  { 0 },						\
+  { 1 << MD_LOW_REGNUM },				\
+  { (1 << MD_LOW_REGNUM) | (1 << MD_HIGH_REGNUM) },	\
+  { (1 << 8) - 1 },					\
+  { ((1 << 8) - 1) << 8 },				\
+  { (1 << CONDITION_CODE_REGNUM) - 1 },			\
+  { (1 << FIRST_PSEUDO_REGISTER) - 1 }			\
 }
 
 /* A C expression whose value is a register class containing hard register
    REGNO.  In general there is more than one such class; choose a class which
    is "minimal", meaning that no smaller class also contains the register.  */
-#define REGNO_REG_CLASS(REGNO)                         \
-  ( (REGNO) < 8 ? LOW_REGS                        \
-  : (REGNO) < CONDITION_CODE_REGNUM ? HIGH_REGS        \
-  : (REGNO) == MD_LOW_REGNUM ? MULTIPLY_32_REG        \
-  : (REGNO) == MD_HIGH_REGNUM ? MULTIPLY_64_REG        \
+#define REGNO_REG_CLASS(REGNO) 			\
+  ( (REGNO) < 8 ? LOW_REGS			\
+  : (REGNO) < CONDITION_CODE_REGNUM ? HIGH_REGS	\
+  : (REGNO) == MD_LOW_REGNUM ? MULTIPLY_32_REG	\
+  : (REGNO) == MD_HIGH_REGNUM ? MULTIPLY_64_REG	\
   : ALL_REGS)
 
 /* A macro whose definition is the name of the class to which a valid base
    register must belong.  A base register is one used in an address which is
    the register value plus a displacement.  */
-#define BASE_REG_CLASS         REAL_REGS
+#define BASE_REG_CLASS 	REAL_REGS
 
 /* A macro whose definition is the name of the class to which a valid index
    register must belong.  An index register is one used in an address where its
    value is either multiplied by a scale factor or added to another register
    (as well as added to a displacement).  */
 #define INDEX_REG_CLASS REAL_REGS
-
-/* A C expression which defines the machine-dependent operand constraint
-   letters for register classes.  If CHAR is such a letter, the value should be
-   the register class corresponding to it.  Otherwise, the value should be
-   `NO_REGS'.  The register letter `r', corresponding to class `GENERAL_REGS',
-   will not be passed to this macro; you do not need to handle it.
-
-   The following letters are unavailable, due to being used as
-   constraints:
-        '0'..'9'
-        '<', '>'
-        'E', 'F', 'G', 'H'
-        'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'
-        'Q', 'R', 'S', 'T', 'U'
-        'V', 'X'
-        'g', 'i', 'm', 'n', 'o', 'p', 'r', 's' */
-
-#define REG_CLASS_FROM_LETTER(CHAR)         \
-     (  (CHAR) == 'd' ? MULTIPLY_64_REG        \
-      : (CHAR) == 'e' ? MULTIPLY_32_REG        \
-      : (CHAR) == 'h' ? HIGH_REGS        \
-      : (CHAR) == 'l' ? LOW_REGS        \
-      : (CHAR) == 'a' ? ALL_REGS        \
-      : NO_REGS)
 
 /* A C expression which is nonzero if register number NUM is suitable for use
    as a base register in operand addresses.  It may be either a suitable hard
@@ -380,24 +361,6 @@ enum reg_class
    will reload one or both registers only if neither labeling works.  */
 #define REGNO_OK_FOR_INDEX_P(NUM) 1
 
-/* A C expression that places additional restrictions on the register class to
-   use when it is necessary to copy value X into a register in class CLASS.
-   The value is a register class; perhaps CLASS, or perhaps another, smaller
-   class.  On many machines, the following definition is safe:
-
-        #define PREFERRED_RELOAD_CLASS(X,CLASS) CLASS
-
-   Sometimes returning a more restrictive class makes better code.  For
-   example, on the 68000, when X is an integer constant that is in range for a
-   `moveq' instruction, the value of this macro is always `DATA_REGS' as long
-   as CLASS includes the data registers.  Requiring a data register guarantees
-   that a `moveq' will be used.
-
-   If X is a `const_double', by returning `NO_REGS' you can force X into a
-   memory constant.  This is useful on certain machines where immediate
-   floating values cannot be loaded into certain kinds of registers.  */
-#define PREFERRED_RELOAD_CLASS(X, CLASS) CLASS
-
 /* A C expression for the maximum number of consecutive registers of
    class CLASS needed to hold a value of mode MODE.
 
@@ -408,53 +371,6 @@ enum reg_class
    This macro helps control the handling of multiple-word values in
    the reload pass.  */
 #define CLASS_MAX_NREGS(CLASS, MODE) HARD_REGNO_NREGS (0, MODE)
-
-/*}}}*/ 
-/*{{{  CONSTANTS.  */ 
-
-/* A C expression that defines the machine-dependent operand constraint letters
-   (`I', `J', `K', .. 'P') that specify particular ranges of integer values.
-   If C is one of those letters, the expression should check that VALUE, an
-   integer, is in the appropriate range and return 1 if so, 0 otherwise.  If C
-   is not one of those letters, the value should be 0 regardless of VALUE.  */
-#define CONST_OK_FOR_LETTER_P(VALUE, C)                         \
- (  (C) == 'I' ? IN_RANGE (VALUE,    0,       15)                \
-  : (C) == 'J' ? IN_RANGE (VALUE,  -16,       -1)                \
-  : (C) == 'K' ? IN_RANGE (VALUE,   16,       31)                \
-  : (C) == 'L' ? IN_RANGE (VALUE,    0,       (1 <<  8) - 1)        \
-  : (C) == 'M' ? IN_RANGE (VALUE,    0,       (1 << 20) - 1)        \
-  : (C) == 'P' ? IN_RANGE (VALUE,  -(1 << 8), (1 <<  8) - 1)        \
-  : 0)
-     
-/* A C expression that defines the machine-dependent operand constraint letters
-   (`G', `H') that specify particular ranges of `const_double' values.
-
-   If C is one of those letters, the expression should check that VALUE, an RTX
-   of code `const_double', is in the appropriate range and return 1 if so, 0
-   otherwise.  If C is not one of those letters, the value should be 0
-   regardless of VALUE.
-
-   `const_double' is used for all floating-point constants and for `DImode'
-   fixed-point constants.  A given letter can accept either or both kinds of
-   values.  It can use `GET_MODE' to distinguish between these kinds.  */
-#define CONST_DOUBLE_OK_FOR_LETTER_P(VALUE, C) 0
-
-/* A C expression that defines the optional machine-dependent constraint
-   letters (`Q', `R', `S', `T', `U') that can be used to segregate specific
-   types of operands, usually memory references, for the target machine.
-   Normally this macro will not be defined.  If it is required for a particular
-   target machine, it should return 1 if VALUE corresponds to the operand type
-   represented by the constraint letter C.  If C is not defined as an extra
-   constraint, the value returned should be 0 regardless of VALUE.
-
-   For example, on the ROMP, load instructions cannot have their output in r0
-   if the memory reference contains a symbolic address.  Constraint letter `Q'
-   is defined as representing a memory address that does *not* contain a
-   symbolic address.  An alternative is specified with a `Q' constraint on the
-   input and `r' on the output.  The next alternative specifies `m' on the
-   input and a register class that does not include r0 on the output.  */
-#define EXTRA_CONSTRAINT(VALUE, C) \
-   ((C) == 'Q' ? (GET_CODE (VALUE) == MEM && GET_CODE (XEXP (VALUE, 0)) == SYMBOL_REF) : 0)
 
 /*}}}*/ 
 /*{{{  Basic Stack Layout.  */ 
@@ -515,28 +431,6 @@ enum reg_class
 /*}}}*/ 
 /*{{{  Eliminating the Frame Pointer and the Arg Pointer.  */ 
 
-/* A C expression which is nonzero if a function must have and use a frame
-   pointer.  This expression is evaluated in the reload pass.  If its value is
-   nonzero the function will have a frame pointer.
-
-   The expression can in principle examine the current function and decide
-   according to the facts, but on most machines the constant 0 or the constant
-   1 suffices.  Use 0 when the machine allows code to be generated with no
-   frame pointer, and doing so saves some time or space.  Use 1 when there is
-   no possible advantage to avoiding a frame pointer.
-
-   In certain cases, the compiler does not know how to produce valid code
-   without a frame pointer.  The compiler recognizes those cases and
-   automatically gives the function a frame pointer regardless of what
-   `FRAME_POINTER_REQUIRED' says.  You don't need to worry about them.
-
-   In a function that does not require a frame pointer, the frame pointer
-   register can be allocated for ordinary usage, unless you mark it as a fixed
-   register.  See `FIXED_REGISTERS' for more information.  */
-/* #define FRAME_POINTER_REQUIRED 0 */
-#define FRAME_POINTER_REQUIRED \
-     (flag_omit_frame_pointer == 0 || current_function_pretend_args_size > 0)
-
 /* If defined, this macro specifies a table of register pairs used to eliminate
    unneeded registers that point into the stack frame.  If it is not defined,
    the only elimination attempted by the compiler is to replace references to
@@ -560,26 +454,17 @@ enum reg_class
    Note that the elimination of the argument pointer with the stack pointer is
    specified first since that is the preferred elimination.  */
 
-#define ELIMINABLE_REGS                                \
-{                                                \
-  {ARG_POINTER_REGNUM,         STACK_POINTER_REGNUM},        \
-  {ARG_POINTER_REGNUM,         FRAME_POINTER_REGNUM},        \
-  {FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}        \
+#define ELIMINABLE_REGS				\
+{						\
+  {ARG_POINTER_REGNUM,	 STACK_POINTER_REGNUM},	\
+  {ARG_POINTER_REGNUM,	 FRAME_POINTER_REGNUM},	\
+  {FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}	\
 }
-
-/* A C expression that returns nonzero if the compiler is allowed to try to
-   replace register number FROM with register number TO.  This macro
-   need only be defined if `ELIMINABLE_REGS' is defined, and will usually be
-   the constant 1, since most of the cases preventing register elimination are
-   things that the compiler already knows about.  */
-
-#define CAN_ELIMINATE(FROM, TO)                                                \
- ((TO) == FRAME_POINTER_REGNUM || ! frame_pointer_needed)
 
 /* This macro is similar to `INITIAL_FRAME_POINTER_OFFSET'.  It specifies the
    initial difference between the specified pair of registers.  This macro must
    be defined if `ELIMINABLE_REGS' is defined.  */
-#define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)                        \
+#define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)			\
      (OFFSET) = fr30_compute_frame_size (FROM, TO)
 
 /*}}}*/ 
@@ -587,7 +472,7 @@ enum reg_class
 
 /* If defined, the maximum amount of space required for outgoing arguments will
    be computed and placed into the variable
-   `current_function_outgoing_args_size'.  No space will be pushed onto the
+   `crtl->outgoing_args_size'.  No space will be pushed onto the
    stack for each call; instead, the function prologue should increase the
    stack frame size by this amount.
 
@@ -595,53 +480,12 @@ enum reg_class
    proper.  */
 #define ACCUMULATE_OUTGOING_ARGS 1
 
-/* A C expression that should indicate the number of bytes of its own arguments
-   that a function pops on returning, or 0 if the function pops no arguments
-   and the caller must therefore pop them all after the function returns.
-
-   FUNDECL is a C variable whose value is a tree node that describes the
-   function in question.  Normally it is a node of type `FUNCTION_DECL' that
-   describes the declaration of the function.  From this it is possible to
-   obtain the DECL_ATTRIBUTES of the function.
-
-   FUNTYPE is a C variable whose value is a tree node that describes the
-   function in question.  Normally it is a node of type `FUNCTION_TYPE' that
-   describes the data type of the function.  From this it is possible to obtain
-   the data types of the value and arguments (if known).
-
-   When a call to a library function is being considered, FUNTYPE will contain
-   an identifier node for the library function.  Thus, if you need to
-   distinguish among various library functions, you can do so by their names.
-   Note that "library function" in this context means a function used to
-   perform arithmetic, whose name is known specially in the compiler and was
-   not mentioned in the C code being compiled.
-
-   STACK-SIZE is the number of bytes of arguments passed on the stack.  If a
-   variable number of bytes is passed, it is zero, and argument popping will
-   always be the responsibility of the calling function.
-
-   On the VAX, all functions always pop their arguments, so the definition of
-   this macro is STACK-SIZE.  On the 68000, using the standard calling
-   convention, no functions pop their arguments, so the value of the macro is
-   always 0 in this case.  But an alternative calling convention is available
-   in which functions that take a fixed number of arguments pop them but other
-   functions (such as `printf') pop nothing (the caller pops all).  When this
-   convention is in use, FUNTYPE is examined to determine whether a function
-   takes a fixed number of arguments.  */
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACK_SIZE) 0
-
 /*}}}*/ 
 /*{{{  Function Arguments in Registers.  */ 
 
 /* The number of register assigned to holding function arguments.  */
      
-#define FR30_NUM_ARG_REGS         4
-
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED)                        \
-  (  (NAMED) == 0                    ? NULL_RTX                        \
-   : targetm.calls.must_pass_in_stack (MODE, TYPE) ? NULL_RTX        \
-   : (CUM) >= FR30_NUM_ARG_REGS      ? NULL_RTX                        \
-   : gen_rtx_REG (MODE, CUM + FIRST_ARG_REGNUM))
+#define FR30_NUM_ARG_REGS	 4
 
 /* A C type for declaring a variable that is used as the first argument of
    `FUNCTION_ARG' and other related values.  For some target machines, the type
@@ -676,17 +520,6 @@ enum reg_class
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
   (CUM) = 0
 
-/* A C statement (sans semicolon) to update the summarizer variable CUM to
-   advance past an argument in the argument list.  The values MODE, TYPE and
-   NAMED describe that argument.  Once this is done, the variable CUM is
-   suitable for analyzing the *following* argument with `FUNCTION_ARG', etc.
-
-   This macro need not do anything if the argument in question was passed on
-   the stack.  The compiler knows how to track the amount of stack space used
-   for arguments without any special help.  */
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)                        \
-  (CUM) += (NAMED) * fr30_num_arg_regs (MODE, TYPE)
-
 /* A C expression that is nonzero if REGNO is the number of a hard register in
    which function arguments are sometimes passed.  This does *not* include
    implicit arguments such as the static chain and the structure-value address.
@@ -696,38 +529,13 @@ enum reg_class
   ((REGNO) >= FIRST_ARG_REGNUM && ((REGNO) < FIRST_ARG_REGNUM + FR30_NUM_ARG_REGS))
 
 /*}}}*/ 
-/*{{{  How Scalar Function Values are Returned.  */ 
-
-#define FUNCTION_VALUE(VALTYPE, FUNC) \
-     gen_rtx_REG (TYPE_MODE (VALTYPE), RETURN_VALUE_REGNUM)
-
-/* A C expression to create an RTX representing the place where a library
-   function returns a value of mode MODE.  If the precise function being called
-   is known, FUNC is a tree node (`FUNCTION_DECL') for it; otherwise, FUNC is a
-   null pointer.  This makes it possible to use a different value-returning
-   convention for specific functions when all their calls are known.
-
-   Note that "library function" in this context means a compiler support
-   routine, used to perform arithmetic, whose name is known specially by the
-   compiler and was not mentioned in the C code being compiled.
-
-   The definition of `LIBRARY_VALUE' need not be concerned aggregate data
-   types, because none of the library functions returns such types.  */
-#define LIBCALL_VALUE(MODE) gen_rtx_REG (MODE, RETURN_VALUE_REGNUM)
-
-/* A C expression that is nonzero if REGNO is the number of a hard register in
-   which the values of called function may come back.  */
-
-#define FUNCTION_VALUE_REGNO_P(REGNO) ((REGNO) == RETURN_VALUE_REGNUM)
-
-/*}}}*/ 
 /*{{{  How Large Values are Returned.  */ 
 
 /* Define this macro to be 1 if all structure and union return values must be
    in memory.  Since this results in slower code, this should be defined only
    if needed for compatibility with other compilers or with an ABI.  If you
    define this macro to be 0, then the conventions used for structure and union
-   return values are decided by the `RETURN_IN_MEMORY' macro.
+   return values are decided by the `TARGET_RETURN_IN_MEMORY' macro.
 
    If not defined, this defaults to the value 1.  */
 #define DEFAULT_PCC_STRUCT_RETURN 1
@@ -746,41 +554,16 @@ enum reg_class
    by your operating system environment, not by GCC.  To figure them out,
    compile a small program for profiling using the system's installed C
    compiler and look at the assembler code that results.  */
-#define FUNCTION_PROFILER(FILE, LABELNO)        \
-{                                                \
-  fprintf (FILE, "\t mov rp, r1\n" );                \
-  fprintf (FILE, "\t ldi:32 mcount, r0\n" );        \
-  fprintf (FILE, "\t call @r0\n" );                \
-  fprintf (FILE, ".word\tLP%d\n", LABELNO);        \
+#define FUNCTION_PROFILER(FILE, LABELNO)	\
+{						\
+  fprintf (FILE, "\t mov rp, r1\n" );		\
+  fprintf (FILE, "\t ldi:32 mcount, r0\n" );	\
+  fprintf (FILE, "\t call @r0\n" );		\
+  fprintf (FILE, ".word\tLP%d\n", LABELNO);	\
 }
 
 /*}}}*/ 
 /*{{{  Trampolines for Nested Functions.  */ 
-
-/* On the FR30, the trampoline is:
-
-   nop
-   ldi:32 STATIC, r12
-   nop
-   ldi:32 FUNCTION, r0
-   jmp    @r0
-
-   The no-ops are to guarantee that the static chain and final
-   target are 32 bit aligned within the trampoline.  That allows us to
-   initialize those locations with simple SImode stores.   The alternative
-   would be to use HImode stores.  */
-   
-/* A C statement to output, on the stream FILE, assembler code for a block of
-   data that contains the constant parts of a trampoline.  This code should not
-   include a label--the label is taken care of automatically.  */
-#define TRAMPOLINE_TEMPLATE(FILE)                                                \
-{                                                                                \
-  fprintf (FILE, "\tnop\n");                                                        \
-  fprintf (FILE, "\tldi:32\t#0, %s\n", reg_names [STATIC_CHAIN_REGNUM]);        \
-  fprintf (FILE, "\tnop\n");                                                        \
-  fprintf (FILE, "\tldi:32\t#0, %s\n", reg_names [COMPILER_SCRATCH_REGISTER]);        \
-  fprintf (FILE, "\tjmp\t@%s\n", reg_names [COMPILER_SCRATCH_REGISTER]);        \
-}
 
 /* A C expression for the size in bytes of the trampoline, as an integer.  */
 #define TRAMPOLINE_SIZE 18
@@ -790,29 +573,8 @@ enum reg_class
    the trampoline is also aligned on a 32bit boundary.  */
 #define TRAMPOLINE_ALIGNMENT 32
 
-/* A C statement to initialize the variable parts of a trampoline.  ADDR is an
-   RTX for the address of the trampoline; FNADDR is an RTX for the address of
-   the nested function; STATIC_CHAIN is an RTX for the static chain value that
-   should be passed to the function when it is called.  */
-#define INITIALIZE_TRAMPOLINE(ADDR, FNADDR, STATIC_CHAIN)                        \
-do                                                                                \
-{                                                                                \
-  emit_move_insn (gen_rtx_MEM (SImode, plus_constant (ADDR, 4)), STATIC_CHAIN);\
-  emit_move_insn (gen_rtx_MEM (SImode, plus_constant (ADDR, 12)), FNADDR);        \
-} while (0);
-
 /*}}}*/ 
 /*{{{  Addressing Modes.  */ 
-
-/* A C expression that is 1 if the RTX X is a constant which is a valid
-   address.  On most machines, this can be defined as `CONSTANT_P (X)', but a
-   few machines are more restrictive in which constant addresses are supported.
-
-   `CONSTANT_P' accepts integer-values expressions whose values are not
-   explicitly known, such as `symbol_ref', `label_ref', and `high' expressions
-   and `const' arithmetic expressions, in addition to `const_int' and
-   `const_double' expressions.  */
-#define CONSTANT_ADDRESS_P(X) CONSTANT_P (X)
 
 /* A number, the maximum number of registers that can appear in a valid memory
    address.  Note that it is up to you to specify a value equal to the maximum
@@ -835,49 +597,49 @@ do                                                                              
    At the moment we only support the first two of these special cases.  */
    
 #ifdef REG_OK_STRICT
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)                        \
-  do                                                                        \
-    {                                                                        \
-      if (GET_CODE (X) == REG && REG_OK_FOR_BASE_P (X))                        \
-        goto LABEL;                                                        \
-      if (GET_CODE (X) == PLUS                                                \
-          && ((MODE) == SImode || (MODE) == SFmode)                        \
-          && GET_CODE (XEXP (X, 0)) == REG                                \
-          && REGNO (XEXP (X, 0)) == STACK_POINTER_REGNUM                \
-          && GET_CODE (XEXP (X, 1)) == CONST_INT                        \
-          && IN_RANGE (INTVAL (XEXP (X, 1)), 0, (1 <<  6) - 4))                \
-        goto LABEL;                                                        \
-      if (GET_CODE (X) == PLUS                                                \
-          && ((MODE) == SImode || (MODE) == SFmode)                        \
-          && GET_CODE (XEXP (X, 0)) == REG                                \
-          && REGNO (XEXP (X, 0)) == FRAME_POINTER_REGNUM                \
-          && GET_CODE (XEXP (X, 1)) == CONST_INT                        \
-          && IN_RANGE (INTVAL (XEXP (X, 1)), -(1 << 9), (1 <<  9) - 4))        \
-        goto LABEL;                                                        \
-    }                                                                        \
+#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)			\
+  do									\
+    {									\
+      if (GET_CODE (X) == REG && REG_OK_FOR_BASE_P (X))			\
+        goto LABEL;							\
+      if (GET_CODE (X) == PLUS						\
+	  && ((MODE) == SImode || (MODE) == SFmode)			\
+	  && GET_CODE (XEXP (X, 0)) == REG				\
+          && REGNO (XEXP (X, 0)) == STACK_POINTER_REGNUM		\
+	  && GET_CODE (XEXP (X, 1)) == CONST_INT			\
+	  && IN_RANGE (INTVAL (XEXP (X, 1)), 0, (1 <<  6) - 4))		\
+	goto LABEL;							\
+      if (GET_CODE (X) == PLUS						\
+	  && ((MODE) == SImode || (MODE) == SFmode)			\
+	  && GET_CODE (XEXP (X, 0)) == REG				\
+          && REGNO (XEXP (X, 0)) == FRAME_POINTER_REGNUM		\
+	  && GET_CODE (XEXP (X, 1)) == CONST_INT			\
+	  && IN_RANGE (INTVAL (XEXP (X, 1)), -(1 << 9), (1 <<  9) - 4))	\
+        goto LABEL;							\
+    }									\
   while (0)
 #else
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)                        \
-  do                                                                        \
-    {                                                                        \
-      if (GET_CODE (X) == REG && REG_OK_FOR_BASE_P (X))                        \
-        goto LABEL;                                                        \
-      if (GET_CODE (X) == PLUS                                                \
-          && ((MODE) == SImode || (MODE) == SFmode)                        \
-          && GET_CODE (XEXP (X, 0)) == REG                                \
-          && REGNO (XEXP (X, 0)) == STACK_POINTER_REGNUM                \
-          && GET_CODE (XEXP (X, 1)) == CONST_INT                        \
-          && IN_RANGE (INTVAL (XEXP (X, 1)), 0, (1 <<  6) - 4))                \
-        goto LABEL;                                                        \
-      if (GET_CODE (X) == PLUS                                                \
-          && ((MODE) == SImode || (MODE) == SFmode)                        \
-          && GET_CODE (XEXP (X, 0)) == REG                                \
-          && (REGNO (XEXP (X, 0)) == FRAME_POINTER_REGNUM                \
-              || REGNO (XEXP (X, 0)) == ARG_POINTER_REGNUM)                \
-          && GET_CODE (XEXP (X, 1)) == CONST_INT                        \
-          && IN_RANGE (INTVAL (XEXP (X, 1)), -(1 << 9), (1 <<  9) - 4))        \
-        goto LABEL;                                                        \
-    }                                                                        \
+#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)			\
+  do									\
+    {									\
+      if (GET_CODE (X) == REG && REG_OK_FOR_BASE_P (X))			\
+        goto LABEL;							\
+      if (GET_CODE (X) == PLUS						\
+	  && ((MODE) == SImode || (MODE) == SFmode)			\
+	  && GET_CODE (XEXP (X, 0)) == REG				\
+          && REGNO (XEXP (X, 0)) == STACK_POINTER_REGNUM		\
+	  && GET_CODE (XEXP (X, 1)) == CONST_INT			\
+	  && IN_RANGE (INTVAL (XEXP (X, 1)), 0, (1 <<  6) - 4))		\
+	goto LABEL;							\
+      if (GET_CODE (X) == PLUS						\
+	  && ((MODE) == SImode || (MODE) == SFmode)			\
+	  && GET_CODE (XEXP (X, 0)) == REG				\
+          && (REGNO (XEXP (X, 0)) == FRAME_POINTER_REGNUM		\
+	      || REGNO (XEXP (X, 0)) == ARG_POINTER_REGNUM)		\
+	  && GET_CODE (XEXP (X, 1)) == CONST_INT			\
+	  && IN_RANGE (INTVAL (XEXP (X, 1)), -(1 << 9), (1 <<  9) - 4))	\
+        goto LABEL;							\
+    }									\
   while (0)
 #endif
 
@@ -904,25 +666,6 @@ do                                                                              
    The compiler will try both labelings, looking for one that is valid, and
    will reload one or both registers only if neither labeling works.  */
 #define REG_OK_FOR_INDEX_P(X) REG_OK_FOR_BASE_P (X)
-
-/* A C statement or compound statement with a conditional `goto LABEL;'
-   executed if memory address X (an RTX) can have different meanings depending
-   on the machine mode of the memory reference it is used for or if the address
-   is valid for some modes but not others.
-
-   Autoincrement and autodecrement addresses typically have mode-dependent
-   effects because the amount of the increment or decrement is the size of the
-   operand being addressed.  Some machines have other mode-dependent addresses.
-   Many RISC machines have no mode-dependent addresses.
-
-   You may assume that ADDR is a valid address for the machine.  */
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)
-
-/* A C expression that is nonzero if X is a legitimate constant for an
-   immediate operand on the target machine.  You can assume that X satisfies
-   `CONSTANT_P', so you need not check this.  In fact, `1' is a suitable
-   definition for this macro on machines where anything `CONSTANT_P' is valid.  */
-#define LEGITIMATE_CONSTANT_P(X) 1
 
 /*}}}*/ 
 /*{{{  Describing Relative Costs of Operations */ 
@@ -953,13 +696,6 @@ do                                                                              
    `".data"' is right.  */
 #define DATA_SECTION_ASM_OP "\t.data"
 
-/* If defined, a C expression whose value is a string containing the
-   assembler operation to identify the following data as
-   uninitialized global data.  If not defined, and neither
-   `ASM_OUTPUT_BSS' nor `ASM_OUTPUT_ALIGNED_BSS' are defined,
-   uninitialized global data will be output in the data section if
-   `-fno-common' is passed, otherwise `ASM_OUTPUT_COMMON' will be
-   used.  */
 #define BSS_SECTION_ASM_OP "\t.section .bss"
 
 /*}}}*/ 
@@ -1008,7 +744,7 @@ do                                                                              
    When the machine description has a specification `%PUNCT' (a `%' followed by
    a punctuation character), this macro is called with a null pointer for X and
    the punctuation character for CODE.  */
-#define PRINT_OPERAND(STREAM, X, CODE)        fr30_print_operand (STREAM, X, CODE)
+#define PRINT_OPERAND(STREAM, X, CODE)	fr30_print_operand (STREAM, X, CODE)
 
 /* A C expression which evaluates to true if CODE is a valid punctuation
    character for use in the `PRINT_OPERAND' macro.  If
@@ -1022,12 +758,6 @@ do                                                                              
 
 #define PRINT_OPERAND_ADDRESS(STREAM, X) fr30_print_operand_address (STREAM, X)
 
-/* If defined, C string expressions to be used for the `%R', `%L', `%U', and
-   `%I' options of `asm_fprintf' (see `final.c').  These are useful when a
-   single `md' file must support multiple assembler formats.  In that case, the
-   various `tm.h' files can define these macros differently.
-
-   USER_LABEL_PREFIX is defined in svr4.h.  */
 #define REGISTER_PREFIX "%"
 #define LOCAL_LABEL_PREFIX "."
 #define USER_LABEL_PREFIX ""
@@ -1109,23 +839,8 @@ fprintf (STREAM, "\t.word .L%d\n", VALUE)
    `QImode'.  */
 #define FUNCTION_MODE QImode
 
-/* If cross-compiling, don't require stdio.h etc to build libgcc.a.  */
-#if defined CROSS_COMPILE && ! defined inhibit_libc
-#define inhibit_libc
-#endif
-
-/*}}}*/ 
-/*{{{  Exported variables */ 
-
-/* Define the information needed to generate branch and scc insns.  This is
-   stored from the compare operation.  Note that we can't use "rtx" here
-   since it hasn't been defined!  */
-
-extern struct rtx_def * fr30_compare_op0;
-extern struct rtx_def * fr30_compare_op1;
-
 /*}}}*/ 
 
 /* Local Variables: */
 /* folded-file: t   */
-/* End:                    */
+/* End:		    */

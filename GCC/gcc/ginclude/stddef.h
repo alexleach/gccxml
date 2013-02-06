@@ -1,11 +1,11 @@
-/* Copyright (C) 1989, 1997, 1998, 1999, 2000, 2002, 2004
+/* Copyright (C) 1989, 1997, 1998, 1999, 2000, 2002, 2004, 2009, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -13,17 +13,14 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you include this header file into source
-   files compiled by GCC, this header file does not by itself cause
-   the resulting executable to be covered by the GNU General Public
-   License.  This exception does not however invalidate any other
-   reasons why the executable file might be covered by the GNU General
-   Public License.  */
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 /*
  * ISO C Standard:  7.17  Common definitions  <stddef.h>
@@ -37,8 +34,8 @@ Boston, MA 02110-1301, USA.  */
 /* Any one of these symbols __need_* means that GNU libc
    wants us just to define one data type.  So don't define
    the symbols that indicate this file's entire job has been done.  */
-#if (!defined(__need_wchar_t) && !defined(__need_size_t)        \
-     && !defined(__need_ptrdiff_t) && !defined(__need_NULL)        \
+#if (!defined(__need_wchar_t) && !defined(__need_size_t)	\
+     && !defined(__need_ptrdiff_t) && !defined(__need_NULL)	\
      && !defined(__need_wint_t))
 #define _STDDEF_H
 #define _STDDEF_H_
@@ -64,8 +61,9 @@ Boston, MA 02110-1301, USA.  */
 
 /* In 4.3bsd-net2, machine/ansi.h defines these symbols, which are
    defined if the corresponding type is *not* defined.
-   FreeBSD-2.1 defines _MACHINE_ANSI_H_ instead of _ANSI_H_ */
-#if defined(_ANSI_H_) || defined(_MACHINE_ANSI_H_)
+   FreeBSD-2.1 defines _MACHINE_ANSI_H_ instead of _ANSI_H_.
+   NetBSD defines _I386_ANSI_H_ and _X86_64_ANSI_H_ instead of _ANSI_H_ */
+#if defined(_ANSI_H_) || defined(_MACHINE_ANSI_H_) || defined(_X86_64_ANSI_H_)  || defined(_I386_ANSI_H_)
 #if !defined(_SIZE_T_) && !defined(_BSD_SIZE_T_)
 #define _SIZE_T
 #endif
@@ -92,7 +90,7 @@ Boston, MA 02110-1301, USA.  */
 #undef _WCHAR_T_
 #undef _BSD_WCHAR_T_
 #endif
-#endif /* defined(_ANSI_H_) || defined(_MACHINE_ANSI_H_) */
+#endif /* defined(_ANSI_H_) || defined(_MACHINE_ANSI_H_) || defined(_X86_64_ANSI_H_) || defined(_I386_ANSI_H_) */
 
 /* Sequent's header files use _PTRDIFF_T_ in some conflicting way.
    Just ignore it.  */
@@ -130,7 +128,7 @@ _TYPE_wchar_t;
 /* Define this type if we are doing the whole job,
    or if we want this type in particular.  */
 #if defined (_STDDEF_H) || defined (__need_ptrdiff_t)
-#ifndef _PTRDIFF_T        /* in case <sys/types.h> has defined it. */
+#ifndef _PTRDIFF_T	/* in case <sys/types.h> has defined it. */
 #ifndef _T_PTRDIFF_
 #ifndef _T_PTRDIFF
 #ifndef __PTRDIFF_T
@@ -160,7 +158,7 @@ typedef __PTRDIFF_TYPE__ ptrdiff_t;
 #endif /* _PTRDIFF_T */
 
 /* If this symbol has done its job, get rid of it.  */
-#undef        __need_ptrdiff_t
+#undef	__need_ptrdiff_t
 
 #endif /* _STDDEF_H or __need_ptrdiff_t.  */
 
@@ -169,9 +167,9 @@ typedef __PTRDIFF_TYPE__ ptrdiff_t;
 /* Define this type if we are doing the whole job,
    or if we want this type in particular.  */
 #if defined (_STDDEF_H) || defined (__need_size_t)
-#ifndef __size_t__        /* BeOS */
-#ifndef __SIZE_T__        /* Cray Unicos/Mk */
-#ifndef _SIZE_T        /* in case <sys/types.h> has defined it. */
+#ifndef __size_t__	/* BeOS */
+#ifndef __SIZE_T__	/* Cray Unicos/Mk */
+#ifndef _SIZE_T	/* in case <sys/types.h> has defined it. */
 #ifndef _SYS_SIZE_T_H
 #ifndef _T_SIZE_
 #ifndef _T_SIZE
@@ -180,14 +178,14 @@ typedef __PTRDIFF_TYPE__ ptrdiff_t;
 #ifndef _BSD_SIZE_T_
 #ifndef _SIZE_T_DEFINED_
 #ifndef _SIZE_T_DEFINED
-#ifndef _BSD_SIZE_T_DEFINED_        /* Darwin */
-#ifndef _SIZE_T_DECLARED        /* FreeBSD 5 */
+#ifndef _BSD_SIZE_T_DEFINED_	/* Darwin */
+#ifndef _SIZE_T_DECLARED	/* FreeBSD 5 */
 #ifndef ___int_size_t_h
 #ifndef _GCC_SIZE_T
 #ifndef _SIZET_
 #ifndef __size_t
-#define __size_t__        /* BeOS */
-#define __SIZE_T__        /* Cray Unicos/Mk */
+#define __size_t__	/* BeOS */
+#define __SIZE_T__	/* Cray Unicos/Mk */
 #define _SIZE_T
 #define _SYS_SIZE_T_H
 #define _T_SIZE_
@@ -197,13 +195,14 @@ typedef __PTRDIFF_TYPE__ ptrdiff_t;
 #define _BSD_SIZE_T_
 #define _SIZE_T_DEFINED_
 #define _SIZE_T_DEFINED
-#define _BSD_SIZE_T_DEFINED_        /* Darwin */
-#define _SIZE_T_DECLARED        /* FreeBSD 5 */
+#define _BSD_SIZE_T_DEFINED_	/* Darwin */
+#define _SIZE_T_DECLARED	/* FreeBSD 5 */
 #define ___int_size_t_h
 #define _GCC_SIZE_T
 #define _SIZET_
-#if defined (__FreeBSD__) && (__FreeBSD__ >= 5)
-/* __size_t is a typedef on FreeBSD 5!, must not trash it. */
+#if (defined (__FreeBSD__) && (__FreeBSD__ >= 5)) \
+  || defined(__FreeBSD_kernel__)
+/* __size_t is a typedef on FreeBSD 5, must not trash it. */
 #else
 #define __size_t
 #endif
@@ -233,7 +232,7 @@ typedef long ssize_t;
 #endif /* _SIZE_T */
 #endif /* __SIZE_T__ */
 #endif /* __size_t__ */
-#undef        __need_size_t
+#undef	__need_size_t
 #endif /* _STDDEF_H or __need_size_t.  */
 
 
@@ -245,8 +244,8 @@ typedef long ssize_t;
 /* Define this type if we are doing the whole job,
    or if we want this type in particular.  */
 #if defined (_STDDEF_H) || defined (__need_wchar_t)
-#ifndef __wchar_t__        /* BeOS */
-#ifndef __WCHAR_T__        /* Cray Unicos/Mk */
+#ifndef __wchar_t__	/* BeOS */
+#ifndef __WCHAR_T__	/* Cray Unicos/Mk */
 #ifndef _WCHAR_T
 #ifndef _T_WCHAR_
 #ifndef _T_WCHAR
@@ -254,7 +253,7 @@ typedef long ssize_t;
 #ifndef _WCHAR_T_
 #ifndef _BSD_WCHAR_T_
 #ifndef _BSD_WCHAR_T_DEFINED_    /* Darwin */
-#ifndef _BSD_RUNE_T_DEFINED_        /* Darwin */
+#ifndef _BSD_RUNE_T_DEFINED_	/* Darwin */
 #ifndef _WCHAR_T_DECLARED /* FreeBSD 5 */
 #ifndef _WCHAR_T_DEFINED_
 #ifndef _WCHAR_T_DEFINED
@@ -262,8 +261,8 @@ typedef long ssize_t;
 #ifndef ___int_wchar_t_h
 #ifndef __INT_WCHAR_T_H
 #ifndef _GCC_WCHAR_T
-#define __wchar_t__        /* BeOS */
-#define __WCHAR_T__        /* Cray Unicos/Mk */
+#define __wchar_t__	/* BeOS */
+#define __WCHAR_T__	/* Cray Unicos/Mk */
 #define _WCHAR_T
 #define _T_WCHAR_
 #define _T_WCHAR
@@ -294,7 +293,7 @@ typedef long ssize_t;
 #if !defined (_ANSI_SOURCE) && !defined (_POSIX_SOURCE)
 typedef _BSD_RUNE_T_ rune_t;
 #define _BSD_WCHAR_T_DEFINED_
-#define _BSD_RUNE_T_DEFINED_        /* Darwin */
+#define _BSD_RUNE_T_DEFINED_	/* Darwin */
 #if defined (__FreeBSD__) && (__FreeBSD__ < 5)
 /* Why is this file so hard to maintain properly?  In contrast to
    the comment above regarding BSD/386 1.1, on FreeBSD for as long
@@ -342,7 +341,7 @@ typedef __WCHAR_TYPE__ wchar_t;
 #endif
 #endif /* __WCHAR_T__ */
 #endif /* __wchar_t__ */
-#undef        __need_wchar_t
+#undef	__need_wchar_t
 #endif /* _STDDEF_H or __need_wchar_t.  */
 
 #if defined (__need_wint_t)
@@ -360,7 +359,8 @@ typedef __WINT_TYPE__ wint_t;
 /*  In 4.3bsd-net2, leave these undefined to indicate that size_t, etc.
     are already defined.  */
 /*  BSD/OS 3.1 and FreeBSD [23].x require the MACHINE_ANSI_H check here.  */
-#if defined(_ANSI_H_) || defined(_MACHINE_ANSI_H_)
+/*  NetBSD 5 requires the I386_ANSI_H and X86_64_ANSI_H checks here.  */
+#if defined(_ANSI_H_) || defined(_MACHINE_ANSI_H_) || defined(_X86_64_ANSI_H_) || defined(_I386_ANSI_H_)
 /*  The references to _GCC_PTRDIFF_T_, _GCC_SIZE_T_, and _GCC_WCHAR_T_
     are probably typos and should be removed before 2.8 is released.  */
 #ifdef _GCC_PTRDIFF_T_
@@ -388,14 +388,14 @@ typedef __WINT_TYPE__ wint_t;
 #undef _WCHAR_T_
 #undef _BSD_WCHAR_T_
 #endif
-#endif /* _ANSI_H_ || _MACHINE_ANSI_H_ */
+#endif /* _ANSI_H_ || _MACHINE_ANSI_H_ || _X86_64_ANSI_H_ || _I386_ANSI_H_ */
 
 #endif /* __sys_stdtypes_h */
 
 /* A null pointer constant.  */
 
 #if defined (_STDDEF_H) || defined (__need_NULL)
-#undef NULL                /* in case <stdio.h> has defined it. */
+#undef NULL		/* in case <stdio.h> has defined it. */
 #ifdef __GNUG__
 #define NULL __null
 #else   /* G++ */
@@ -405,15 +405,29 @@ typedef __WINT_TYPE__ wint_t;
 #define NULL 0
 #endif  /* C++ */
 #endif  /* G++ */
-#endif        /* NULL not defined and <stddef.h> or need NULL.  */
-#undef        __need_NULL
+#endif	/* NULL not defined and <stddef.h> or need NULL.  */
+#undef	__need_NULL
 
 #ifdef _STDDEF_H
 
 /* Offset of member MEMBER in a struct of type TYPE. */
 #define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
 
+#if (defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L) \
+  || (defined(__cplusplus) && __cplusplus >= 201103L)
+#ifndef _GCC_MAX_ALIGN_T
+#define _GCC_MAX_ALIGN_T
+/* Type whose alignment is supported in every context and is at least
+   as great as that of any standard type not using alignment
+   specifiers.  */
+typedef struct {
+  long long __max_align_ll __attribute__((__aligned__(__alignof__(long long))));
+  long double __max_align_ld __attribute__((__aligned__(__alignof__(long double))));
+} max_align_t;
+#endif
+#endif /* C11 or C++11.  */
+
 #endif /* _STDDEF_H was defined this time */
 
 #endif /* !_STDDEF_H && !_STDDEF_H_ && !_ANSI_STDDEF_H && !__STDDEF_H__
-          || __need_XXX was not defined before */
+	  || __need_XXX was not defined before */

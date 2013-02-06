@@ -1,12 +1,13 @@
 /* v850 specific, C compiler specific functions.
-   Copyright (C) 2000 Free Software Foundation, Inc.
+   Copyright (C) 2000, 2001, 2002, 2003, 2005, 2007, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Jeff Law (law@cygnus.com).
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -15,9 +16,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
@@ -25,8 +25,8 @@ Boston, MA 02110-1301, USA.  */
 #include "tm.h"
 #include "cpplib.h"
 #include "tree.h"
-#include "c-pragma.h"
-#include "toplev.h"
+#include "c-family/c-pragma.h"
+#include "diagnostic-core.h"
 #include "ggc.h"
 #include "tm_p.h"
 
@@ -65,10 +65,10 @@ pop_data_area (v850_data_area data_area)
 {
   if (data_area_stack == NULL)
     warning (OPT_Wpragmas, "#pragma GHS endXXXX found without "
-             "previous startXXX");
+	     "previous startXXX");
   else if (data_area != data_area_stack->data_area)
     warning (OPT_Wpragmas, "#pragma GHS endXXX does not match "
-             "previous startXXX");
+	     "previous startXXX");
   else
     {
       data_area_stack_element * elem;
@@ -106,7 +106,7 @@ mark_current_function_as_interrupt (void)
     }
   
   decl_attributes (&current_function_decl,
-                   tree_cons (name, NULL_TREE, NULL_TREE), 0);
+		   tree_cons (name, NULL_TREE, NULL_TREE), 0);
 }
 
 
@@ -115,38 +115,42 @@ mark_current_function_as_interrupt (void)
 void
 ghs_pragma_section (cpp_reader * pfile ATTRIBUTE_UNUSED)
 {
-  int repeat;
+  int repeat = 0;
 
   /* #pragma ghs section [name = alias [, name = alias [, ...]]] */
   do
     {
       tree x;
       enum cpp_ttype type;
+      tree sect_ident;
       const char *sect, *alias;
       enum GHS_section_kind kind;
       
       type = pragma_lex (&x);
       
       if (type == CPP_EOF && !repeat)
-        goto reset;
+	goto reset;
       else if (type == CPP_NAME)
-        sect = IDENTIFIER_POINTER (x);
+	{
+	  sect_ident = x;
+	  sect = IDENTIFIER_POINTER (sect_ident);
+	}
       else
-        goto bad;
+	goto bad;
       repeat = 0;
       
       if (pragma_lex (&x) != CPP_EQ)
-        goto bad;
+	goto bad;
       if (pragma_lex (&x) != CPP_NAME)
-        goto bad;
+	goto bad;
       
       alias = IDENTIFIER_POINTER (x);
       
       type = pragma_lex (&x);
       if (type == CPP_COMMA)
-        repeat = 1;
+	repeat = 1;
       else if (type != CPP_EOF)
-        warning (OPT_Wpragmas, "junk at end of #pragma ghs section");
+	warning (OPT_Wpragmas, "junk at end of #pragma ghs section");
       
       if      (streq (sect, "data"))    kind = GHS_SECTION_KIND_DATA;
       else if (streq (sect, "text"))    kind = GHS_SECTION_KIND_TEXT;
@@ -158,20 +162,20 @@ ghs_pragma_section (cpp_reader * pfile ATTRIBUTE_UNUSED)
       else if (streq (sect, "tdata"))   kind = GHS_SECTION_KIND_TDATA;
       else if (streq (sect, "zdata"))   kind = GHS_SECTION_KIND_ZDATA;
       /* According to GHS beta documentation, the following should not be
-         allowed!  */
+	 allowed!  */
       else if (streq (sect, "bss"))     kind = GHS_SECTION_KIND_BSS;
       else if (streq (sect, "zbss"))    kind = GHS_SECTION_KIND_ZDATA;
       else
-        {
-          warning (0, "unrecognized section name \"%s\"", sect);
-          return;
-        }
+	{
+	  warning (0, "unrecognized section name %qE", sect_ident);
+	  return;
+	}
       
       if (streq (alias, "default"))
-        GHS_current_section_names [kind] = NULL;
+	GHS_current_section_names [kind] = NULL;
       else
-        GHS_current_section_names [kind] =
-          build_string (strlen (alias) + 1, alias);
+	GHS_current_section_names [kind] =
+	  build_string (strlen (alias) + 1, alias);
     }
   while (repeat);
 

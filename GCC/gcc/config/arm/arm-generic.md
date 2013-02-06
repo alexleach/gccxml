@@ -1,11 +1,11 @@
 ;; Generic ARM Pipeline Description
-;; Copyright (C) 2003 Free Software Foundation, Inc.
+;; Copyright (C) 2003, 2007, 2010 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful, but
@@ -14,9 +14,8 @@
 ;; General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to the Free
-;; Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-;; 02110-1301, USA.  */
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.  */
 
 (define_automaton "arm")
 
@@ -50,25 +49,25 @@
 (define_insn_reservation "r_mem_f_wbuf" 5
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "model_wbuf" "yes")
-            (eq_attr "type" "r_mem_f")))
+	    (eq_attr "type" "r_mem_f")))
   "core+write_buf*3")
 
 (define_insn_reservation "store_wbuf" 5
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "model_wbuf" "yes")
-                   (eq_attr "type" "store1")))
+       	    (eq_attr "type" "store1")))
   "core+write_buf*3+write_blockage*5")
 
 (define_insn_reservation "store2_wbuf" 7
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "model_wbuf" "yes")
-            (eq_attr "type" "store2")))
+	    (eq_attr "type" "store2")))
   "core+write_buf*4+write_blockage*7")
 
 (define_insn_reservation "store3_wbuf" 9
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "model_wbuf" "yes")
-            (eq_attr "type" "store3")))
+	    (eq_attr "type" "store3")))
   "core+write_buf*5+write_blockage*9")
 
 (define_insn_reservation "store4_wbuf" 11
@@ -92,33 +91,33 @@
 (define_insn_reservation "store4" 5
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "model_wbuf" "no")
-            (eq_attr "type" "store4")))
+	    (eq_attr "type" "store4")))
   "core*5")
 
 (define_insn_reservation "store_ldsched" 1
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "ldsched" "yes") 
-            (eq_attr "type" "store1")))
+	    (eq_attr "type" "store1")))
   "core")
 
 (define_insn_reservation "load_ldsched_xscale" 3
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "ldsched" "yes") 
-            (and (eq_attr "type" "load_byte,load1")
-                 (eq_attr "is_xscale" "yes"))))
+	    (and (eq_attr "type" "load_byte,load1")
+	         (eq_attr "tune" "xscale,iwmmxt,iwmmxt2"))))
   "core")
 
 (define_insn_reservation "load_ldsched" 2
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "ldsched" "yes") 
-            (and (eq_attr "type" "load_byte,load1")
-                 (eq_attr "is_xscale" "no"))))
+	    (and (eq_attr "type" "load_byte,load1")
+	         (eq_attr "tune" "!xscale,iwmmxt,iwmmxt2"))))
   "core")
 
 (define_insn_reservation "load_or_store" 2
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "ldsched" "!yes") 
-            (eq_attr "type" "load_byte,load1,load2,load3,load4,store1")))
+	    (eq_attr "type" "load_byte,load1,load2,load3,load4,store1")))
   "core*2")
 
 (define_insn_reservation "mult" 16
@@ -129,15 +128,17 @@
 (define_insn_reservation "mult_ldsched_strongarm" 3
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "ldsched" "yes") 
-            (and (eq_attr "is_strongarm" "yes")
-                 (eq_attr "type" "mult"))))
+	    (and (eq_attr "tune"
+		  "strongarm,strongarm110,strongarm1100,strongarm1110")
+	         (eq_attr "type" "mult"))))
   "core*2")
 
 (define_insn_reservation "mult_ldsched" 4
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "ldsched" "yes") 
-            (and (eq_attr "is_strongarm" "no")
-                 (eq_attr "type" "mult"))))
+	    (and (eq_attr "tune"
+		  "!strongarm,strongarm110,strongarm1100,strongarm1110")
+	         (eq_attr "type" "mult"))))
   "core*4")
 
 (define_insn_reservation "multi_cycle" 32

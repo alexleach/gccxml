@@ -1,11 +1,11 @@
 ;; Operand and operator predicates for the GCC MMIX port.
-;; Copyright (C) 2005 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2007 Free Software Foundation, Inc.
 
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,9 +14,13 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street - Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
+
+;; Return 1 if OP is a valid comparison operator for "cbranch" instructions.
+;; LE and GE are further lowered by the cbranchdf4 pattern.
+(define_predicate "float_comparison_operator"
+  (match_code "ne, eq, le, ge, lt, gt, ordered, unordered"))
 
 ;; True if this is a foldable comparison operator
 ;; - one where a the result of (compare:CC (reg) (const_int 0)) can be
@@ -35,8 +39,8 @@
     mode = GET_MODE (XEXP (op, 0));
 
   return ((mode == CCmode || mode == DImode)
-          && (code == NE || code == EQ || code == GE || code == GT
-              || code == LE || code == LT))
+	  && (code == NE || code == EQ || code == GE || code == GT
+	      || code == LE || code == LT))
     /* FIXME: This may be a stupid trick.  What happens when GCC wants to
        reverse the condition?  Can it do that by itself?  Maybe it can
        even reverse the condition to fit a foldable one in the first
@@ -68,19 +72,19 @@
   return
     mode == VOIDmode
     || (mode == CC_FUNmode
-        && (code == ORDERED || code == UNORDERED))
+	&& (code == ORDERED || code == UNORDERED))
     || (mode == CC_FPmode
-        && (code == GT || code == LT))
+	&& (code == GT || code == LT))
     || (mode == CC_FPEQmode
-        && (code == NE || code == EQ))
+	&& (code == NE || code == EQ))
     || (mode == CC_UNSmode
-        && (code == GEU || code == GTU || code == LEU || code == LTU))
+	&& (code == GEU || code == GTU || code == LEU || code == LTU))
     || (mode == CCmode
-        && (code == NE || code == EQ || code == GE || code == GT
-            || code == LE || code == LT))
+	&& (code == NE || code == EQ || code == GE || code == GT
+	    || code == LE || code == LT))
     || (mode == DImode
-        && (code == NE || code == EQ || code == GE || code == GT
-            || code == LE || code == LT || code == LEU || code == GTU));
+	&& (code == NE || code == EQ || code == GE || code == GT
+	    || code == LE || code == LT || code == LEU || code == GTU));
 })
 
 ;; True if this is a register with a condition-code mode.
@@ -88,10 +92,10 @@
 (define_predicate "mmix_reg_cc_operand"
   (and (match_operand 0 "register_operand")
        (ior (match_test "GET_MODE (op) == CCmode")
-            (ior (match_test "GET_MODE (op) == CC_UNSmode")
-                 (ior (match_test "GET_MODE (op) == CC_FPmode")
-                      (ior (match_test "GET_MODE (op) == CC_FPEQmode")
-                           (match_test "GET_MODE (op) == CC_FUNmode")))))))
+	    (ior (match_test "GET_MODE (op) == CC_UNSmode")
+		 (ior (match_test "GET_MODE (op) == CC_FPmode")
+		      (ior (match_test "GET_MODE (op) == CC_FPEQmode")
+			   (match_test "GET_MODE (op) == CC_FUNmode")))))))
 
 ;; True if this is an address_operand or a symbolic operand.
 
@@ -107,11 +111,11 @@
       /* The reason why this body still is C.  */
       op = XEXP (op, 0);
       if ((GET_CODE (XEXP (op, 0)) == SYMBOL_REF
-           || GET_CODE (XEXP (op, 0)) == LABEL_REF)
-          && (GET_CODE (XEXP (op, 1)) == CONST_INT
-              || (GET_CODE (XEXP (op, 1)) == CONST_DOUBLE
-                  && GET_MODE (XEXP (op, 1)) == VOIDmode)))
-        return 1;
+	   || GET_CODE (XEXP (op, 0)) == LABEL_REF)
+	  && (GET_CODE (XEXP (op, 1)) == CONST_INT
+	      || (GET_CODE (XEXP (op, 1)) == CONST_DOUBLE
+		  && GET_MODE (XEXP (op, 1)) == VOIDmode)))
+	return 1;
       /* Fall through.  */
     default:
       return address_operand (op, mode);
@@ -125,8 +129,8 @@
 (define_predicate "mmix_reg_or_constant_operand"
   (ior (match_operand 0 "register_operand")
        (ior (match_code "const_int")
-            (and (match_code "const_double")
-                 (match_test "GET_MODE (op) == VOIDmode")))))
+	    (and (match_code "const_double")
+		 (match_test "GET_MODE (op) == VOIDmode")))))
 
 ;; True if this is a register or 0 (int or float).
 
@@ -135,7 +139,7 @@
    (match_operand 0 "register_operand")
    (ior
     (and (match_code "const_int")
-         (match_test "op == const0_rtx"))
+	 (match_test "op == const0_rtx"))
     (and
      (match_code "const_double")
      ;; FIXME: Is mode calculation necessary and correct?
@@ -148,4 +152,4 @@
   (ior
    (match_operand 0 "register_operand")
    (and (match_code "const_int")
-        (match_test "CONST_OK_FOR_LETTER_P (INTVAL (op), 'I')"))))
+	(match_test "CONST_OK_FOR_LETTER_P (INTVAL (op), 'I')"))))

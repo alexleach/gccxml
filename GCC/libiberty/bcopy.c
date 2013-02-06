@@ -16,10 +16,10 @@ bcopy (const void *src, void *dest, size_t len)
 {
   if (dest < src)
     {
-      const char *firsts = src;
-      char *firstd = dest;
+      const char *firsts = (const char *) src;
+      char *firstd = (char *) dest;
       while (len--)
-        *firstd++ = *firsts++;
+	*firstd++ = *firsts++;
     }
   else
     {

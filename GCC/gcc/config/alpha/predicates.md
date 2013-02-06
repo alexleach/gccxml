@@ -1,11 +1,12 @@
 ;; Predicate definitions for DEC Alpha.
-;; Copyright (C) 2004, 2005, 2006 Free Software Foundation, Inc.
+;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2010
+;; Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
 ;; GCC is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
+;; the Free Software Foundation; either version 3, or (at your option)
 ;; any later version.
 ;;
 ;; GCC is distributed in the hope that it will be useful,
@@ -14,9 +15,8 @@
 ;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with GCC; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; along with GCC; see the file COPYING3.  If not see
+;; <http://www.gnu.org/licenses/>.
 
 ;; Return 1 if OP is the zero constant for MODE.
 (define_predicate "const0_operand"
@@ -54,16 +54,14 @@
 ;; Return 1 if the operand is a valid second operand to an add insn.
 (define_predicate "add_operand"
   (if_then_else (match_code "const_int")
-    (match_test "CONST_OK_FOR_LETTER_P (INTVAL (op), 'K')
-                 || CONST_OK_FOR_LETTER_P (INTVAL (op), 'L')")
+    (match_test "satisfies_constraint_K (op) || satisfies_constraint_L (op)")
     (match_operand 0 "register_operand")))
 
 ;; Return 1 if the operand is a valid second operand to a
 ;; sign-extending add insn.
 (define_predicate "sext_add_operand"
   (if_then_else (match_code "const_int")
-    (match_test "CONST_OK_FOR_LETTER_P (INTVAL (op), 'I')
-                 || CONST_OK_FOR_LETTER_P (INTVAL (op), 'O')")
+    (match_test "satisfies_constraint_I (op) || satisfies_constraint_O (op)")
     (match_operand 0 "register_operand")))
 
 ;; Return 1 if the operand is a non-symbolic constant operand that
@@ -86,19 +84,19 @@
 (define_predicate "and_operand"
   (if_then_else (match_code "const_int")
     (match_test "(unsigned HOST_WIDE_INT) INTVAL (op) < 0x100
-                 || (unsigned HOST_WIDE_INT) ~ INTVAL (op) < 0x100
-                 || zap_mask (INTVAL (op))")
+		 || (unsigned HOST_WIDE_INT) ~ INTVAL (op) < 0x100
+		 || zap_mask (INTVAL (op))")
     (if_then_else (match_code "const_double")
       (match_test "GET_MODE (op) == VOIDmode
-                   && zap_mask (CONST_DOUBLE_LOW (op))
-                   && zap_mask (CONST_DOUBLE_HIGH (op))")
+		   && zap_mask (CONST_DOUBLE_LOW (op))
+		   && zap_mask (CONST_DOUBLE_HIGH (op))")
       (match_operand 0 "register_operand"))))
 
 ;; Return 1 if OP is a valid first operand to an IOR or XOR insn.
 (define_predicate "or_operand"
   (if_then_else (match_code "const_int")
     (match_test "(unsigned HOST_WIDE_INT) INTVAL (op) < 0x100
-                 || (unsigned HOST_WIDE_INT) ~ INTVAL (op) < 0x100")
+		 || (unsigned HOST_WIDE_INT) ~ INTVAL (op) < 0x100")
     (match_operand 0 "register_operand")))
 
 ;; Return 1 if OP is a constant that is the width, in bits, of an integral
@@ -115,23 +113,23 @@
 (define_predicate "mode_mask_operand"
   (match_code "const_int,const_double")
 {
-  if (GET_CODE (op) == CONST_INT)
+  if (CONST_INT_P (op))
     {
       HOST_WIDE_INT value = INTVAL (op);
 
       if (value == 0xff)
-        return 1;
+	return 1;
       if (value == 0xffff)
-        return 1;
+	return 1;
       if (value == 0xffffffff)
-        return 1;
+	return 1;
       if (value == -1)
-        return 1;
+	return 1;
     }
   else if (HOST_BITS_PER_WIDE_INT == 32 && GET_CODE (op) == CONST_DOUBLE)
     {
       if (CONST_DOUBLE_LOW (op) == 0xffffffff && CONST_DOUBLE_HIGH (op) == 0)
-        return 1;
+	return 1;
     }
   return 0;
 })
@@ -166,20 +164,20 @@
 ;; if it is a MEM, it need not be valid.
 (define_predicate "some_operand"
   (ior (match_code "reg,mem,const_int,const_double,const_vector,
-                    label_ref,symbol_ref,const,high")
+		    label_ref,symbol_ref,const,high")
        (and (match_code "subreg")
-            (match_test "some_operand (SUBREG_REG (op), VOIDmode)"))))
+	    (match_test "some_operand (SUBREG_REG (op), VOIDmode)"))))
 
 ;; Likewise, but don't accept constants.
 (define_predicate "some_ni_operand"
   (ior (match_code "reg,mem")
        (and (match_code "subreg")
-            (match_test "some_ni_operand (SUBREG_REG (op), VOIDmode)"))))
+	    (match_test "some_ni_operand (SUBREG_REG (op), VOIDmode)"))))
 
 ;; Return 1 if OP is a valid operand for the source of a move insn.
 (define_predicate "input_operand"
   (match_code "label_ref,symbol_ref,const,high,reg,subreg,mem,
-               const_double,const_vector,const_int")
+	       const_double,const_vector,const_int")
 {
   switch (GET_CODE (op))
     {
@@ -187,48 +185,47 @@
     case SYMBOL_REF:
     case CONST:
       if (TARGET_EXPLICIT_RELOCS)
-        {
-          /* We don't split symbolic operands into something unintelligable
-             until after reload, but we do not wish non-small, non-global
-             symbolic operands to be reconstructed from their high/lo_sum
-             form.  */
-          return (small_symbolic_operand (op, mode)
-                  || global_symbolic_operand (op, mode)
-                  || gotdtp_symbolic_operand (op, mode)
-                  || gottp_symbolic_operand (op, mode));
-        }
-
-      /* This handles both the Windows/NT and OSF cases.  */
-      return mode == ptr_mode || mode == DImode;
+	{
+	  /* We don't split symbolic operands into something unintelligable
+	     until after reload, but we do not wish non-small, non-global
+	     symbolic operands to be reconstructed from their high/lo_sum
+	     form.  */
+	  return (small_symbolic_operand (op, mode)
+		  || global_symbolic_operand (op, mode)
+		  || gotdtp_symbolic_operand (op, mode)
+		  || gottp_symbolic_operand (op, mode));
+	}
+      /* VMS still has a 32-bit mode.  */
+      return mode == ptr_mode || mode == Pmode;
 
     case HIGH:
       return (TARGET_EXPLICIT_RELOCS
-              && local_symbolic_operand (XEXP (op, 0), mode));
+	      && local_symbolic_operand (XEXP (op, 0), mode));
 
     case REG:
       return 1;
 
     case SUBREG:
       if (register_operand (op, mode))
-        return 1;
+	return 1;
       /* ... fall through ...  */
     case MEM:
       return ((TARGET_BWX || (mode != HImode && mode != QImode))
-              && general_operand (op, mode));
+	      && general_operand (op, mode));
 
     case CONST_DOUBLE:
       return op == CONST0_RTX (mode);
 
     case CONST_VECTOR:
       if (reload_in_progress || reload_completed)
-        return alpha_legitimate_constant_p (op);
+	return alpha_legitimate_constant_p (mode, op);
       return op == CONST0_RTX (mode);
 
     case CONST_INT:
       if (mode == QImode || mode == HImode)
-        return true;
+	return true;
       if (reload_in_progress || reload_completed)
-        return alpha_legitimate_constant_p (op);
+	return alpha_legitimate_constant_p (mode, op);
       return add_operand (op, mode);
 
     default:
@@ -268,10 +265,8 @@
 (define_predicate "direct_call_operand"
   (match_operand 0 "samegp_function_operand")
 {
-  tree op_decl, cfun_sec, op_sec;
-
   /* If profiling is implemented via linker tricks, we can't jump
-     to the nogp alternate entry point.  Note that current_function_profile
+     to the nogp alternate entry point.  Note that crtl->profile
      would not be correct, since that doesn't indicate if the target
      function uses profiling.  */
   /* ??? TARGET_PROFILING_NEEDS_GP isn't really the right test,
@@ -293,54 +288,39 @@
   if (TARGET_SMALL_TEXT)
     return true;
 
-  /* Otherwise, a decl is "near" if it is defined in the same section.  */
-  if (flag_function_sections)
-    return false;
-
-  op_decl = SYMBOL_REF_DECL (op);
-  if (DECL_ONE_ONLY (current_function_decl)
-      || (op_decl && DECL_ONE_ONLY (op_decl)))
-    return false;
-
-  cfun_sec = DECL_SECTION_NAME (current_function_decl);
-  op_sec = op_decl ? DECL_SECTION_NAME (op_decl) : NULL;
-  return ((!cfun_sec && !op_sec)
-          || (cfun_sec && op_sec
-              && strcmp (TREE_STRING_POINTER (cfun_sec),
-                         TREE_STRING_POINTER (op_sec)) == 0));
+  return false;
 })
 
 ;; Return 1 if OP is a valid operand for the MEM of a CALL insn.
 ;;
 ;; For TARGET_ABI_OSF, we want to restrict to R27 or a pseudo.
-;; For TARGET_ABI_UNICOSMK, we want to restrict to registers.
 
 (define_predicate "call_operand"
-  (if_then_else (match_code "reg")
-    (match_test "!TARGET_ABI_OSF
-                 || REGNO (op) == 27 || REGNO (op) > LAST_VIRTUAL_REGISTER")
-    (and (match_test "!TARGET_ABI_UNICOSMK")
-         (match_code "symbol_ref"))))
+  (ior (match_code "symbol_ref")
+       (and (match_code "reg")
+	    (ior (match_test "!TARGET_ABI_OSF")
+		 (match_test "!HARD_REGISTER_P (op)")
+		 (match_test "REGNO (op) == R27_REG")))))
 
 ;; Return true if OP is a LABEL_REF, or SYMBOL_REF or CONST referencing
 ;; a (non-tls) variable known to be defined in this file.
 (define_predicate "local_symbolic_operand"
   (match_code "label_ref,const,symbol_ref")
 {
-  if (GET_CODE (op) == LABEL_REF)
-    return 1;
-
   if (GET_CODE (op) == CONST
       && GET_CODE (XEXP (op, 0)) == PLUS
-      && GET_CODE (XEXP (XEXP (op, 0), 1)) == CONST_INT)
+      && CONST_INT_P (XEXP (XEXP (op, 0), 1)))
     op = XEXP (XEXP (op, 0), 0);
+
+  if (GET_CODE (op) == LABEL_REF)
+    return 1;
 
   if (GET_CODE (op) != SYMBOL_REF)
     return 0;
 
   return (SYMBOL_REF_LOCAL_P (op)
-          && !SYMBOL_REF_WEAK (op)
-          && !SYMBOL_REF_TLS_MODEL (op));
+	  && !SYMBOL_REF_WEAK (op)
+	  && !SYMBOL_REF_TLS_MODEL (op));
 })
 
 ;; Return true if OP is a SYMBOL_REF or CONST referencing a variable
@@ -348,26 +328,50 @@
 (define_predicate "small_symbolic_operand"
   (match_code "const,symbol_ref")
 {
+  HOST_WIDE_INT ofs = 0, max_ofs = 0;
+
   if (! TARGET_SMALL_DATA)
-    return 0;
+    return false;
 
   if (GET_CODE (op) == CONST
       && GET_CODE (XEXP (op, 0)) == PLUS
-      && GET_CODE (XEXP (XEXP (op, 0), 1)) == CONST_INT)
-    op = XEXP (XEXP (op, 0), 0);
+      && CONST_INT_P (XEXP (XEXP (op, 0), 1)))
+    {
+      ofs = INTVAL (XEXP (XEXP (op, 0), 1));
+      op = XEXP (XEXP (op, 0), 0);
+    }
 
   if (GET_CODE (op) != SYMBOL_REF)
-    return 0;
+    return false;
 
   /* ??? There's no encode_section_info equivalent for the rtl
      constant pool, so SYMBOL_FLAG_SMALL never gets set.  */
   if (CONSTANT_POOL_ADDRESS_P (op))
-    return GET_MODE_SIZE (get_pool_mode (op)) <= g_switch_value;
+    {
+      max_ofs = GET_MODE_SIZE (get_pool_mode (op));
+      if (max_ofs > g_switch_value)
+	return false;
+    }
+  else if (SYMBOL_REF_LOCAL_P (op)
+	    && SYMBOL_REF_SMALL_P (op)
+	    && !SYMBOL_REF_WEAK (op)
+	    && !SYMBOL_REF_TLS_MODEL (op))
+    {
+      if (SYMBOL_REF_DECL (op))
+        max_ofs = tree_low_cst (DECL_SIZE_UNIT (SYMBOL_REF_DECL (op)), 1);
+    }
+  else
+    return false;
 
-  return (SYMBOL_REF_LOCAL_P (op)
-          && SYMBOL_REF_SMALL_P (op)
-          && !SYMBOL_REF_WEAK (op)
-          && !SYMBOL_REF_TLS_MODEL (op));
+  /* Given that we know that the GP is always 8 byte aligned, we can
+     always adjust by 7 without overflowing.  */
+  if (max_ofs < 8)
+    max_ofs = 8;
+
+  /* Since we know this is an object in a small data section, we know the
+     entire section is addressable via GP.  We don't know where the section
+     boundaries are, but we know the entire object is within.  */
+  return IN_RANGE (ofs, 0, max_ofs - 1);
 })
 
 ;; Return true if OP is a SYMBOL_REF or CONST referencing a variable
@@ -377,14 +381,14 @@
 {
   if (GET_CODE (op) == CONST
       && GET_CODE (XEXP (op, 0)) == PLUS
-      && GET_CODE (XEXP (XEXP (op, 0), 1)) == CONST_INT)
+      && CONST_INT_P (XEXP (XEXP (op, 0), 1)))
     op = XEXP (XEXP (op, 0), 0);
 
   if (GET_CODE (op) != SYMBOL_REF)
     return 0;
 
   return ((!SYMBOL_REF_LOCAL_P (op) || SYMBOL_REF_WEAK (op))
-          && !SYMBOL_REF_TLS_MODEL (op));
+	  && !SYMBOL_REF_TLS_MODEL (op));
 })
 
 ;; Returns 1 if OP is a symbolic operand, i.e. a symbol_ref or a label_ref,
@@ -392,9 +396,10 @@
 (define_predicate "symbolic_operand"
   (ior (match_code "symbol_ref,label_ref")
        (and (match_code "const")
-            (match_test "GET_CODE (XEXP (op,0)) == PLUS
-                         && GET_CODE (XEXP (XEXP (op,0), 0)) == SYMBOL_REF
-                         && GET_CODE (XEXP (XEXP (op,0), 1)) == CONST_INT"))))
+	    (match_test "GET_CODE (XEXP (op,0)) == PLUS
+			 && (GET_CODE (XEXP (XEXP (op,0), 0)) == SYMBOL_REF
+			     || GET_CODE (XEXP (XEXP (op,0), 0)) == LABEL_REF)
+			 && CONST_INT_P (XEXP (XEXP (op,0), 1))"))))
 
 ;; Return true if OP is valid for 16-bit DTP relative relocations.
 (define_predicate "dtp16_symbolic_operand"
@@ -436,14 +441,16 @@
 ;; use recog during reload, so pretending these codes are accepted 
 ;; pessimizes things a tad.
 
-(define_predicate "aligned_memory_operand"
+(define_special_predicate "aligned_memory_operand"
   (ior (match_test "op = resolve_reload_operand (op), 0")
        (match_code "mem"))
 {
   rtx base;
+  int offset;
 
   if (MEM_ALIGN (op) >= 32)
     return 1;
+
   op = XEXP (op, 0);
 
   /* LEGITIMIZE_RELOAD_ADDRESS creates (plus (plus reg const_hi) const_lo)
@@ -451,27 +458,44 @@
   if (reload_in_progress
       && GET_CODE (op) == PLUS
       && GET_CODE (XEXP (op, 0)) == PLUS)
-    base = XEXP (XEXP (op, 0), 0);
+    {
+      base = XEXP (XEXP (op, 0), 0);
+      offset = INTVAL (XEXP (op, 1));
+    }
   else
     {
       if (! memory_address_p (mode, op))
-        return 0;
-      base = (GET_CODE (op) == PLUS ? XEXP (op, 0) : op);
+	return 0;
+      if (GET_CODE (op) == PLUS)
+	{
+	  base = XEXP (op, 0);
+	  offset = INTVAL (XEXP (op, 1));
+	}
+      else
+	{
+	  base = op;
+	  offset = 0;
+	}
     }
 
-  return (GET_CODE (base) == REG && REGNO_POINTER_ALIGN (REGNO (base)) >= 32);
+  if (offset % GET_MODE_SIZE (mode))
+    return 0;
+
+  return (REG_P (base) && REGNO_POINTER_ALIGN (REGNO (base)) >= 32);
 })
 
 ;; Similar, but return 1 if OP is a MEM which is not alignable.
 
-(define_predicate "unaligned_memory_operand"
+(define_special_predicate "unaligned_memory_operand"
   (ior (match_test "op = resolve_reload_operand (op), 0")
        (match_code "mem"))
 {
   rtx base;
+  int offset;
 
   if (MEM_ALIGN (op) >= 32)
     return 0;
+
   op = XEXP (op, 0);
 
   /* LEGITIMIZE_RELOAD_ADDRESS creates (plus (plus reg const_hi) const_lo)
@@ -479,41 +503,66 @@
   if (reload_in_progress
       && GET_CODE (op) == PLUS
       && GET_CODE (XEXP (op, 0)) == PLUS)
-    base = XEXP (XEXP (op, 0), 0);
+    {
+      base = XEXP (XEXP (op, 0), 0);
+      offset = INTVAL (XEXP (op, 1));
+    }
   else
     {
       if (! memory_address_p (mode, op))
-        return 0;
-      base = (GET_CODE (op) == PLUS ? XEXP (op, 0) : op);
+	return 0;
+      if (GET_CODE (op) == PLUS)
+	{
+	  base = XEXP (op, 0);
+	  offset = INTVAL (XEXP (op, 1));
+	}
+      else
+	{
+	  base = op;
+	  offset = 0;
+	}
     }
 
-  return (GET_CODE (base) == REG && REGNO_POINTER_ALIGN (REGNO (base)) < 32);
+  if (offset % GET_MODE_SIZE (mode))
+    return 1;
+
+  return (REG_P (base) && REGNO_POINTER_ALIGN (REGNO (base)) < 32);
 })
 
 ;; Return 1 if OP is any memory location.  During reload a pseudo matches.
-(define_predicate "any_memory_operand"
-  (ior (match_code "mem,reg")
-       (and (match_code "subreg")
-            (match_test "GET_CODE (SUBREG_REG (op)) == REG"))))
+(define_special_predicate "any_memory_operand"
+  (match_code "mem,reg,subreg")
+{
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
 
-;; Return 1 if OP is either a register or an unaligned memory location.
-(define_predicate "reg_or_unaligned_mem_operand"
-  (ior (match_operand 0 "register_operand")
-       (match_operand 0 "unaligned_memory_operand")))
+  if (MEM_P (op))
+    return true;
+  if (reload_in_progress && REG_P (op))
+    {
+      unsigned regno = REGNO (op);
+      if (HARD_REGISTER_NUM_P (regno))
+	return false;
+      else
+	return reg_renumber[regno] < 0;
+    }
+
+  return false;
+})
 
 ;; Return 1 is OP is a memory location that is not a reference
 ;; (using an AND) to an unaligned location.  Take into account
 ;; what reload will do.
-(define_predicate "normal_memory_operand"
+(define_special_predicate "normal_memory_operand"
   (ior (match_test "op = resolve_reload_operand (op), 0")
        (and (match_code "mem")
-            (match_test "GET_CODE (XEXP (op, 0)) != AND"))))
+	    (match_test "GET_CODE (XEXP (op, 0)) != AND"))))
 
 ;; Returns 1 if OP is not an eliminable register.
 ;;
 ;; This exists to cure a pathological failure in the s8addq (et al) patterns,
 ;;
-;;        long foo () { long t; bar(); return (long) &t * 26107; }
+;;	long foo () { long t; bar(); return (long) &t * 26107; }
 ;;
 ;; which run afoul of a hack in reload to cure a (presumably) similar
 ;; problem with lea-type instructions on other targets.  But there is
@@ -534,6 +583,12 @@
 (define_predicate "reg_no_subreg_operand"
   (and (match_code "reg")
        (match_operand 0 "register_operand")))
+
+;; Return 1 if OP is a valid Alpha comparison operator for "cbranch"
+;; instructions.
+(define_predicate "alpha_cbranch_operator"
+  (ior (match_operand 0 "ordered_comparison_operator")
+       (match_code "ordered,unordered")))
 
 ;; Return 1 if OP is a valid Alpha comparison operator for "cmp" style
 ;; instructions.
@@ -572,8 +627,7 @@
 (define_predicate "addition_operation"
   (and (match_code "plus")
        (match_test "register_operand (XEXP (op, 0), mode)
-                    && GET_CODE (XEXP (op, 1)) == CONST_INT
-                    && CONST_OK_FOR_LETTER_P (INTVAL (XEXP (op, 1)), 'K')")))
+		    && satisfies_constraint_K (XEXP (op, 1))")))
 
 ;; For TARGET_EXPLICIT_RELOCS, we don't obfuscate a SYMBOL_REF to a
 ;; small symbolic operand until after reload.  At which point we need
@@ -587,3 +641,14 @@
     return false;
   return for_each_rtx (&op, some_small_symbolic_operand_int, NULL);
 })
+
+;; Accept a register, or a memory if BWX is enabled.
+(define_predicate "reg_or_bwx_memory_operand"
+  (ior (match_operand 0 "register_operand")
+       (and (match_test "TARGET_BWX")
+	    (match_operand 0 "memory_operand"))))
+
+;; Accept a memory whose address is only a register.
+(define_predicate "mem_noofs_operand"
+  (and (match_code "mem")
+       (match_code "reg" "0")))

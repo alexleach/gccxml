@@ -154,10 +154,10 @@ dyn_string_resize (dyn_string_t ds, int space)
 #ifdef RETURN_ON_ALLOCATION_FAILURE
       ds->s = (char *) realloc (ds->s, ds->allocated);
       if (ds->s == NULL)
-        {
-          free (ds);
-          return NULL;
-        }
+	{
+	  free (ds);
+	  return NULL;
+	}
 #else
       ds->s = XRESIZEVEC (char, ds->s, ds->allocated);
 #endif
@@ -336,7 +336,7 @@ dyn_string_append_cstr (dyn_string_t dest, const char *s)
   return 1;
 }
 
-/* Appends C to the end of DEST.  Returns 1 on success.  On failiure,
+/* Appends C to the end of DEST.  Returns 1 on success.  On failure,
    if RETURN_ON_ALLOCATION_FAILURE, deletes DEST and returns 0.  */
 
 int

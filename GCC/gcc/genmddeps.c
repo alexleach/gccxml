@@ -44,6 +44,10 @@ main (int argc, char **argv)
 {
   struct filedep *d;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+
   progname = "genmddeps";
   include_callback = add_filedep;
 

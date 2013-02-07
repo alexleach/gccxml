@@ -1053,6 +1053,18 @@ funsigned-bitfields
 C ObjC C++ ObjC++ Var(flag_signed_bitfields, 0)
 When \"signed\" or \"unsigned\" is not given make the bitfield unsigned
 
+; fxml=
+; C C++ ObjC++ Var(flag_xml) Joined MissingArgError(No XML file specified with %qs)
+; -fxml=<file> Enable XML output to a file <file> (use with -fsyntax-only)
+; 
+; fxml-start=
+; C C++ ObjC ObjC++ Var(flag_xml_start) Separate MissingArgError(No XML file specified with %qs)
+; -fxml-start=<file> Specify start location for XML dump (use with -fxml)
+; 
+; iwrapper
+; C C++ ObjC ObjC++ Joined MissingArgError(missing path after %qs)
+; -iwrapper <dir> Add <dir> to the end of the wrapper include path
+
 funsigned-char
 C ObjC C++ ObjC++ LTO Var(flag_signed_char, 0)
 Make \"char\" unsigned by default
@@ -1092,6 +1104,16 @@ C ObjC C++ ObjC++ Joined RejectNegative
 fworking-directory
 C ObjC C++ ObjC++ Var(flag_working_directory) Init(-1)
 Generate a #line directive pointing at the current working directory
+
+; BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:02)
+fxml=
+C++ Joined
+-fxml=<file>    Enable XML output to a file (use with -fsyntax-only)
+
+fxml-start=
+C++ Joined
+-fxml-start=<string>    Specify start locations for XML dump (use with -fxml)
+; END GCC-XML MODIFICATIONS (2007/10/31 15:07:02)
 
 fxref
 C++ ObjC++ Ignore Warn(switch %qs is no longer supported)
@@ -1156,6 +1178,10 @@ C ObjC C++ ObjC++ Joined Separate
 iwithprefixbefore
 C ObjC C++ ObjC++ Joined Separate
 -iwithprefixbefore <dir>	Add <dir> to the end of the main include path
+
+iwrapper
+C ObjC C++ ObjC++ Joined Separate
+-iwrapper <dir>	Add <dir> to the end of the wrapper include path
 
 lang-asm
 C Undocumented RejectDriver

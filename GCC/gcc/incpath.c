@@ -60,8 +60,10 @@ static struct cpp_dir *remove_duplicates (cpp_reader *, struct cpp_dir *,
 					   struct cpp_dir *, int);
 
 /* Include chains heads and tails.  */
-static struct cpp_dir *heads[4];
-static struct cpp_dir *tails[4];
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
+static struct cpp_dir *heads[5];
+static struct cpp_dir *tails[5];
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
 static bool quote_ignores_source_dir;
 enum { REASON_QUIET = 0, REASON_NOENT, REASON_DUP, REASON_DUP_SYS };
 
@@ -305,8 +307,8 @@ add_sysroot_to_chain (const char *sysroot, int chain)
       p->name = concat (sysroot, p->name + 1, NULL);
 }
 
-/* Merge the four include chains together in the order quote, bracket,
-   system, after.  Remove duplicate dirs (determined in
+/* Merge the five include chains together in the order wrapper, quote,
+   bracket, wrapper, system, after.  Remove duplicate dirs (determined in
    system-specific manner).
 
    We can't just merge the lists and then uniquify them because then
@@ -345,11 +347,25 @@ merge_include_chains (const char *sysroot, cpp_reader *pfile, int verbose)
   heads[QUOTE] = remove_duplicates (pfile, heads[QUOTE], heads[SYSTEM],
 				    heads[BRACKET], verbose);
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
+  /* Remove duplicates from WRAPPER that are in itself or SYSTEM.
+     Do not join it to anything so it can be searched independently.  */
+  heads[WRAPPER] = remove_duplicates (pfile, heads[WRAPPER], heads[SYSTEM],
+                                      0, verbose);
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
+
   /* If verbose, print the list of dirs to search.  */
   if (verbose)
     {
       struct cpp_dir *p;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
+      fprintf (stderr, _("#include wrapper search starts here:\n"));
+      for (p = heads[WRAPPER]; p; p = p->next)
+        {
+        fprintf (stderr, " %s\n", p->name);
+        }
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
       fprintf (stderr, _("#include \"...\" search starts here:\n"));
       for (p = heads[QUOTE];; p = p->next)
 	{
@@ -466,6 +482,9 @@ register_include_chains (cpp_reader *pfile, const char *sysroot,
   merge_include_chains (sysroot, pfile, verbose);
 
   cpp_set_include_chains (pfile, heads[QUOTE], heads[BRACKET],
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
+                          heads[WRAPPER],
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
 			  quote_ignores_source_dir);
 }
 

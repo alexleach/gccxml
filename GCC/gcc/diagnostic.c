@@ -196,6 +196,25 @@ diagnostic_build_prefix (diagnostic_context *context,
      : build_message_string ("%s:%d: %s", s.file, s.line, text));
 }
 
+/* BEGIN GCC-XML MODIFICATIONS 2008-10-01 */
+/* xml.c uses this to suppress error messages when testing whether
+   synthesizing an artificially-generated function succeeds.  */
+int diagnostic_xml_synthesize_test = 0;
+static bool diagnostic_in_xml_synthesize_test()
+{
+  if(diagnostic_xml_synthesize_test)
+    {
+    ++diagnostic_xml_synthesize_test;
+    return true;
+    }
+  return false;
+}
+bool diagnostic_get_xml_synthesize_test()
+{
+  return diagnostic_xml_synthesize_test > 0;
+}
+/* END GCC-XML MODIFICATIONS 2008-10-01 */
+
 /* Take any action which is expected to happen after the diagnostic
    is written out.  This function does not always return.  */
 static void
@@ -500,7 +519,10 @@ diagnostic_report_diagnostic (diagnostic_context *context,
 
   context->lock++;
 
-  if (diagnostic->kind == DK_ICE)
+/* BEGIN GCC-XML MODIFICATIONS 2008-10-01 */
+//  if(diagnostic_in_xml_synthesize_test()) { return false; }
+  if (diagnostic->kind == DK_ICE && !(diagnostic_in_xml_synthesize_test()))
+/* END GCC-XML MODIFICATIONS 2008-10-01 */
     {
 #ifndef ENABLE_CHECKING
       /* When not checking, ICEs are converted to fatal errors when an

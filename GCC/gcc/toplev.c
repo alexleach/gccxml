@@ -709,7 +709,9 @@ print_version (FILE *file, const char *indent)
   fprintf (file,
 	   file == stderr ? _(fmt1) : fmt1,
 	   indent, *indent != 0 ? " " : "",
-	   lang_hooks.name, pkgversion_string, version_string, TARGET_NAME,
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:11) */
+	   lang_hooks.name, pkgversion_string, version_string, GCC_TO_STRING(TARGET_NAME),
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:11) */
 	   indent, __VERSION__);
 
   /* We need to stringify the GMP macro values.  Ugh, gmp_version has

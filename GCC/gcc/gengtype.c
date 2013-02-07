@@ -4928,6 +4928,10 @@ main (int argc, char **argv)
   static struct fileloc pos = { NULL, 0 };
   outf_p output_header;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+
   /* Mandatory common initializations.  */
   progname = "gengtype";	/* For fatal and messages.  */
   /* Create the hash-table used to hash-cons input files.  */

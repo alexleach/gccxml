@@ -270,6 +270,14 @@ tree *ridpointers;
 
 tree (*make_fname_decl) (location_t, tree, int);
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
+/* Filename for xml dump of translation unit.  */
+const char* flag_xml;
+
+/* Start locations for dump of translation unit.  */
+const char* flag_xml_start;
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
+
 /* Nonzero means don't warn about problems that occur when the code is
    executed.  */
 int c_inhibit_evaluation_warnings;
@@ -379,6 +387,11 @@ static tree handle_no_split_stack_attribute (tree *, tree, tree, int, bool *);
 static tree handle_fnspec_attribute (tree *, tree, tree, int, bool *);
 
 static void check_function_nonnull (tree, int, tree *);
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
+/* Contributed by Steven Kilthau - May 2004.  */
+/* Declare the function that verifies the syntax of the gccxml attribute. */
+static tree handle_gccxml_attribute (tree *, tree, tree, int, bool *);
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
 static void check_nonnull_arg (void *, tree, unsigned HOST_WIDE_INT);
 static bool nonnull_check_p (tree, unsigned HOST_WIDE_INT);
 static bool get_nonnull_operand (tree, unsigned HOST_WIDE_INT *);
@@ -710,6 +723,13 @@ const struct attribute_spec c_common_attribute_table[] =
 			      handle_warn_unused_result_attribute, false },
   { "sentinel",               0, 1, false, true, true,
 			      handle_sentinel_attribute, false },
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
+/* Contributed by Steven Kilthau - May 2004.  */
+/* Register the function to handle the gccxml attribute.  It must be
+   given at least 1 argument, but can have more. */
+  { "gccxml",                 1, -1, false, false, false,
+                              handle_gccxml_attribute },
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
   /* For internal use (marking of builtins) only.  The name contains space
      to prevent its usage in source code.  */
   { "type generic",           0, 0, false, true, true,
@@ -7593,6 +7613,47 @@ handle_novops_attribute (tree *node, tree ARG_UNUSED (name),
   DECL_IS_NOVOPS (*node) = 1;
   return NULL_TREE;
 }
+
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
+/* Contributed by Steven Kilthau - May 2004.  */
+
+/* Verify the syntax of the gccxml attribute. */
+static tree handle_gccxml_attribute (tree* node, tree name, tree args,
+                                     int flags, bool* no_add_attrs)
+{
+  /* The attribute can be applied to declarations of parameters,
+     fields, variables, functions, and types. */
+  *no_add_attrs = false;
+  if ((TREE_CODE (*node) == PARM_DECL) ||
+      (TREE_CODE (*node) == FIELD_DECL) ||
+      (TREE_CODE (*node) == VAR_DECL) ||
+      (TREE_CODE (*node) == FUNCTION_DECL) ||
+      (TREE_CODE (*node) == TYPE_DECL) ||
+      (TREE_CODE (*node) == RECORD_TYPE) ||
+      (TREE_CODE (*node) == UNION_TYPE) ||
+      (TREE_CODE (*node) == ENUMERAL_TYPE))
+    {
+    /* Go through the arguments and verify that each is a string */
+    int i=0;
+    for(;args && (TREE_CODE (args) == TREE_LIST); args = TREE_CHAIN (args),++i)
+      {
+      tree cst = TREE_VALUE(args);
+      if (TREE_CODE(cst) != STRING_CST)
+        {
+        warning (0, "`%s' attribute - argument %i must be a string",
+                 IDENTIFIER_POINTER(name), i);
+        *no_add_attrs = true;
+        }
+      }
+    }
+  else
+    {
+    warning (0, "`%s' attribute can't be used here", IDENTIFIER_POINTER (name));
+    *no_add_attrs = true;
+    }
+  return NULL_TREE;
+}
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
 
 /* Handle a "deprecated" attribute; arguments as in
    struct attribute_spec.handler.  */

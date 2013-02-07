@@ -709,6 +709,10 @@ do_build_copy_assign (tree fndecl)
   finish_compound_stmt (compound_stmt);
 }
 
+/* BEGIN GCC-XML MODIFICATIONS 2008-02-27 */
+extern int diagnostic_xml_synthesize_test;
+/* END GCC-XML MODIFICATIONS 2008-02-27 */
+
 /* Synthesize FNDECL, a non-static member function.   */
 
 void
@@ -721,6 +725,9 @@ synthesize_method (tree fndecl)
   location_t save_input_location = input_location;
   int error_count = errorcount;
   int warning_count = warningcount;
+/* BEGIN GCC-XML MODIFICATIONS 2008-02-27 */
+  int gccxml_synth_test = diagnostic_xml_synthesize_test;
+/* END GCC-XML MODIFICATIONS 2008-02-27 */
 
   /* Reset the source location, we might have been previously
      deferred, and thus have saved where we were first needed.  */
@@ -785,6 +792,9 @@ synthesize_method (tree fndecl)
   if (error_count != errorcount || warning_count != warningcount)
     inform (input_location, "synthesized method %qD first required here ",
 	    fndecl);
+/* BEGIN GCC-XML MODIFICATIONS 2008-02-27 */
+  GCCXML_DECL_ERROR(fndecl) = diagnostic_xml_synthesize_test != gccxml_synth_test;
+/* END GCC-XML MODIFICATIONS 2008-02-27 */
 }
 
 /* Build a reference to type TYPE with cv-quals QUALS, which is an

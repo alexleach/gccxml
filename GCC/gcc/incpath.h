@@ -32,4 +32,6 @@ struct target_c_incpath_s {
 
 extern struct target_c_incpath_s target_c_incpath;
 
-enum { QUOTE = 0, BRACKET, SYSTEM, AFTER };
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
+enum { QUOTE = 0, BRACKET, SYSTEM, AFTER, WRAPPER };
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */

@@ -1502,9 +1502,14 @@ coerce_new_type (tree type)
   else
     e = 2;
 
+/* BEGIN GCC-XML MODIFICATIONS (2009/03/03 16:31:15) */
+/* Ignore whether the native compiler breaks the operator new signature.  */
+//#if 0
   if (e == 2)
     permerror (input_location, "%<operator new%> takes type %<size_t%> (%qT) "
 	       "as first parameter", size_type_node);
+//#endif
+/* END GCC-XML MODIFICATIONS (2009/03/03 16:31:15) */
 
   switch (e)
   {
@@ -4196,6 +4201,10 @@ check_default_args (tree x)
     }
 }
 
+/* BEGIN GCC-XML MODIFICATIONS 2008-03-02 */
+extern int diagnostic_xml_synthesize_test;
+/* END GCC-XML MODIFICATIONS 2008-03-02 */
+
 /* Return true if function DECL can be inlined.  This is used to force
    instantiation of methods that might be interesting for inlining.  */
 bool
@@ -4231,6 +4240,18 @@ mark_used (tree decl)
 	return true;
       decl = OVL_CURRENT (decl);
     }
+
+/* BEGIN GCC-XML MODIFICATIONS 2008-03-02 */
+  if(diagnostic_xml_synthesize_test &&
+     ((TREE_CODE (decl) == FUNCTION_DECL && GCCXML_DECL_ERROR (decl)) ||
+      (DECL_CLONED_FUNCTION_P (decl) &&
+       GCCXML_DECL_ERROR (DECL_CLONED_FUNCTION (decl)))))
+    {
+    /* This is a method synth test and we recursively encountered a
+       previously synthesized invalid method.  */
+    ++diagnostic_xml_synthesize_test;
+    }
+/* END GCC-XML MODIFICATIONS 2008-03-02 */
 
   /* Set TREE_USED for the benefit of -Wunused.  */
   TREE_USED (decl) = 1;

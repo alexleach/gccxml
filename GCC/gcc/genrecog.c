@@ -2516,6 +2516,10 @@ main (int argc, char **argv)
   rtx desc;
   struct decision_head recog_tree, split_tree, peephole2_tree, h;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+
   progname = "genrecog";
 
   memset (&recog_tree, 0, sizeof recog_tree);

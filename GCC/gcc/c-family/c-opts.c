@@ -569,6 +569,14 @@ c_common_handle_option (size_t scode, const char *arg, int value,
       warning (0, "switch %qs is no longer supported", option->opt_text);
       break;
 
+    case OPT_fxml_:
+      flag_xml = arg;
+      break;
+
+    case OPT_fxml_start_:
+      flag_xml_start = arg;
+      break;
+
     case OPT_fbuiltin_:
       if (value)
 	result = false;
@@ -708,7 +716,12 @@ c_common_handle_option (size_t scode, const char *arg, int value,
       break;
 
     case OPT_isystem:
-      add_path (xstrdup (arg), SYSTEM, 0, true);
+/* BEGIN GCC-XML MODIFICATIONS 2008-06-30 */
+      /* The third argument is a boolean indicating whether the files
+         in the directory specified are C++-aware.  GCC by default
+         hard-codes false, but for GCC-XML we use true.  */
+      add_path (xstrdup (arg), SYSTEM, 1, true);
+/* END GCC-XML MODIFICATIONS 2008-06-30 */
       break;
 
     case OPT_iwithprefix:
@@ -717,6 +730,10 @@ c_common_handle_option (size_t scode, const char *arg, int value,
 
     case OPT_iwithprefixbefore:
       add_prefixed_path (arg, BRACKET);
+      break;
+
+    case OPT_iwrapper:
+      add_path (xstrdup (arg), WRAPPER, 0, true);
       break;
 
     case OPT_lang_asm:

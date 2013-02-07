@@ -1023,4 +1023,22 @@ helper_const_non_const_cast (const char *p)
 #define DEBUG_VARIABLE
 #endif
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:11) */
+#if defined(_MSC_VER) && _MSC_VER >= 1400
+static inline void gccxml_fix_printf(void)
+{
+  _set_printf_count_output(1);
+}
+#else
+static inline void gccxml_fix_printf(void) {}
+#endif
+
+/* Tell xml.c what version of GCC is being built.  Format is 0xMMmmpp,
+   where MM is the major version number, mm is the minor version
+   number, and pp is the patch level.
+   Examples:  gcc 3.0.4 = 0x030004
+              gcc 3.2.0 = 0x030200 */
+#define GCC_XML_GCC_VERSION 0x040702
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:11) */
+
 #endif /* ! GCC_SYSTEM_H */

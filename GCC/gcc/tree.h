@@ -2909,6 +2909,10 @@ struct GTY(()) tree_decl_common {
   /* Logically, these two would go in a theoretical base shared by var and
      parm decl. */
   unsigned gimple_reg_flag : 1;
+/* BEGIN GCC-XML MODIFICATIONS 2008-02-27 */
+  /* In FUNCTION_DECL, true for artifical methods that should not exist.  */
+  unsigned gccxml_decl_error : 1;
+/* END GCC-XML MODIFICATIONS 2008-02-27 */
   /* In VAR_DECL, PARM_DECL and RESULT_DECL, this is DECL_BY_REFERENCE.  */
   unsigned decl_by_reference_flag : 1;
   /* In VAR_DECL, PARM_DECL and RESULT_DECL, this is DECL_RESTRICTED_P.  */

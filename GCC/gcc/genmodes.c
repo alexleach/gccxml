@@ -1388,6 +1388,11 @@ int
 main (int argc, char **argv)
 {
   bool gen_header = false, gen_min = false;
+
+/* BEGIN GCC-XML MODIFICATIONS (2008/06/02 15:41:10) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2008/06/02 15:41:10) */
+
   progname = argv[0];
 
   if (argc == 1)

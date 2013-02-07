@@ -354,6 +354,10 @@ main (int argc, char **argv)
 {
   rtx desc;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+
   max_opno = -1;
 
   progname = "genpeep";

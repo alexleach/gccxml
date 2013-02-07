@@ -5911,6 +5911,17 @@ extern tree mangle_ref_init_variable		(tree);
 /* in dump.c */
 extern bool cp_dump_tree			(void *, tree);
 
+
+/* BEGIN GCC-XML MODIFICATIONS 2003-11-21 */
+/* in xml.c */
+extern void do_xml_output                       (const char *);
+/* END GCC-XML MODIFICATIONS 2003-11-21 */
+
+/* BEGIN GCC-XML MODIFICATIONS 2008-02-27 */
+/* In FUNCTION_DECL, true for artifical methods that should not exist.  */
+#define GCCXML_DECL_ERROR(NODE) DECL_COMMON_CHECK (NODE)->decl_common.gccxml_decl_error
+/* END GCC-XML MODIFICATIONS 2008-02-27 */
+
 /* In cp/cp-objcp-common.c.  */
 
 extern alias_set_type cxx_get_alias_set		(tree);

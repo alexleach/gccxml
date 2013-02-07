@@ -1046,6 +1046,9 @@ void yyset_lineno (int line_number  );
  * section 1.
  */
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+#define yywrap() 1
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
 #ifndef YY_SKIP_YYWRAP
 #ifdef __cplusplus
 extern "C" int yywrap (void );

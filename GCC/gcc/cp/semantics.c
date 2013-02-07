@@ -2450,6 +2450,12 @@ finish_translation_unit (void)
 
   /* Do file scope __FUNCTION__ et al.  */
   finish_fname_decls ();
+
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:08:43) */
+  /* Do XML output if enabled.  */
+  if (flag_xml)
+    do_xml_output (flag_xml);
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:08:43) */
 }
 
 /* Finish a template type parameter, specified as AGGR IDENTIFIER.

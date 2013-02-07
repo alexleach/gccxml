@@ -7065,6 +7065,12 @@ comp_template_args (tree oldargs, tree newargs)
   return comp_template_args_with_info (oldargs, newargs, NULL, NULL);
 }
 
+/* BEGIN GCC-XML MODIFICATIONS 2008-01-05 */
+/* xml.c uses this to suppress pending templates when testing whether
+   synthesizing an artificially-generated function succeeds.  */
+extern bool diagnostic_get_xml_synthesize_test();
+/* END GCC-XML MODIFICATIONS 2008-01-05 */
+
 static void
 add_pending_template (tree d)
 {
@@ -7073,6 +7079,13 @@ add_pending_template (tree d)
 	     : DECL_TEMPLATE_INFO (d));
   struct pending_template *pt;
   int level;
+
+/* BEGIN GCC-XML MODIFICATIONS 2008-01-05 */
+  if(diagnostic_get_xml_synthesize_test())
+    {
+    return;
+    }
+/* END GCC-XML MODIFICATIONS 2008-01-05 */
 
   if (TI_PENDING_TEMPLATE_FLAG (ti))
     return;

@@ -674,6 +674,14 @@ extern int c_inhibit_evaluation_warnings;
 
 extern bool done_lexing;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
+/* Filename for xml dump of translation unit.  */
+extern const char* flag_xml;
+
+/* Start locations for dump of translation unit.  */
+extern const char* flag_xml_start;
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:06:58) */
+
 /* C types are partitioned into three subsets: object, function, and
    incomplete types.  */
 #define C_TYPE_OBJECT_P(type) \

@@ -1363,6 +1363,10 @@ main (int argc, char **argv)
   rtx defn;
   int pattern_lineno, next_insn_code = 0;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+
   progname = argv[0];
   if (argc <= 1)
     fatal ("no input file name");

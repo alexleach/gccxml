@@ -96,6 +96,9 @@ dosum (struct md5_ctx *ctx, const char *file)
 int
 main (int argc, char ** argv)
 {
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
   struct md5_ctx ctx;
   unsigned char result[16];
   int i;

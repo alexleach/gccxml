@@ -47,6 +47,10 @@ main (int argc, char ** ARG_UNUSED (argv))
 {
   int i, j;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+
   switch (argc)
     {
     case 1:

@@ -255,6 +255,10 @@ main (int argc, char **argv)
   rtx *insns;
   rtx *insn_ptr;
 
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+  gccxml_fix_printf();
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:06) */
+
   progname = "genflags";
   obstack_init (&obstack);
 

@@ -2827,6 +2827,26 @@ add_implicitly_declared_members (tree t,
   /* We can't be lazy about declaring functions that might override
      a virtual function from a base class.  */
   declare_virt_assop_and_dtor (t);
+/* BEGIN GCC-XML MODIFICATIONS 2008-06-18 */
+  /* We want all these declarations to be included in the dump so we
+     do them always.  */
+  if (CLASSTYPE_LAZY_DEFAULT_CTOR (t))
+    {
+    lazily_declare_fn (sfk_constructor, t);
+    }
+  if (CLASSTYPE_LAZY_COPY_CTOR (t))
+    {
+    lazily_declare_fn (sfk_copy_constructor, t);
+    }
+  if (CLASSTYPE_LAZY_COPY_ASSIGN (t))
+    {
+    lazily_declare_fn (sfk_copy_assignment, t);
+    }
+  if (CLASSTYPE_LAZY_DESTRUCTOR (t))
+    {
+    lazily_declare_fn (sfk_destructor, t);
+    }
+/* END GCC-XML MODIFICATIONS 2008-06-18 */
 }
 
 /* Subroutine of insert_into_classtype_sorted_fields.  Recursively

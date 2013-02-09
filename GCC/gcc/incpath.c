@@ -308,7 +308,7 @@ add_sysroot_to_chain (const char *sysroot, int chain)
 }
 
 /* Merge the five include chains together in the order wrapper, quote,
-   bracket, wrapper, system, after.  Remove duplicate dirs (determined in
+   bracket, system, after.  Remove duplicate dirs (determined in
    system-specific manner).
 
    We can't just merge the lists and then uniquify them because then
@@ -323,6 +323,9 @@ merge_include_chains (const char *sysroot, cpp_reader *pfile, int verbose)
   /* Add the sysroot to user-supplied paths starting with "=".  */
   if (sysroot)
     {
+/* BEGIN GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
+      add_sysroot_to_chain (sysroot, WRAPPER);
+/* END GCC-XML MODIFICATIONS (2007/10/31 15:07:01) */
       add_sysroot_to_chain (sysroot, QUOTE);
       add_sysroot_to_chain (sysroot, BRACKET);
       add_sysroot_to_chain (sysroot, SYSTEM);

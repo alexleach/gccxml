@@ -569,10 +569,26 @@ MACRO(CHECK_DECL_EXISTS symbol var)
 ENDMACRO(CHECK_DECL_EXISTS)
 
 
+#=============================================================================
 # New settings for GCC-4.7
-# ========================
+# ------------------------
 
-# Some directories
+#-----------------------------------------------------------------------------
+# GCC backend version information
+
+SET(BUILDING_GCC_MAJOR  4 CACHE INTERNAL "Packaged GCC major version.")
+SET(BUILDING_GCC_MINOR  7 CACHE INTERNAL "Packaged GCC minor version.")
+SET(BUILDING_GCC_PATCH  2 CACHE INTERNAL "Pacakged GCC patch level.")
+
+MATH(EXPR BUILDING_GCC_VERSION "(${BUILDING_GCC_MAJOR} * 1000 + ${BUILDING_GCC_MINOR})")
+SET(GCC_BASEVER "${BUILDING_GCC_MAJOR}.${BUILDING_GCC_MINOR}.${BUILDING_GCC_PATCH}"
+  CACHE INTERNAL "System GCC version")
+SET(BUILDING_GCC_VERSION  ${BUILDING_GCC_VERSION} CACHE INTERNAL "Packaged GCC version.")
+
+#-----------------------------------------------------------------------------
+# GNU GCC directory install layout
+# --------------------------------
+
 Include(GNUInstallDirs)
 IF(DATAROOTDIR)
   MESSAGE("GOT THIS DATAROOTDIR ${DATAROOTDIR}")
@@ -592,8 +608,9 @@ SET(TARGET_SYSTEM_ROOT "/usr" CACHE INTERNAL "Target system root")
 SET(TARGET_SYSTEM_ROOT_DEFINE TARGET_SYSTEM_ROOT=\"${TARGET_SYSTEM_ROOT}\";TARGET_SYSTEM_ROOT_RELOCATABLE
   CACHE INTERNAL "Target system Preprocesor Definitions (ignore)")
 
+#-----------------------------------------------------------------------------
 # Default things to enable
-#-------------------------
+# ------------------------
 
 SET(ENABLE_RELOCATABLE 1)
 SET(ENABLE_BUILD_WITH_CXX 1)

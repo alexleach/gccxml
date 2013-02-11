@@ -236,11 +236,10 @@
 
 
 /* Define to 1 if you have the `alphasort' function. */
-/* Not in GCC-4.7
+/* Not in GCC-4.7 */
 #ifndef USED_FOR_TARGET
-#cmakedefine HAVE_ALPHASORT 1
+/* #cmakedefine HAVE_ALPHASORT 1 */
 #endif
-*/
 
 
 /* Define if your assembler supports DFP instructions. */
@@ -1343,11 +1342,10 @@
 
 
 /* Define to 1 if you have the `mincore' function. */
-/*
+/*  Not in GCC 4.7.2  */
 #ifndef USED_FOR_TARGET
-#cmakedefine HAVE_MINCORE 1
+// #cmakedefine HAVE_MINCORE 1
 #endif
-*/
 
 
 /* Define to 1 if you have the `mmap' function. */
@@ -1393,11 +1391,10 @@
 
 
 /* Define to 1 if you have the `scandir' function. */
-/*
+/*  Not in GCC 4.7.2  */
 #ifndef USED_FOR_TARGET
-#cmakedefine HAVE_SCANDIR 1
+// #cmakedefine HAVE_SCANDIR 1
 #endif
-*/
 
 
 /* Define to 1 if you have the `setlocale' function. */

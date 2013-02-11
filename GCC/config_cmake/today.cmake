@@ -11,7 +11,7 @@ MACRO (TODAY RESULT)
     string(REGEX REPLACE "(..)/(..)/(....).*" "\\3\\2\\1"
           ${RESULT} ${${RESULT}})
   ELSE (CYGWIN)
-    MESSAGE(SEND_ERROR "date not implemented")
+    MESSAGE("INFO: date not implemented. Setting dummy datestamp.")
     SET(${RESULT} 000000)
   ENDIF (CYGWIN)
 ENDMACRO (TODAY)

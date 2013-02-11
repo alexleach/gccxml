@@ -6,36 +6,23 @@ INCLUDE_DIRECTORIES(BEFORE
 
 SET(iberty_SRCS
   # ADDED for 4.7
-  asprintf.c atexit.c
-	basename.c bcmp.c bcopy.c bsearch.c bzero.c
-	calloc.c choose-temp.c clock.c concat.c cp-demangle.c
 	crc32.c
-	ffs.c filename_cmp.c
-	getcwd.c getpagesize.c 
-  # gettimeofday.c
-	index.c insque.c
-	memchr.c memcmp.c memcpy.c memmem.c
-	memmove.c mempcpy.c memset.c mkstemps.c
+	filename_cmp.c
+	memmem.c
   #	pex-djgpp.c 
   # pex-msdos.c
   # pex-win32.c
   putenv.c
-	random.c rename.c rindex.c
-  setenv.c setproctitle.c sha1.c sigsetmask.c
-  simple-object.c simple-object-coff.c simple-object-elf.c
+  setproctitle.c
+  sha1.c
+  simple-object.c
+  simple-object-coff.c
+  simple-object-elf.c
   simple-object-mach-o.c
-  snprintf.c
-  stack-limit.c stpcpy.c stpncpy.c
-  strcasecmp.c strchr.c strdup.c strncasecmp.c
-  strncmp.c strrchr.c strsignal.c strstr.c strtod.c strtol.c
-  strtoul.c strndup.c strverscmp.c
-  timeval-utils.c tmpnam.c
-  vasprintf.c vfork.c 
-  #  vfprintf.c 
-  vprintf.c 
-  vsnprintf.c
-  vsprintf.c
-  waitpid.c
+  stack-limit.c
+  strncmp.c
+  timeval-utils.c
+  vfork.c 
 
   # FROM 4.2 compatibility branch. Removed files commented out.
 
@@ -60,10 +47,10 @@ FOREACH(f
     MEMSET PUTENV RANDOM RENAME RINDEX SIGSETMASK STRCASECMP SETENV STPCPY
     STPNCPY STRCHR STRDUP STRNCASECMP STRNDUP STRRCHR STRSTR STRTOD STRTOL
     STRTOUL STRVERSCMP TMPNAM VASPRINTF VFPRINTF VPRINTF VSPRINTF STRERROR
-    STRSIGNAL FFS SNPRINTF VSNPRINTF
+    STRSIGNAL FFS SNPRINTF VSNPRINTF WAITPID
     )
   # Removed from above list:
-  #   WAITPID WAIT3 WAIT4 SYSMP __FSETLOCKING GETRUSAGE ON_EXIT TIMES
+  #   WAIT3 WAIT4 SYSMP __FSETLOCKING GETRUSAGE ON_EXIT TIMES
   #   PSTAT_GETSTATIC PSTAT_GETDYNAMIC GETSYSINFO TABLE PSIGNAL SYSCONF
   #   REALPATH SYSCTL SBRK CANONICALIZE_FILE_NAME GETTIMEOFDAY
   IF(NOT HAVE_${f})

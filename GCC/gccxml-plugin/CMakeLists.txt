@@ -1,9 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6.3 FATAL_ERROR)
 PROJECT(gccxml_plugin)
 
-# We are not using shared libraries.  Skip any RPATH.
-SET(CMAKE_SKIP_RPATH 1)
-
 # Tell GCC_XML that we are providing gccxml_cc1plus for it.
 SET(GCCXML_NATIVE_CC1PLUS 0)
 
@@ -30,7 +27,7 @@ MESSAGE("gccxml version  ${GCC_XML_GCC_VERSION}")
 
 #-----------------------------------------------------------------------------
 # Place gccxml-plugin in lib directory
-SET(LIBRARY_OUTPUT_PATH "${gccxml_plugin_BINARY_DIR}/lib" CACHE PATH
+SET(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}/lib" CACHE PATH
   "Output directory for gccxml-plugin.[so|dll]")
 MARK_AS_ADVANCED(LIBRARY_OUTPUT_PATH)
 
@@ -48,13 +45,11 @@ SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fomit-frame-pointer -mt
 MESSAGE("CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} -g3 -gdwarf-3 -O0 -Wall -pedantic")
 MESSAGE("CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} -fomit-frame-pointer -mtune=generic -Os")
 
-
-# Dashboard support
-#INCLUDE(CTest)
-
-# Test GCC_XML.
-#ENABLE_TESTING()
-#SET(GCCXML_ADD_TESTS 1)
-
 # Build plugin.
 SUBDIRS(plugin)
+
+# Test libgccxml-plugin
+IF(GCCXML_ADD_TESTS)
+  SUBDIRS(Testing)
+ENDIF(GCCXML_ADD_TESTS)
+

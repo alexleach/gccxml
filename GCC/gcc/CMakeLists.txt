@@ -1,6 +1,5 @@
 #-----------------------------------------------------------------------------
 INCLUDE("${GCCCONFIG_SOURCE_DIR}/gcc_make_config_h.cmake")
-#INCLUDE("${GCCCONFIG_SOURCE_DIR}/gcc_make_constants_h.cmake")
 INCLUDE(${GCCCONFIG_SOURCE_DIR}/today.cmake)
 TODAY(GCC_DATESTAMP)
 
@@ -12,16 +11,6 @@ INCLUDE_DIRECTORIES(BEFORE
   ${GCC_SOURCE_DIR}/gcc
   ${GCC_SOURCE_DIR}/gcc/config
   ${GCC_BINARY_DIR}/gcc)
-
-#-----------------------------------------------------------------------------
-# GCC backend version information
-SET(BUILDING_GCC_MAJOR      4)
-SET(BUILDING_GCC_MINOR      7)
-SET(BUILDING_GCC_PATCHLEVEL 2)
-
-SET(GCC_BASEVER "${BUILDING_GCC_MAJOR}.${BUILDING_GCC_MINOR}.${BUILDING_GCC_PATCHLEVEL}")
-MATH(EXPR BUILDING_GCC_VERSION "(${BUILDING_GCC_MAJOR} * 1000 + ${BUILDING_GCC_MINOR})")
-SET(GCC_VERSION ${BUILDING_GCC_VERSION})
 
 ADD_DEFINITIONS(-DIN_GCC -DHAVE_CONFIG_H)
 
@@ -195,10 +184,10 @@ ENDFOREACH()
 SET(ALL_OPT_FILES
   ${GCC_SOURCE_DIR}/gcc/c-family/c.opt
   ${GCC_SOURCE_DIR}/gcc/common.opt
+  ${GCC_SOURCE_DIR}/gcc/lto/lang.opt
   # ${GCC_SOURCE_DIR}/gcc/fortran/lang.opt
   # ${GCC_SOURCE_DIR}/gcc/go/lang.opt
   # ${GCC_SOURCE_DIR}/gcc/java/lang.opt
-  ${GCC_SOURCE_DIR}/gcc/lto/lang.opt
   )
 
 FOREACH(f ${extra_options})
@@ -750,7 +739,7 @@ CONFIGURE_FILE(${GCCCONFIG_SOURCE_DIR}/bversion.h.in
 
 SET(GCCPLUGIN_VERSION_MAJOR ${BUILDING_GCC_MAJOR})
 SET(GCCPLUGIN_VERSION_MINOR ${BUILDING_GCC_MINOR})
-SET(GCCPLUGIN_VERSION_PATCHLEVEL ${BUILDING_GCC_PATCHLEVEL})
+SET(GCCPLUGIN_VERSION_PATCHLEVEL ${BUILDING_GCC_PATCH})
 CONFIGURE_FILE(${GCC_SOURCE_DIR}/config_cmake/plugin-version.h.in
                ${GCC_BINARY_DIR}/gcc/plugin-version.h)
 
@@ -960,6 +949,7 @@ STRING(REGEX REPLACE "/[^/]*" "../" LIBSUBDIR_TO_PREFIX "${LIBSUBDIR_TO_PREFIX}"
 # 4. Strip trailing slash
 STRING(REGEX REPLACE "/$" "" LIBSUBDIR_TO_PREFIX "${LIBSUBDIR_TO_PREFIX}" )
 
+SET(GCC_VERSION ${BUILDING_GCC_VERSION})
 SET(GCC_TOOLDIR "${LIBSUBDIR}/${LIBSUBDIR_TO_PREFIX}")
 SET(GCC_GXX_INCLUDE_DIR "${LIBSUBDIR}/${LIBSUBDIR_TO_PREFIX}/include/c++/${GCC_BASEVER}")
 

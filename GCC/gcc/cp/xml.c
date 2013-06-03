@@ -55,7 +55,9 @@ along with this program; if not, write to the
 #include "cp-tree.h"
 #include "decl.h"
 #include "rtl.h"
-#include "varray.h"
+/* Start GCC 4.7.2 upgrade edit - Change varray.h for vec.h*/
+#include "vec.h"
+/* End GCC 4.7.2 upgrade edit */
 
 #include "splay-tree.h"
 
@@ -305,10 +307,11 @@ static int xml_fill_all_decls(struct cpp_reader*, hashnode, const void*);
 extern int errorcount;
 #endif
 
+int _node_count = 1;
 /* Switch to 1 to enable debugging of dump node selection.  */
 #if 0
 # define xml_add_node(xdi, node, complete)                                    \
-   (fprintf(stderr, "Adding node at line %d\n", __LINE__),                    \
+   (fprintf(stderr, "Adding node %i (%s) at line %d\n",_node_count++, tree_code_name[TREE_CODE(node)], __LINE__),                    \
     xml_add_node(xdi, node, complete))
 #endif
 
@@ -707,13 +710,30 @@ xml_document_add_attribute_name(xml_document_element_p element,
 }
 
 /*--------------------------------------------------------------------------*/
+/* Print the XML attribute isAnon="1" if type has no name.  */
+static void xml_print_anon_attribute(xml_dump_info_p xdi, tree n)
+{
+    if (TYPE_ANONYMOUS_P(n))
+        fprintf(xdi->file, " isAnon=\"1\"");
+}
+
+static void xml_document_add_attribute_anon(xml_document_element_p element)
+{
+    xml_document_add_attribute(element, "isAnon",
+                           xml_document_attribute_type_boolean,
+                           xml_document_attribute_use_required, "0");
+}
+
+/*--------------------------------------------------------------------------*/
 /* Print the XML attribute mangled="..." for the given node.  */
 static void
 xml_print_mangled_attribute (xml_dump_info_p xdi, tree n)
 {
-  if (HAS_DECL_ASSEMBLER_NAME_P(n) &&
+/* Start GCC 4.7.2 upgrade edit. Change HAS_DECL_ASSEMBLER_NAME_SET Macro */
+  if (DECL_ASSEMBLER_NAME_SET_P(n) &&
+/* End GCC 4.7.2 upgrade edit */
       DECL_NAME (n) &&
-      DECL_ASSEMBLER_NAME (n) &&
+//      DECL_ASSEMBLER_NAME (n) &&
       DECL_ASSEMBLER_NAME (n) != DECL_NAME (n))
     {
     const char* name = xml_get_encoded_string (DECL_ASSEMBLER_NAME (n));
@@ -734,9 +754,11 @@ xml_document_add_attribute_mangled(xml_document_element_p element)
 static void
 xml_print_demangled_attribute (xml_dump_info_p xdi, tree n)
 {
-  if (HAS_DECL_ASSEMBLER_NAME_P(n) &&
+/* Start GCC 4.7.2 upgrade edit. Change HAS_DECL_ASSEMBLER_NAME_SET Macro */
+  if (DECL_ASSEMBLER_NAME_SET_P(n) &&
+/* End GCC 4.7.2 upgrade edit */
       DECL_NAME (n) &&
-      DECL_ASSEMBLER_NAME (n) &&
+//      DECL_ASSEMBLER_NAME (n) &&
       DECL_ASSEMBLER_NAME (n) != DECL_NAME (n))
     {
     const char* INTERNAL = " *INTERNAL* ";
@@ -928,6 +950,51 @@ xml_document_add_attribute_base_type(xml_document_element_p element)
 }
 
 /*--------------------------------------------------------------------------*/
+
+/* Print the XML attribute isScoped="..." for the given type.  */
+static void xml_print_scoped_attribute(xml_dump_info_p xdi, tree n)
+{
+    if (n != global_namespace)
+    {
+        tree context = CP_DECL_CONTEXT(n);
+        if (context && context != global_namespace)
+        {
+            fprintf(xdi->file, " isScoped=\"1\"");
+        }
+    }
+}
+
+static void
+xml_document_add_attribute_scoped(xml_document_element_p element)
+{
+    xml_document_add_attribute(element, "isScoped",
+                               xml_document_attribute_type_boolean,
+                               xml_document_attribute_use_required, "0");
+}
+
+/* Print the XML attribute isAnonScoped="..." for the given type.  */
+static void
+xml_print_anon_type_scoped_attribute(xml_dump_info_p xdi, tree n)
+{
+    if (n != global_namespace)
+    {
+        tree context = CP_DECL_CONTEXT(n);
+        if (context
+            && TYPE_P(context)
+            && ANON_AGGRNAME_P(TYPE_IDENTIFIER(context)))
+        {
+            fprintf(xdi->file, " isAnonTypeScoped=\"1\"");
+        }
+    }
+}
+
+static void xml_document_add_attribute_anon_type_scoped(xml_document_element_p element)
+{
+    xml_document_add_attribute(element, "isAnonTypeScoped",
+                               xml_document_attribute_type_boolean,
+                               xml_document_attribute_use_required, "0");
+}
+
 /* Print the XML attribute context="..." for the given node.  If the
    context is a type also print the XML attribute access="..." for the
    given decl.  */
@@ -960,6 +1027,8 @@ xml_print_context_attribute (xml_dump_info_p xdi, tree n)
           }
         }
       }
+    xml_print_scoped_attribute(xdi, n);
+    xml_print_anon_type_scoped_attribute(xdi, n);
     }
 }
 
@@ -982,6 +1051,9 @@ xml_document_add_attribute_context(xml_document_element_p element,
     {
     xml_document_add_attribute_access(element);
     }
+
+    xml_document_add_attribute_scoped(element);
+    xml_document_add_attribute_anon_type_scoped(element);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1111,6 +1183,82 @@ xml_print_static_attribute (xml_dump_info_p xdi, tree fd)
   if (DECL_THIS_STATIC (fd))
     {
     fprintf (xdi->file, " static=\"1\"");
+    }
+}
+
+static void
+xml_document_add_attribute_template(xml_document_element_p element)
+{
+    xml_document_add_attribute(element, "template",
+                               xml_document_attribute_type_boolean,
+                               xml_document_attribute_use_optional, "0");
+}
+
+/*--------------------------------------------------------------------------*/
+/* Print XML attribute template="1" for templated functions.  */
+static void
+xml_print_template_attribute(xml_dump_info_p xdi, tree fd)
+{
+    if (DECL_TEMPLATE_INSTANTIATED(fd))
+        fprintf(xdi->file, " template=\"1\"");
+    else
+    if (DECL_USE_TEMPLATE(fd))
+        fprintf(xdi->file, " template=\"1\"");
+
+    /*
+        This means:
+        template <typename T> struct S { friend void f(T) {} };
+
+        In this case, S<int>::f is, from the point of view of the compiler,
+        an instantiation of a template -- but, from the point of view of
+        the language, each instantiation of S results in a wholly unrelated
+        global function f.  In this case, DECL_TEMPLATE_INFO for S<int>::f
+        will be non-NULL, but DECL_USE_TEMPLATE will be zero.
+
+        See the DECL_TEMPLATE_INFO macro docs.
+    */
+    //~ else
+    //~ if (DECL_TEMPLATE_INFO(fd))
+        //~ fprintf(xdi->file, " template=\"1\"");
+}
+
+/*--------------------------------------------------------------------------*/
+/* Print XML attribute template="1" for templated classes/unions. */
+static void
+xml_print_template_attribute_class_union(xml_dump_info_p xdi, tree fd)
+{
+    if (CLASSTYPE_TEMPLATE_INFO(fd))
+        fprintf(xdi->file, " template=\"1\"");
+}
+
+/* Print XML attribute template="1" for templated enums. */
+/* static void xml_print_template_attribute_enum(xml_dump_info_p xdi, tree fd)
+{
+    if (ENUM_TEMPLATE_INFO(fd))
+        fprintf(xdi->file, " template=\"1\"");
+} */
+
+static void
+xml_document_add_attribute_template_name(xml_document_element_p element)
+{
+    xml_document_add_attribute(element, "templateName",
+                               xml_document_attribute_type_string,
+                               xml_document_attribute_use_optional, 0);
+}
+
+/*--------------------------------------------------------------------------*/
+/* Print XML attribute templateName="name" for templated classes/unions.  */
+static void
+xml_print_template_name_attribute_class_union(xml_dump_info_p xdi, tree fd)
+{
+    tree ti = CLASSTYPE_TEMPLATE_INFO(fd);
+    if (ti)
+    {
+        fprintf(xdi->file, " templateName=\"%s\"",
+                xml_get_encoded_string(
+		    DECL_NAME(CLASSTYPE_TI_TEMPLATE(fd)
+			          /*TREE_PURPOSE(ti)*/
+		    )));
     }
 }
 
@@ -1345,6 +1493,58 @@ xml_document_add_attribute_abstract(xml_document_element_p element)
                              xml_document_attribute_use_optional, "0");
 }
 
+/* Print the XML attribute isPOD="..." for the given type.  */
+static void
+xml_print_pod_attribute(xml_dump_info_p xdi, tree t)
+{
+    if (CLASSTYPE_NON_LAYOUT_POD_P(t) == 0)
+        fprintf(xdi->file, " isPOD=\"1\"");
+}
+
+static void xml_document_add_attribute_pod(xml_document_element_p element)
+{
+    xml_document_add_attribute(element, "isPOD",
+                               xml_document_attribute_type_boolean,
+                               xml_document_attribute_use_required, "0");
+}
+
+/* Print XML attribute isPolymorphic="1" for templated functions.  */
+static void
+xml_print_polymorphic_attribute(xml_dump_info_p xdi, tree fd)
+{
+    if (TYPE_POLYMORPHIC_P(fd))
+        fprintf(xdi->file, " isPolymorphic=\"1\"");
+}
+
+static void xml_document_add_attribute_polymorphic(xml_document_element_p element)
+{
+    xml_document_add_attribute(element, "isPolymorphic",
+                               xml_document_attribute_type_boolean,
+                               xml_document_attribute_use_optional, "0");
+}
+
+/* Print XML attribute isTypeScoped="1" for type declarations nested in other types.  */
+static void
+xml_print_type_scoped_attribute(xml_dump_info_p xdi, tree n)
+{
+    if (n != global_namespace)
+    {
+        tree context = CP_DECL_CONTEXT(n);
+        if (context && TYPE_P(context))
+        {
+            fprintf(xdi->file, " isTypeScoped=\"1\"");
+        }
+    }
+}
+
+static void
+xml_document_add_attribute_type_scoped(xml_document_element_p element)
+{
+    xml_document_add_attribute(element, "isTypeScoped",
+                               xml_document_attribute_type_boolean,
+                               xml_document_attribute_use_required, "0");
+}
+
 /*--------------------------------------------------------------------------*/
 /* Print XML empty tag for an ellipsis at the end of an argument list.  */
 static void
@@ -1421,21 +1621,41 @@ xml_document_add_attribute_throw(xml_document_element_p element)
 /*--------------------------------------------------------------------------*/
 /* Given an attribute node, set "arg" to the string value of the first
    argument, and return the first argument node.  */
-tree xml_get_first_attrib_arg(tree attrib_node, char** arg)
+
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+tree xml_get_attrib_arg_helper(tree arg_node, char** arg)
 {
-  /* This function contributed by Steven Kilthau - May 2004.  */
-  tree arg_node = TREE_VALUE (attrib_node);
   *arg = "";
   if (arg_node && (TREE_CODE (arg_node) == TREE_LIST))
     {
     tree cst = TREE_VALUE (arg_node);
-    if (TREE_CODE (cst) == STRING_CST)
-      {
-      *arg = TREE_STRING_POINTER (cst);
+    switch (TREE_CODE(cst))
+    {
+        case STRING_CST:
+          *arg = TREE_STRING_POINTER (cst);
+          break;
+        case INTEGER_CST:
+          //*arg = TREE_INT_CST(cst);
+	  sprintf(arg, "%i", TREE_INT_CST(cst));
+          //arg = (char *) &TREE_INT_CST (cst);
+          break;
+        case IDENTIFIER_NODE:
+          *arg = xml_get_encoded_string(cst);
+          break;
+        default:
+          error("Unhandled case '%s'\n", tree_code_name[TREE_CODE(cst)]);
+          gcc_assert(0);
       }
     return arg_node;
     }
   return 0;
+}
+
+tree xml_get_first_attrib_arg(tree attrib_node, char** arg)
+{
+  /* This function contributed by Steven Kilthau - May 2004.  */
+  tree arg_node = TREE_VALUE (attrib_node);
+  return xml_get_attrib_arg_helper(arg_node, arg);
 }
 
 /* Given an argument node, set "arg" to the string value of the next
@@ -1444,72 +1664,51 @@ tree xml_get_next_attrib_arg(tree arg_node, char** arg)
 {
   /* This function contributed by Steven Kilthau - May 2004.  */
   arg_node = TREE_CHAIN (arg_node);
-  *arg = "";
-  if (arg_node && (TREE_CODE (arg_node) == TREE_LIST))
+  return xml_get_attrib_arg_helper(arg_node, arg);
+}
+
+static void
+xml_print_attributes_attribute_helper (xml_dump_info_p xdi, tree attributes)
+{
+  //const char* space = "";
+  tree arg_node;
+  tree attribute;
+  bool values;
+  char* arg = NULL;
+  for(attribute = attributes; attribute;
+      attribute = TREE_CHAIN(attribute))
+  {
+    values = false;
+    fprintf(xdi->file, "    <Attribute name=\"%s\"",
+            xml_get_encoded_string(TREE_PURPOSE(attribute)));
+    for(arg_node = xml_get_first_attrib_arg(attribute, &arg);
+	arg_node != 0 ;
+        arg_node = xml_get_next_attrib_arg(arg_node, &arg))
     {
-    tree cst = TREE_VALUE (arg_node);
-    if (TREE_CODE (cst) == STRING_CST)
-      {
-      *arg = TREE_STRING_POINTER (cst);
-      }
-    return arg_node;
+	if (!values)
+	{
+	  values = true;
+	  fprintf(xdi->file, ">\n");
+	}
+	fprintf(xdi->file, "      <Value value=\"%s\" />\n",
+                xml_get_encoded_string_from_string(&arg));
     }
-  return 0;
+    if (values)
+      fprintf(xdi->file, "    </Attribute>\n");
+    else
+      fprintf(xdi->file, "/>\n");
+  }
 }
 
 /* Print XML attribute listing the contents of the __attribute__ node
    given.  */
-static void
 xml_print_attributes_attribute (xml_dump_info_p xdi, tree attributes1,
                                 tree attributes2)
 {
-  if(attributes1 || attributes2)
-    {
-    const char* space = "";
-    tree attribute;
-    tree arg_node;
-    char* arg;
-    fprintf(xdi->file, " attributes=\"");
-    for(attribute = attributes1; attribute;
-        attribute = TREE_CHAIN(attribute))
-      {
-      fprintf(xdi->file, "%s%s", space,
-              xml_get_encoded_string(TREE_PURPOSE (attribute)));
-      space = " ";
-
-      /* Format and print the string arguments to the attribute
-         (contributed by Steven Kilthau - May 2004).  */
-      if ((arg_node = xml_get_first_attrib_arg(attribute, &arg)) != 0)
-        {
-        fprintf(xdi->file, "(%s", xml_get_encoded_string_from_string(arg));
-        while((arg_node = xml_get_next_attrib_arg(arg_node, &arg)) != 0)
-          {
-          fprintf(xdi->file, ",%s", xml_get_encoded_string_from_string(arg));
-          }
-        fprintf(xdi->file, ")");
-        }
-      }
-    for(attribute = attributes2; attribute;
-        attribute = TREE_CHAIN(attribute))
-      {
-      fprintf(xdi->file, "%s%s", space,
-              xml_get_encoded_string(TREE_PURPOSE (attribute)));
-      space = " ";
-
-      /* Format and print the string arguments to the attribute
-         (contributed by Steven Kilthau - May 2004).  */
-      if ((arg_node = xml_get_first_attrib_arg(attribute, &arg)) != 0)
-        {
-        fprintf(xdi->file, "(%s", xml_get_encoded_string_from_string(arg));
-        while((arg_node = xml_get_next_attrib_arg(arg_node, &arg)) != 0)
-          {
-          fprintf(xdi->file, ",%s", xml_get_encoded_string_from_string(arg));
-          }
-        fprintf(xdi->file, ")");
-        }
-      }
-    fprintf(xdi->file, "\"");
-    }
+  if (attributes1)
+    xml_print_attributes_attribute_helper(xdi, attributes1);
+  if (attributes2)
+    xml_print_attributes_attribute_helper(xdi, attributes2);
 }
 
 static void
@@ -1519,6 +1718,7 @@ xml_document_add_attribute_attributes(xml_document_element_p element)
                              xml_document_attribute_type_string,
                              xml_document_attribute_use_optional, 0);
 }
+/* END GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
 
 /*--------------------------------------------------------------------------*/
 /* Print XML attribute artificial="1" for compiler generated methods.  */
@@ -1662,8 +1862,11 @@ xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
       {
       xml_print_name_attribute (xdi, DECL_NAME (ns));
       }
+/* START GCC-4.7.2 upgrades - from Andrej Mitrovic */
+    xml_print_anon_attribute(xdi, ns);
     xml_print_context_attribute (xdi, ns);
-    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(ns), 0);
+//    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(ns), 0);
+/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
 
     /* If complete dump, walk the namespace.  */
     if(dn->complete)
@@ -1704,7 +1907,13 @@ xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
     fprintf (xdi->file, "  <NamespaceAlias");
     xml_print_id_attribute (xdi, dn);
     xml_print_name_attribute (xdi, DECL_NAME (ns));
+/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+    xml_print_anon_attribute(xdi, ns);
+/* END GCC 4.7.2 upgrade mods */
     xml_print_context_attribute (xdi, ns);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    xml_print_type_scoped_attribute(xdi, ns);
+/* END GCC 4.7.2 upgrade mods */
     fprintf (xdi->file, " namespace=\"_%d\"",
              xml_add_node (xdi, real_ns, 0));
     xml_print_mangled_attribute (xdi, ns);
@@ -1722,6 +1931,9 @@ xml_document_add_element_namespace_decl (xml_document_info_p xdi,
   e->name = "Namespace";
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_required);
+/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+  xml_document_add_attribute_anon(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
                                      0);
   xml_document_add_attribute_attributes(e);
@@ -1736,8 +1948,14 @@ xml_document_add_element_namespace_decl (xml_document_info_p xdi,
   e->name = "NamespaceAlias";
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_required);
+/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+  xml_document_add_attribute_anon(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
                                      0);
+/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+  xml_document_add_attribute_type_scoped(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute(e, "namespace",
                              xml_document_attribute_type_idref,
                              xml_document_attribute_use_required, 0);
@@ -1754,6 +1972,9 @@ xml_output_typedef (xml_dump_info_p xdi, tree td, xml_dump_node_p dn)
   fprintf (xdi->file, "  <Typedef");
   xml_print_id_attribute (xdi, dn);
   xml_print_name_attribute (xdi, DECL_NAME (td));
+/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+  xml_print_anon_attribute(xdi, td);
+/* END GCC 4.7.2 upgrade mods */
 
   /* Get the original type out of the typedef, if any.  */
   if (DECL_ORIGINAL_TYPE (td))
@@ -1766,6 +1987,9 @@ xml_output_typedef (xml_dump_info_p xdi, tree td, xml_dump_node_p dn)
     }
 
   xml_print_context_attribute (xdi, td);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_type_scoped_attribute(xdi, td);
+/* END GCC 4.7.2 upgrade mods */
   xml_print_location_attribute (xdi, td);
 
   /* Output typedef attributes (contributed by Steven Kilthau - May 2004).  */
@@ -1785,9 +2009,15 @@ xml_document_add_element_typedef (xml_document_info_p xdi,
   e->name = "Typedef";
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_required);
+/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+  xml_document_add_attribute_anon(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_type(e);
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
                                      1);
+/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+  xml_document_add_attribute_type_scoped(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_location(e, xml_document_attribute_use_required);
   xml_document_add_attribute_attributes(e);
 }
@@ -1866,7 +2096,7 @@ xml_reverse_opname_lookup (tree name)
     return get_identifier (unknown_operator);
 
   /* Search the list of internal anmes */
-  for (i=0; i < LAST_CPLUS_TREE_CODE ; ++i)
+  for (i=0; i < MAX_TREE_CODES ; ++i)
     {
     if (ansi_opname(i) == name)
       return get_identifier (operator_name_info[i].name);
@@ -1885,8 +2115,10 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
   tree arg_type;
   const char* tag;
   tree name = DECL_NAME (fd);
-  tree saved_tree = DECL_SAVED_TREE (fd);
+/* START GCC 4.7.2 upgrade mods */
+  tree saved_tree = gimple_body (fd);
   tree body = saved_tree? BIND_EXPR_BODY (saved_tree) : 0;
+/* END GCC 4.7.2 upgrade mods */
   int do_name = 1;
   int do_returns = 0;
   int do_const = 0;
@@ -1895,12 +2127,17 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
   int do_static_function = 0;
   int do_artificial = 0;
   int do_explicit = 0;
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  int do_template = 0;
+  int do_type_scoped = 0;
+/* END GCC 4.7.2 upgrade mods */
 
-  /* Print out the begin tag for this type of function.  */
+  /* Print out the begin tag for this type of function. */
   if (DECL_CONSTRUCTOR_P (fd))
     {
     /* A class constructor.  */
-    tag = "Constructor"; do_artificial = 1;
+    tag = "Constructor";
+    do_artificial = 1;
     do_explicit = 1;
     if(TYPE_ANONYMOUS_P (DECL_CONTEXT (fd)))
       {
@@ -1919,9 +2156,15 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
       /* A type-conversion operator in a class.  */
       tag = "Converter";
       do_returns = 1; do_const = 1; do_virtual = 1;
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+      do_template = 1;
+/* END GCC 4.7.2 upgrade mods */
       }
     else
       {
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+      do_template=1;
+/* END GCC 4.7.2 upgrade mods */
       if (DECL_FUNCTION_MEMBER_P (fd))
         {
         /* An operator in a class.  */
@@ -1935,12 +2178,18 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
         /* An operator in a namespace.  */
         tag = "OperatorFunction";
         name = xml_reverse_opname_lookup (DECL_NAME (fd));
-        do_static_function= 1; do_returns = 1;
+        do_static_function = 1; do_returns = 1;
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+        do_type_scoped = 1;
+/* END GCC 4.7.2 upgrade mods */
         }
       }
     }
   else
     {
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    do_template=1;
+/* END GCC 4.7.2 upgrade mods */
     if (DECL_FUNCTION_MEMBER_P (fd))
       {
       /* A member of a class.  */
@@ -1956,50 +2205,56 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
 
   fprintf (xdi->file, "  <%s", tag);
   xml_print_id_attribute (xdi, dn);
-  if(do_name)
-    {
-    xml_print_name_attribute (xdi, name);
-    }
-
+  if(do_name)   xml_print_name_attribute (xdi, name);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_anon_attribute(xdi, fd);
+/* END GCC 4.7.2 upgrade mods */
   if(do_returns)
     {
     xml_print_returns_attribute (xdi, TREE_TYPE (TREE_TYPE (fd)), dn->complete);
     }
-  if(do_explicit) xml_print_explicit_attribute (xdi, fd);
-  if(do_const)   xml_print_const_method_attribute (xdi, fd);
-  if(do_virtual) xml_print_virtual_method_attributes (xdi, fd);
+  if(do_explicit)   xml_print_explicit_attribute (xdi, fd);
+  if(do_const)      xml_print_const_method_attribute (xdi, fd);
+  if(do_virtual)    xml_print_virtual_method_attributes (xdi, fd);
   if(do_static_method)  xml_print_static_method_attribute (xdi, fd);
-  if(do_static_function)  xml_print_static_attribute (xdi, fd);
-  if(do_artificial)  xml_print_artificial_attribute (xdi, fd);
+  if(do_static_function)xml_print_static_attribute (xdi, fd);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  if(do_template)       xml_print_template_attribute(xdi, fd);
+/* END GCC 4.7.2 upgrade mods */
+  if(do_artificial)     xml_print_artificial_attribute (xdi, fd);
   xml_print_throw_attribute (xdi, TREE_TYPE (fd), dn->complete);
   xml_print_context_attribute (xdi, fd);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  if(do_type_scoped)    xml_print_type_scoped_attribute(xdi, fd);
+/* END GCC 4.7.2 upgrade mods */
   xml_print_mangled_attribute (xdi, fd);
   xml_print_demangled_attribute (xdi, fd);
   xml_print_location_attribute (xdi, fd);
-  if(body)
-    {
-    xml_print_endline_attribute (xdi, body);
-    }
+  if(body)              xml_print_endline_attribute (xdi, body);
   xml_print_function_extern_attribute (xdi, fd);
   xml_print_inline_attribute (xdi, fd);
-  xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(fd),
-                                  TYPE_ATTRIBUTES(TREE_TYPE(fd)));
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  /*  Move xml_print_attributes_attribute down below */
+/* END GCC 4.7.2 upgrade mods */
   xml_print_befriending_attribute (xdi, DECL_BEFRIENDING_CLASSES (fd));
 
   /* Prepare to iterator through argument list.  */
   arg = DECL_ARGUMENTS (fd);
   arg_type = TYPE_ARG_TYPES (TREE_TYPE (fd));
   if (DECL_NONSTATIC_MEMBER_FUNCTION_P (fd))
-    {
     /* Skip "this" argument.  */
     if(arg) arg = TREE_CHAIN (arg);
-    arg_type = TREE_CHAIN (arg_type);
-    }
+      arg_type = TREE_CHAIN (arg_type);
 
   /* If there are no arguments, finish the element.  */
   if (arg_type == void_list_node)
     {
-    fprintf (xdi->file, "/>\n");
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    fprintf (xdi->file, ">\n");
+    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(fd),
+                                  TYPE_ATTRIBUTES(TREE_TYPE(fd)));
+    fprintf (xdi->file, "  </%s>\n", tag);
+/* END GCC 4.7.2 upgrade mods */
     return;
     }
   else
@@ -2020,6 +2275,10 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
     /* Function has variable number of arguments.  Print ellipsis.  */
     xml_output_ellipsis (xdi);
     }
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(fd),
+                                  TYPE_ATTRIBUTES(TREE_TYPE(fd)));
+/* END GCC 4.7.2 upgrade mods */
 
   fprintf (xdi->file, "  </%s>\n", tag);
 }
@@ -2033,8 +2292,14 @@ xml_document_add_element_function_helper (xml_document_info_p xdi,
                                           int do_const,
                                           int do_virtual,
                                           int do_static,
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+                                          int do_template,
+/* END GCC 4.7.2 upgrade mods */
                                           int do_artificial,
                                           int do_explicit,
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+                                          int do_type_scoped,
+/* END GCC 4.7.2 upgrade mods */
                                           int allow_arguments,
                                           int allow_ellipsis)
 {
@@ -2042,33 +2307,22 @@ xml_document_add_element_function_helper (xml_document_info_p xdi,
   e->name = tag;
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_required);
-  if(do_returns)
-    {
-    xml_document_add_attribute_returns(e);
-    }
-  if(do_const)
-    {
-    xml_document_add_attribute_const_method(e);
-    }
-  if(do_virtual)
-    {
-    xml_document_add_attribute_virtual_method(e);
-    }
-  if(do_static)
-    {
-    xml_document_add_attribute_static(e);
-    }
-  if(do_artificial)
-    {
-    xml_document_add_attribute_artificial(e);
-    }
-  if(do_explicit)
-    {
-    xml_document_add_attribute_explicit(e);
-    }
+  xml_document_add_attribute_anon(e);
+  if(do_returns)        xml_document_add_attribute_returns(e);
+  if(do_const)          xml_document_add_attribute_const_method(e);
+  if(do_virtual)        xml_document_add_attribute_virtual_method(e);
+  if(do_static)         xml_document_add_attribute_static(e);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  if(do_template)       xml_document_add_attribute_template(e);
+/* END GCC 4.7.2 upgrade mods */
+  if(do_artificial)     xml_document_add_attribute_artificial(e);
+  if(do_explicit)       xml_document_add_attribute_explicit(e);
   xml_document_add_attribute_throw(e);
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
                                      do_access);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  if(do_type_scoped)    xml_document_add_attribute_type_scoped(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_mangled(e);
   xml_document_add_attribute_demangled(e);
   xml_document_add_attribute_location(e, xml_document_attribute_use_required);
@@ -2077,14 +2331,8 @@ xml_document_add_element_function_helper (xml_document_info_p xdi,
   xml_document_add_attribute_inline(e);
   xml_document_add_attribute_attributes(e);
   xml_document_add_attribute_befriending(e);
-  if(allow_arguments)
-    {
-    xml_document_add_element_argument (xdi, e);
-    }
-  if(allow_ellipsis)
-    {
-    xml_document_add_element_ellipsis (xdi, e);
-    }
+  if(allow_arguments)   xml_document_add_element_argument (xdi, e);
+  if(allow_ellipsis)    xml_document_add_element_ellipsis (xdi, e);
 }
 
 static void
@@ -2092,33 +2340,94 @@ xml_document_add_element_function (xml_document_info_p xdi,
                                    xml_document_element_p parent)
 {
   xml_document_add_element_function_helper(
-    xdi, parent, "Constructor", /*do_returns*/ 0, /*do_access*/ 1,
-    /*do_const*/ 0, /*do_virtual*/ 0, /*do_static*/ 0, /*do_artificial*/ 1,
-    /*do_explicit*/ 1, /*allow_arguments*/ 1, /*allow_ellipsis*/ 1);
+    xdi, parent, "Constructor",
+    /*do_returns*/  0,  /*do_access*/   1,
+    /*do_const*/    0,  /*do_virtual*/  0, 
+    /*do_static*/   0,
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    /*do_template*/     0,
+    /*do_artificial*/   1,  /*do_explicit*/ 1,
+    /*do_type_scoped*/  0,
+/* END GCC 4.7.2 upgrade mods  */
+    /*allow_arguments*/ 1,  /*allow_ellipsis*/ 1);
+
   xml_document_add_element_function_helper(
-    xdi, parent, "Destructor", /*do_returns*/ 0, /*do_access*/ 1,
-    /*do_const*/ 0, /*do_virtual*/ 1, /*do_static*/ 0, /*do_artificial*/ 1,
-    /*do_explicit*/ 0, /*allow_arguments*/ 0, /*allow_ellipsis*/ 0);
+    xdi, parent, "Destructor",
+    /*do_returns*/  0,  /*do_access*/   1,
+    /*do_const*/    0,  /*do_virtual*/  1,
+    /*do_static*/   0,    
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    /*do_template*/     0,
+    /*do_artificial*/   1,  /*do_explicit*/ 0,
+    /*do_type_scoped*/  0,
+/* END GCC 4.7.2 upgrade mods  */
+    /*allow_arguments*/ 0,  /*allow_ellipsis*/ 0);
+
   xml_document_add_element_function_helper(
-    xdi, parent, "Converter", /*do_returns*/ 1, /*do_access*/ 1,
-    /*do_const*/ 1, /*do_virtual*/ 1, /*do_static*/ 0, /*do_artificial*/ 0,
-    /*do_explicit*/ 0, /*allow_arguments*/ 0, /*allow_ellipsis*/ 0);
+    xdi, parent, "Converter",
+    /*do_returns*/  1,  /*do_access*/   1,
+    /*do_const*/    1,  /*do_virtual*/  1,
+    /*do_static*/   0,
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    /*do_template*/    0,
+    /*do_artificial*/  0,
+    /*do_type_scoped*/ 0,
+/* END GCC 4.7.2 upgrade mods  */
+    /*do_explicit*/     0,  /*allow_arguments*/ 0,
+    /*allow_ellipsis*/  0);
+
   xml_document_add_element_function_helper(
-    xdi, parent, "OperatorMethod", /*do_returns*/ 1, /*do_access*/ 1,
-    /*do_const*/ 1, /*do_virtual*/ 1, /*do_static*/ 1, /*do_artificial*/ 0,
-    /*do_explicit*/ 0, /*allow_arguments*/ 1, /*allow_ellipsis*/ 0);
+    xdi, parent, "OperatorMethod",
+    /*do_returns*/  1,  /*do_access*/   1,
+    /*do_const*/    1,  /*do_virtual*/  1,
+    /*do_static*/   1,
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    /*do_template*/     1,
+    /*do_artificial*/   0,
+    /*do_type_scoped*/  0,
+/* END GCC 4.7.2 upgrade mods  */
+    /*do_explicit*/     0,  /*allow_arguments*/ 1,
+    /*allow_ellipsis*/  0);
+
   xml_document_add_element_function_helper(
-    xdi, parent, "OperatorFunction", /*do_returns*/ 1, /*do_access*/ 0,
-    /*do_const*/ 0, /*do_virtual*/ 0, /*do_static*/ 1, /*do_artificial*/ 0,
-    /*do_explicit*/ 0, /*allow_arguments*/ 1, /*allow_ellipsis*/ 0);
+    xdi, parent, "OperatorFunction",
+    /*do_returns*/  1,  /*do_access*/   0,
+    /*do_const*/    0,  /*do_virtual*/  0,
+    /*do_static*/   1,
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    /*do_template*/     1,
+    /*do_artificial*/   0,
+    /*do_type_scoped*/  0,
+/* END GCC 4.7.2 upgrade mods  */
+    /*do_explicit*/     0,  /*allow_arguments*/ 1,
+    /*allow_ellipsis*/  0);
+
   xml_document_add_element_function_helper(
-    xdi, parent, "Method", /*do_returns*/ 1, /*do_access*/ 1,
-    /*do_const*/ 1, /*do_virtual*/ 1, /*do_static*/ 1, /*do_artificial*/ 0,
-    /*do_explicit*/ 0, /*allow_arguments*/ 1, /*allow_ellipsis*/ 1);
+    xdi, parent, "Method",
+    /*do_returns*/  1,  /*do_access*/   1,
+    /*do_const*/    1,  /*do_virtual*/  1,
+    /*do_static*/   1,
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    /*do_template*/     1,
+    /*do_artificial*/   0,
+    /*do_type_scoped*/  0,
+/* END GCC 4.7.2 upgrade mods  */
+    /*do_explicit*/     0,  /*allow_arguments*/ 1,
+    /*allow_ellipsis*/  1);
+
   xml_document_add_element_function_helper(
-    xdi, parent, "Function", /*do_returns*/ 1, /*do_access*/ 0,
-    /*do_const*/ 0, /*do_virtual*/ 0, /*do_static*/ 1, /*do_artificial*/ 0,
-    /*do_explicit*/ 0, /*allow_arguments*/ 1, /*allow_ellipsis*/ 1);
+    xdi, parent, "Function",
+    /*do_returns*/  1,  /*do_access*/   0,
+    /*do_const*/    0,  /*do_virtual*/  0,
+    /*do_static*/   1,
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+    /*do_template*/     1,
+    /*do_artificial*/   0,
+    /*do_type_scoped*/  1,
+/* END GCC 4.7.2 upgrade mods  */
+    /*do_explicit*/     0,  /*allow_arguments*/ 1,
+    /*allow_ellipsis*/  1);
+
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2131,9 +2440,15 @@ xml_output_var_decl (xml_dump_info_p xdi, tree vd, xml_dump_node_p dn)
   fprintf (xdi->file, "  <Variable");
   xml_print_id_attribute (xdi, dn);
   xml_print_name_attribute (xdi, DECL_NAME (vd));
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_anon_attribute(xdi, vd);
+/* END GCC 4.7.2 upgrade mods */
   xml_print_type_attribute (xdi, type, dn->complete);
   xml_print_init_attribute (xdi, DECL_INITIAL (vd));
   xml_print_context_attribute (xdi, vd);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_type_scoped_attribute(xdi, vd);
+/* END GCC 4.7.2 upgrade mods */
   xml_print_mangled_attribute (xdi, vd);
   xml_print_demangled_attribute (xdi, vd );
   xml_print_location_attribute (xdi, vd);
@@ -2152,10 +2467,16 @@ xml_document_add_element_var_decl (xml_document_info_p xdi,
   e->name = "Variable";
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_required);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_anon(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_type(e);
   xml_document_add_attribute_init(e);
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
                                      1);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_type_scoped(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_mangled(e);
   xml_document_add_attribute_demangled(e);
   xml_document_add_attribute_location(e, xml_document_attribute_use_required);
@@ -2174,6 +2495,9 @@ xml_output_field_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
   fprintf (xdi->file, "  <Field");
   xml_print_id_attribute (xdi, dn);
   xml_print_name_attribute (xdi, DECL_NAME (fd));
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_anon_attribute(xdi, fd);
+/* END GCC 4.7.2 upgrade mods */
   xml_print_bits_attribute(xdi, fd);
   if (DECL_BIT_FIELD_TYPE (fd))
     {
@@ -2185,6 +2509,9 @@ xml_output_field_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
     }
   xml_print_offset_attribute (xdi, fd);
   xml_print_context_attribute (xdi, fd);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_type_scoped_attribute(xdi, fd);
+/* END GCC 4.7.2 upgrade mods */
   xml_print_mangled_attribute (xdi, fd);
   xml_print_demangled_attribute (xdi, fd);
   xml_print_mutable_attribute(xdi, fd);
@@ -2201,11 +2528,17 @@ xml_document_add_element_field_decl (xml_document_info_p xdi,
   e->name = "Field";
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_required);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_anon(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_bits(e);
   xml_document_add_attribute_type(e);
   xml_document_add_attribute_offset(e);
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
                                      1);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_type_scoped(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_mangled(e);
   xml_document_add_attribute_demangled(e);
   xml_document_add_attribute_mutable(e);
@@ -2238,7 +2571,13 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
     {
     xml_print_name_attribute (xdi, DECL_NAME (TYPE_NAME (rt)));
     }
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_anon_attribute(xdi, rt);
+/* END GCC 4.7.2 upgrade mods */
   xml_print_context_attribute (xdi, TYPE_NAME (rt));
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_type_scoped_attribute(xdi, TYPE_NAME(rt));
+/* END GCC 4.7.2 upgrade mods */
   xml_print_abstract_attribute (xdi, rt);
   xml_print_incomplete_attribute (xdi, rt);
   xml_print_mangled_attribute (xdi, TYPE_NAME (rt));
@@ -2249,6 +2588,12 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
   xml_print_size_attribute (xdi, rt);
   xml_print_align_attribute (xdi, rt);
   xml_print_befriending_attribute (xdi, CLASSTYPE_BEFRIENDING_CLASSES (rt));
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_pod_attribute(xdi, rt);
+  xml_print_template_attribute_class_union(xdi, rt);
+  xml_print_template_name_attribute_class_union(xdi, rt);
+  xml_print_polymorphic_attribute(xdi, rt);
+/* END GCC 4.7.2 upgrade mods */
 
   if (dn->complete && COMPLETE_TYPE_P (rt))
     {
@@ -2397,8 +2742,14 @@ xml_document_add_element_record_type_helper (xml_document_info_p xdi,
   e->name = tag;
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_optional);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_anon(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
                                      1);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_type_scoped(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_abstract(e);
   xml_document_add_attribute_incomplete(e);
   xml_document_add_attribute_mangled(e);
@@ -2409,6 +2760,12 @@ xml_document_add_element_record_type_helper (xml_document_info_p xdi,
   xml_document_add_attribute_size(e);
   xml_document_add_attribute_align(e);
   xml_document_add_attribute_befriending(e);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_pod(e);
+  xml_document_add_attribute_template(e);
+  xml_document_add_attribute_template_name(e);
+  xml_document_add_attribute_polymorphic(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute(e, "members",
                              xml_document_attribute_type_idrefs,
                              xml_document_attribute_use_optional, 0);
@@ -2698,7 +3055,13 @@ xml_output_enumeral_type (xml_dump_info_p xdi, tree t, xml_dump_node_p dn)
   fprintf (xdi->file, "  <Enumeration");
   xml_print_id_attribute (xdi, dn);
   xml_print_name_attribute (xdi, DECL_NAME (TYPE_NAME (t)));
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_anon_attribute(xdi, t);
+/* END GCC 4.7.2 upgrade mods */
   xml_print_context_attribute (xdi, TYPE_NAME (t));
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_print_type_scoped_attribute(xdi, TYPE_NAME(t));
+/* END GCC 4.7.2 upgrade mods */
   xml_print_location_attribute (xdi, TYPE_NAME (t));
   xml_print_attributes_attribute (xdi, TYPE_ATTRIBUTES(t), 0);
   xml_print_artificial_attribute (xdi, TYPE_NAME (t));
@@ -2745,8 +3108,14 @@ xml_document_add_element_enumeral_type (xml_document_info_p xdi,
   e->name = "Enumeration";
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_required);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_anon(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
                                      1);
+/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+  xml_document_add_attribute_type_scoped(e);
+/* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_location(e, xml_document_attribute_use_required);
   xml_document_add_attribute_attributes(e);
   xml_document_add_attribute_artificial(e);
@@ -2800,6 +3169,7 @@ xml_output_cv_qualified_type (xml_dump_info_p xdi, tree t, xml_dump_node_p dn)
         xml_output_fundamental_type (xdi, t, dn);
         break;
       default:
+        //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(t)]);
         break;
       }
     }
@@ -3018,7 +3388,7 @@ xml_add_type_decl (xml_dump_info_p xdi, tree td, int complete)
       break;
     default:
       {
-      /* Add the node even though it is unimplemented.  */
+      //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(t)]);
       return xml_add_node_real (xdi, td, complete);
       }
     }
@@ -3156,6 +3526,9 @@ xml_find_template_parm (tree t)
     case TEMPLATE_DECL: return 0;
 
     /* Unary expressions.  */
+    /* START GCC-4.7 C++11 upgrade modifications  */
+    //case CONJ_EXPR:
+    /* END GCC-4.7 C++11 upgrade modifications  */
     case ALIGNOF_EXPR:
     case SIZEOF_EXPR:
     case ADDR_EXPR:
@@ -3205,6 +3578,14 @@ xml_find_template_parm (tree t)
               || xml_find_template_parm (TREE_OPERAND (t, 2)));
 
     /* Other expressions.  */
+/* START GCC 4.7.2 upgrade changes */
+    case TRAIT_EXPR: 
+      xml_find_template_parm ( TRAIT_EXPR_TYPE1 (t) );
+      xml_find_template_parm ( TRAIT_EXPR_TYPE2 (t) );
+      return 0;
+
+/* END GCC 4.7.2 upgrade changes */
+
     case TYPEOF_TYPE:
       return xml_find_template_parm (TYPEOF_TYPE_EXPR (t));
     case CALL_EXPR:
@@ -3256,6 +3637,7 @@ xml_find_template_parm (tree t)
     case INTEGER_CST: return 0;
     case STATIC_CAST_EXPR: return 0;
     default:
+      //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(t)]);
       fprintf(stderr, "xml_find_template_parm encountered unsupported type %s\n",
               tree_code_name[TREE_CODE (t)]);
     }
@@ -3282,6 +3664,7 @@ xml_add_template_decl (xml_dump_info_p xdi, tree td, int complete)
       case TEMPLATE_DECL:
         break;
       default:
+        //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(ts)]);
         /* xml_output_unimplemented (xdi, ts, 0,
           "xml_dump_template_decl SPECIALIZATIONS");  */
         break;
@@ -3292,7 +3675,10 @@ xml_add_template_decl (xml_dump_info_p xdi, tree td, int complete)
   for (tl = DECL_TEMPLATE_INSTANTIATIONS (td);
        tl ; tl = TREE_CHAIN (tl))
     {
-    tree ts = TYPE_NAME (TREE_VALUE (tl));
+/* START GCC 4.7.2 upgrade mods */
+    /*tree ts = TYPE_NAME (TREE_VALUE (tl));*/
+    tree ts = TREE_VALUE (tl);
+/* END GCC 4.7.2 upgrade mods */
     switch (TREE_CODE (ts))
       {
       case TYPE_DECL:
@@ -3303,6 +3689,7 @@ xml_add_template_decl (xml_dump_info_p xdi, tree td, int complete)
           }
         break;
       default:
+        //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(ts)]);
         /* xml_output_unimplemented (xdi, ts, 0,
            "xml_dump_template_decl INSTANTIATIONS");  */
         break;
@@ -3335,6 +3722,9 @@ xml_dump_tree_node (xml_dump_info_p xdi, tree n, xml_dump_node_p dn)
 {
   switch (TREE_CODE (n))
     {
+    case TRANSLATION_UNIT_DECL:
+        printf("Translation Unit Declaration %i, %s\n", __LINE__, tree_code_name[TREE_CODE(n)]);
+        break;
     case NAMESPACE_DECL:
       xml_output_namespace_decl (xdi, n, dn);
       break;
@@ -3381,6 +3771,7 @@ xml_dump_tree_node (xml_dump_info_p xdi, tree n, xml_dump_node_p dn)
     case TYPENAME_TYPE:
     case TEMPLATE_TYPE_PARM:
     default:
+      //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(n)]);
       xml_output_unimplemented (xdi, n, dn, 0);
     }
 }
@@ -3420,7 +3811,10 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
      if the definition is actually needed.  */
   if (TREE_CODE (n) == FUNCTION_DECL &&
       DECL_ARTIFICIAL (n) && !DECL_INITIAL (n) &&
-      (!DECL_REALLY_EXTERN (n) || DECL_INLINE (n)))
+/* GCC-XML 4.7.2 update  2013-02-03 */
+      /*(!DECL_REALLY_EXTERN (n) || DECL_INLINE (n)))*/
+      (!DECL_REALLY_EXTERN (n) || DECL_DECLARED_INLINE_P (n)))
+/* END GCC-XML 4.7.2 update  2013-02-03 */
     {
     /* We try to synthesize this function but suppress error messages.  */
     diagnostic_xml_synthesize_test = 1;
@@ -3436,8 +3830,12 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
     }
 
   /* Skip synthesized invalid compiler-generated functions.  */
+  /* Start GCC-XML 4.7.2 update 2013-02-06 */
   if (TREE_CODE (n) == FUNCTION_DECL && GCCXML_DECL_ERROR (n))
+  /* if (TREE_CODE (n) == LABEL_DECL && GCCXML_DECL_ERROR (n)) */
+  /* End GCC-XML 4.7.2 update 2013-02-06 */
     {
+    printf("\n\nGCCXML_DECL_ERROR 3458 on %s\n\n", tree_code_name[TREE_CODE(n)]);
     return 0;
     }
 
@@ -3477,6 +3875,7 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
       else
         {
         /* This is a class template.  We don't want to dump it.  */
+      	//printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(n)]);
         return 0;
         }
       break;

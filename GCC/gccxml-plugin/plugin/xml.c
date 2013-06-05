@@ -36,10 +36,15 @@ along with this program; if not, write to the
    number, mm is the minor version number, and pp is the patch level.
    Examples:  gcc 3.0.4 = 0x030004
               gcc 3.2.0 = 0x030200  */
+#ifdef __cplusplus__
+extern "C" {
+#endif
 
 /* Start GCC 4.7.2 upgrade mods */
 #include "gcc-plugin.h"
 #include "plugin-version.h"
+#include "tree-pass.h"
+//#include "gimple.h"
 /* END GCC 4.7.2 upgrade mods */
 
 #include "config.h"
@@ -51,7 +56,9 @@ along with this program; if not, write to the
    cp-tree.h, so the macro is available here.  The patches for older
    versions may provide the macro in cp-tree.h, but in that case
    we don't need these headers anyway.  */
-#if defined(GCC_XML_GCC_VERSION) && (GCC_XML_GCC_VERSION >= 0x030400)
+//#if defined(GCC_XML_GCC_VERSION) && (GCC_XML_GCC_VERSION >= 0x030400)
+// Don't even think plugin's existed back then, so macro prob unnecessary.
+#if GCC_PLUGIN_VERSION >= 3004
 # include "coretypes.h"
 # include "tm.h"
 #endif
@@ -308,7 +315,8 @@ static tree xml_get_encoded_identifier_from_string PARAMS ((const char*));
 static const char* xml_escape_string PARAMS ((const char* in_str));
 static int xml_fill_all_decls(struct cpp_reader*, hashnode, const void*);
 
-#if defined(GCC_XML_GCC_VERSION) && (GCC_XML_GCC_VERSION >= 0x030100)
+//#if defined(GCC_XML_GCC_VERSION) && (GCC_XML_GCC_VERSION >= 0x030100)
+#if defined(GCCPLUGIN_VERSION) && (GCCPLUGIN_VERSION >= 3001)
 # include "diagnostic.h"
 #else
 extern int errorcount;
@@ -346,7 +354,7 @@ const char* xml_get_xml_c_version()
 /* Declare GPL compatible license. */
 int plugin_is_GPL_compatible;
 
-/* Allow plugin_init to be called externally. */
+/* Declare plugin_init to be have external linkage */
 extern int
 plugin_init(struct plugin_name_args *plugin_info,
             struct plugin_gcc_version *version) __attribute__((nonnull));
@@ -360,13 +368,11 @@ char *flag_xml;
 static void
 plugin_dump_xml(void *gcc_data, void *user_data)
 {
-  printf("Dump EVERYTHING!!!\n");
   const char * output_name = flag_xml;
   const char * output_start= flag_xml_start;
   printf("Calling do_xml_output(%s)\n", flag_xml);
   do_xml_output(output_name);
-  printf("Exiting\n");
-  exit(1);
+  exit(0);
 }
 
 /* Callback to register required attributes of the C++ AST in this module. */
@@ -379,23 +385,26 @@ register_tree(void *event_data, void *plugin_data)
     printf("Registering attributes\n");
     //register_attribute
     // Terminate GCC before follow-up passes.
-    return 1;
+    return;
 }
 
-/* In FUNCTION_DECL, delete artifical methods that should not exist.  */
+/** In FUNCTION_DECL, delete artifical methods that should not exist.
+ *  How??
+ */
 static void
 plugin_gccxml_error(void *event_data, void *user_data)
 {
+    //printf("in plugin_gccxml_error\n");
 }
 
 /* Collect command-line arguments */
 int
-init_gccxml_plugin(struct plugin_name_args *plugin_info)
+collect_plugin_args(struct plugin_name_args *plugin_info)
 {
   struct plugin_argument *arg;
   const char *key;
   int i;
-  for (i=0;i<plugin_info->argc;i++)
+  for (i=0 ;i < plugin_info->argc ; i++)
   {
     arg = &plugin_info->argv[i];
     key = arg->key;
@@ -419,35 +428,74 @@ init_gccxml_plugin(struct plugin_name_args *plugin_info)
   return 0;
 }
 
+// Plugin info Structs
+static plugin_info
+xml_plugin_info = {
+  GCCXML_VERSION_FULL,
+  "Generate XML representation of a C++ Abstract Syntax Tree."
+};
+
+/* If linking counts as a pass, don't add it */
+void plugin_dont_link(void *gcc_data, void *user_data)
+{
+  register_pass_info * p_info = (register_pass_info*)gcc_data;
+  printf("pass name : %s\n", p_info->reference_pass_name);
+}
+
 int
 plugin_init(struct plugin_name_args   *plugin_info,
-	        struct plugin_gcc_version *version)
+	          struct plugin_gcc_version *version)
 {
+  plugin_info->version = GCCXML_VERSION_FULL;
   printf("Initialising gccxml plugin\n");
-  printf("plugin version info: %s, GCC: %s\n", plugin_info->version, &gcc_version.basever);
-// if (!plugin_default_version_check(plugin_info, &gcc_version))
-//    return 1;
+  printf("plugin info:\n"
+         "\tVersion:  %s\n"
+         "\tbase_name: %s\n"
+         "\tfull_name: %s\n",
+          plugin_info->version,
+          plugin_info->base_name,
+          plugin_info->full_name);
+
+  printf("GCC info:\n"
+         "\tVersion: %s\n",
+          version->basever);
+
+
+ // Complain if incompatible version. 
+ if (strncmp(version->basever, gcc_version.basever, 3))
+ {
+    fprintf(stderr, "Incompatible version (%s). Compiled for %s\n",
+        version->basever, gcc_version.basever);
+    return 1;
+ }
 
   printf("Collecting command line arguments...\n");
-  if (init_gccxml_plugin(plugin_info)!=0)
+  if (collect_plugin_args(plugin_info)!=0)
       return 1;
 
   /* Disable assembly output */
   asm_file_name = HOST_BIT_BUCKET;
 
+  /* Populate the plugin_info struct */
+  printf("Add callback to populate plugin_info struct...\n");
+  register_callback(plugin_info->base_name, PLUGIN_INFO,
+          NULL, &xml_plugin_info);
+
   /* Register callback to dump XML */
   printf("Registering plugin_dump_xml callback...\n");
-  register_callback(plugin_info->base_name, PLUGIN_OVERRIDE_GATE,
+  register_callback(plugin_info->base_name, PLUGIN_FINISH_UNIT,
          plugin_dump_xml, NULL);
 
   /* Register callback to check we should convert function declaration. */
-  printf("Registering error check callback...\n");
-  register_callback(plugin_info->base_name, PLUGIN_FINISH_DECL,
-          plugin_gccxml_error, NULL);
+  //printf("Registering error check callback...\n");
+  //register_callback(plugin_info->base_name, PLUGIN_FINISH_DECL,
+  //        plugin_gccxml_error, NULL);
 
-  /* Register plugin and its arguments */
-  //register_callback(plugin_info->base_name, PLUGIN_ATTRIBUTES,
-  //        xml_plugin_register, NULL);
+  /* Make GCC exit before invoking the linker */
+  printf("Registering exit callback\n");
+  register_callback(plugin_info->base_name, PLUGIN_NEW_PASS,
+      plugin_dont_link, NULL);
+
   printf("GCC-XML initialised...\n");
 
   return 0;
@@ -1748,22 +1796,21 @@ xml_document_add_attribute_throw(xml_document_element_p element)
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
 tree xml_get_attrib_arg_helper(tree arg_node, char** arg)
 {
-  *arg = "";
+  //*arg = "";
+  //const char * tmp;
   if (arg_node && (TREE_CODE (arg_node) == TREE_LIST))
     {
     tree cst = TREE_VALUE (arg_node);
     switch (TREE_CODE(cst))
     {
         case STRING_CST:
-          *arg = TREE_STRING_POINTER (cst);
+          sprintf(*arg, TREE_STRING_POINTER (cst));
           break;
         case INTEGER_CST:
-          //*arg = TREE_INT_CST(cst);
-	  sprintf(arg, "%i", TREE_INT_CST(cst));
-          //arg = (char *) &TREE_INT_CST (cst);
+	      sprintf(*arg, "%i", TREE_INT_CST(cst));
           break;
         case IDENTIFIER_NODE:
-          *arg = xml_get_encoded_string(cst);
+          sprintf(*arg, xml_get_encoded_string(cst));
           break;
         default:
           error("Unhandled case '%s'\n", tree_code_name[TREE_CODE(cst)]);
@@ -1814,7 +1861,7 @@ xml_print_attributes_attribute_helper (xml_dump_info_p xdi, tree attributes)
 	  fprintf(xdi->file, ">\n");
 	}
 	fprintf(xdi->file, "      <Value value=\"%s\" />\n",
-                xml_get_encoded_string_from_string(&arg));
+                xml_get_encoded_string_from_string(arg));
     }
     if (values)
       fprintf(xdi->file, "    </Attribute>\n");
@@ -1825,6 +1872,7 @@ xml_print_attributes_attribute_helper (xml_dump_info_p xdi, tree attributes)
 
 /* Print XML attribute listing the contents of the __attribute__ node
    given.  */
+static void
 xml_print_attributes_attribute (xml_dump_info_p xdi, tree attributes1,
                                 tree attributes2)
 {
@@ -1973,31 +2021,34 @@ xml_document_add_element_unimplemented (xml_document_info_p xdi,
 /*--------------------------------------------------------------------------*/
 
 /* Return all bindings to the given namespace in a VEC */
-VEC(tree,gc)*
+/*
+static void 
 get_namespace_decls(tree *node)
 {
-  /* Get the bindings for the current namespace.  */
+  /// Get the bindings for the current namespace.
   //tree id = HT_IDENT_TO_GCC_IDENT(node);
-  tree id = IDENTIFIER_NAMESPACE_VALUE(node);
+  tree id = IDENTIFIER_NAMESPACE_VALUE(*node);
   cxx_binding* binding = IDENTIFIER_NAMESPACE_BINDINGS(id);
 
   // Pointer to an array of bindings in this namespace.
-  VEC(tree,gc) *decls;
+  vec<tree, gc> decls;
+  //VEC(tree,gc) *decls;
 
-  /* For each binding of this symbol add the declaration to the vector
-     of all declarations in the corresponding scope.  */
+  // For each binding of this symbol add the declaration to the vector
+  //   of all declarations in the corresponding scope.
   for(;binding; binding = binding->previous)
     {
     if(VEC_length(tree,binding->value) != NULL)
-      VEC_safe_push (tree, gc, decls, binding->value);
+      VEC_safe_push (tree, gc, *decls, binding->value);
 
     if(VEC_length(tree,binding->type) != NULL)
-      VEC_safe_push (tree, gc, decls, binding->type);
+      VEC_safe_push (tree, gc, *decls, binding->type);
 
     }
   return decls;
 
 }
+*/
 
 /* Dump a NAMESPACE_DECL.  */
 static void
@@ -2024,17 +2075,23 @@ xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
       /* Get the vector of all declarations in the namespace.  */
       int i;
 /* START GCC-4.7.2 upgrades - from Andrej Mitrovic */
-      VEC(tree,gc) *decls = get_namespace_decls(dn);
-      // VEC(tree,gc) *decls = NAMESPACE_LEVEL (ns)->all_decls ;
+      //get_namespace_decls(dn, &decls);
+      vec<tree, va_gc> * decls = NAMESPACE_LEVEL(ns)->static_decls;
+      //VEC(tree,gc) *decls = NAMESPACE_LEVEL (ns)->all_decls ;
+
+      //tree * decls = NAMESPACE_LEVEL(ns)->names;
+      //tree vec = NAMESPACE_LEVEL(ns)->names;
 /* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
-      tree *vec = VEC_address (tree, decls);
-      int len = VEC_length (tree, decls);
+      //tree *vec = VEC_address (tree, decls);
+      tree * t_vec = decls->address();
+      int len = decls->length();
+      //int len = VEC_length (tree, decls);
 
       /* Output all the declarations.  */
       fprintf (xdi->file, " members=\"");
       for (i=0; i < len; ++i)
         {
-        int id = xml_add_node (xdi, vec[i], 1);
+        int id = xml_add_node (xdi, t_vec[i], 1);
         if (id)
           {
           fprintf (xdi->file, "_%d ", id);
@@ -2269,7 +2326,8 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
   const char* tag;
   tree name = DECL_NAME (fd);
 /* START GCC 4.7.2 upgrade mods */
-  tree saved_tree = gimple_body (fd);
+  //gimple_seq saved_tree = gimple_body (fd);
+  tree saved_tree = DECL_SAVED_TREE(fd);
   tree body = saved_tree? BIND_EXPR_BODY (saved_tree) : 0;
 /* END GCC 4.7.2 upgrade mods */
   int do_name = 1;
@@ -2802,7 +2860,8 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
     {
     tree binfo = TYPE_BINFO (rt);
     int n_baselinks = BINFO_N_BASE_BINFOS (binfo);
-    tree accesses = BINFO_BASE_ACCESSES (binfo);
+    vec<tree_node*, va_gc>* accesses = BINFO_BASE_ACCESSES (binfo);
+    //tree accesses = BINFO_BASE_ACCESSES (binfo);
     int i;
 
     has_bases = (n_baselinks > 0)? 1:0;
@@ -2841,7 +2900,8 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
     {
     tree binfo = TYPE_BINFO (rt);
     int n_baselinks = BINFO_N_BASE_BINFOS (binfo);
-    tree accesses = BINFO_BASE_ACCESSES (binfo);
+    //tree accesses = BINFO_BASE_ACCESSES (binfo);
+    vec<tree_node*, va_gc>* accesses = BINFO_BASE_ACCESSES (binfo);
     int i;
 
     for (i = 0; i < n_baselinks; i++)
@@ -3934,9 +3994,6 @@ xml_dump_tree_node (xml_dump_info_p xdi, tree n, xml_dump_node_p dn)
 # undef xml_add_node
 #endif
 
-/* Hook to suppress diagnostic messages during synthesize test.  */
-//extern int diagnostic_xml_synthesize_test;
-
 /* Add tree node N to those encountered.  Return its index.  */
 int
 xml_add_node (xml_dump_info_p xdi, tree n, int complete)
@@ -3965,29 +4022,27 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
   if (TREE_CODE (n) == FUNCTION_DECL &&
       DECL_ARTIFICIAL (n) && !DECL_INITIAL (n) &&
 /* GCC-XML 4.7.2 update  2013-02-03 */
-      /*(!DECL_REALLY_EXTERN (n) || DECL_INLINE (n)))*/
       (!DECL_REALLY_EXTERN (n) || DECL_DECLARED_INLINE_P (n)))
 /* END GCC-XML 4.7.2 update  2013-02-03 */
     {
-    /* We try to synthesize this function but suppress error messages.  */
-    //diagnostic_xml_synthesize_test = 1;
+        /* We try to synthesize this function but suppress error messages.  */
 
-    /* Taken from cp_finish_file.  */
-    push_to_top_level ();
-    input_location = DECL_SOURCE_LOCATION (n);
-    synthesize_method (n);
-    pop_from_top_level ();
+        /* Taken from cp_finish_file.  */
+        push_to_top_level ();
+        input_location = DECL_SOURCE_LOCATION (n);
+        synthesize_method (n);
+        pop_from_top_level ();
 
     }
 
   /* Skip synthesized invalid compiler-generated functions.  */
   /* Start GCC-XML 4.7.2 update 2013-02-06 */
-  if (TREE_CODE (n) == FUNCTION_DECL)
+  if (TREE_CODE (n) == FUNCTION_DECL )//&& DECL_COMMON_CHECK(n)->decl_common. )
   /* if (TREE_CODE (n) == LABEL_DECL && GCCXML_DECL_ERROR (n)) */
   /* End GCC-XML 4.7.2 update 2013-02-06 */
     {
-    printf("\n\nGCCXML_DECL_ERROR 3458 on %s\n\n", tree_code_name[TREE_CODE(n)]);
-    return 0;
+        printf("\nGCCXML_DECL_ERROR %i on %s\n", __LINE__, tree_code_name[TREE_CODE(n)]);
+        return 0;
     }
 
   /* Some nodes don't need to be dumped and just refer to other nodes.
@@ -4070,7 +4125,7 @@ xml_lookup_start_node (tree scope, const char* qualified_name)
 
   /* Parse off the first qualifier.  */
   while (qualified_name[pos] && (qualified_name[pos] != ':')) { ++pos; }
-  name = xmalloc(pos+1);
+  name = (char*)xmalloc(pos+1);
   strncpy (name, qualified_name, pos);
   name[pos] = 0;
   id = get_identifier (name);
@@ -4238,7 +4293,7 @@ xml_escape_string(const char* in_str)
 tree
 xml_get_encoded_identifier_from_string (const char* in_str)
 {
-  char* newStr = xml_escape_string( in_str );
+  char* newStr = (char*)xml_escape_string( in_str );
   tree id;
 
   /* Ask for "identifier" of this string and free our own copy of the
@@ -4460,3 +4515,7 @@ do_xml_document (const char* dtd_name, const char* schema_name)
       }
     }
 }
+
+#ifdef __cplusplus__
+}
+#endif

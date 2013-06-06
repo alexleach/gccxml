@@ -20,8 +20,7 @@ ENDIF(EXISTS "${GCCCONFIG_BINARY_DIR}/gcc_platform.cmake")
 #-----------------------------------------------------------------------------
 # Set GCCXML plugin install name
 
-MESSAGE("gccxml_plugin_path ${CMAKE_INSTALL_PREFIX}/lib/libgccxml${CMAKE_SHARED_LIBRARY_SUFFIX}")
-SET(GCCXML_PLUGIN_PATH "${CMAKE_INSTALL_DIR}/libgccxml${CMAKE_SHARED_LIBRARY_SUFFIX}")
+SET(GCCXML_PLUGIN_PATH "${CMAKE_INSTALL_DIR}/gccxml${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
 # Set version info
 #MATH(EXPR GCC_XML_GCC_BVERSION "(${GCCXML_PLUGIN_VERSION_MAJOR} * 10000 + ${GCCXML_PLUGIN_VERSION_MINOR} * 100 + ${GCCXML_PLUGIN_VERSION_PATCH})")
@@ -31,11 +30,11 @@ SET(GCCXML_PLUGIN_PATH "${CMAKE_INSTALL_DIR}/libgccxml${CMAKE_SHARED_LIBRARY_SUF
 
 #-----------------------------------------------------------------------------
 # Place gccxml-plugin in lib directory
-SET(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}/lib" CACHE PATH
-  "Output directory for gccxml-plugin.[so|dll]")
-MARK_AS_ADVANCED(LIBRARY_OUTPUT_PATH)
+SET(GCCXML_PLUGIN_OUTPUT_PATH "${CMAKE_BINARY_DIR}" CACHE PATH
+  "Output directory for gccxml-plugin.${CMAKE_SHARED_LIBRARY_SUFFIX}")
+MARK_AS_ADVANCED(GCCXML_PLUGIN_OUTPUT_PATH)
 
-MESSAGE("LIBRARY OUTPUT PATH ${LIBRARY_OUTPUT_PATH}")
+MESSAGE("GCCXML PLUGIN OUTPUT PATH ${GCCXML_PLUGIN_OUTPUT_PATH}")
 
 # Installation component names for stand-alone GCC-XML.
 # SET(GCCXML_INSTALL_COMPONENT_NAME_DOCUMENTATION Documentation)

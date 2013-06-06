@@ -41,15 +41,12 @@ SET(GX_TESTS
 FOREACH(test ${GX_TESTS})
   GET_FILENAME_COMPONENT(name "${test}" NAME)
   GET_FILENAME_COMPONENT(name_we "${test}" NAME_WE)
-  MESSAGE("cd ${GCCXML_BINARY_DIR}/gcc")
-  MESSAGE("gcc${CMAKE_EXECUTABLE_SUFFIX}"
-        "${GCCXML_TEST_INCLUDES} "
-        "-c ${test} "
-        "-fplugin=./libgccxml_plugin${CMAKE_SHARED_LIBRARY_SUFFIX} "
-        "-fplugin-arg-libgccxml_plugin-xml=${name}.gcc.xml" )
 
   ADD_TEST(NAME gccxml-plugin_${name}
-           WORKING_DIRECTORY ${GCCXML_BINARY_DIR}
-           COMMAND ${CMAKE_CXX_COMPILER} ${GCCXML_TEST_INCLUDES} -fplugin=./libgccxml_plugin${CMAKE_SHARED_LIBRARY_SUFFIX} -fplugin-arg-libgccxml_plugin-xml=${name}.gcc.xml -c  ${test})
+           WORKING_DIRECTORY ${GCCXML_PLUGIN_OUTPUT_PATH}
+           COMMAND ${CMAKE_CXX_COMPILER} ${GCCXML_TEST_INCLUDES}
+                   -fplugin=./gccxml_plugin${CMAKE_SHARED_LIBRARY_SUFFIX}
+                   -fplugin-arg-gccxml_plugin-xml=${name}.gcc.xml
+                   -c  ${test})
 ENDFOREACH(test)
 

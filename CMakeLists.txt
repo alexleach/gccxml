@@ -30,7 +30,7 @@ SET(GCCXML_INSTALL_COMPONENT_NAME_RUNTIME_EXECUTABLE RuntimeExecutable)
 SET(GCCXML_INSTALL_COMPONENT_NAME_RUNTIME_LIBRARY RuntimeLibrary)
 
 # Extra debug flags
-SET(CMAKE_CXX_FLAGS_DEBUG "${MAKE_CXX_FLAGS_DEBUG} -g3 -gdwarf-3 -O0 -Wall -pedantic")
+SET(CMAKE_CXX_FLAGS_DEBUG "${MAKE_CXX_FLAGS_DEBUG} -g3 -gdwarf-3 -O0 -Wall")
 SET(CMAKE_CXX_FLAGS_RELEASE "${MAKE_CXX_FLAGS_DEBUG} -fomit-frame-pointer -mtune=generic -Os")
 
 # Dashboard support
@@ -42,6 +42,10 @@ SET(GCCXML_ADD_TESTS 1)
 
 # Build GCC and GCC_XML.
 SUBDIRS(GCC GCC_XML)
+
+IF(ENABLE_GCCXML_PLUGIN)
+  SUBDIRS(gccxml-plugin)
+ENDIF(ENABLE_GCCXML_PLUGIN)
 
 # Use CPack to build a redistributable installer
 INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/gccxmlCPack.cmake")

@@ -166,9 +166,11 @@ ADD_EXECUTABLE(gccxml_cc1plus
 
 SET_TARGET_PROPERTIES(gccxml_cc1plus PROPERTIES COMPILE_DEFINITIONS "${DRIVER_DEFINES}")
 
-MESSAGE("Linking gccxml_cc1plus with ${LIBS} ${BACKEND_LIBS} ${PLUGIN_LIBRARIES}")
+SET(GCCXML_CC1PLUS_LIBS ${LIBS} ${BACKEND_LIBS} ${PLUGIN_LIBRARIES})
+
+MESSAGE("Linking gccxml_cc1plus with ${GCCXML_CC1PLUS_LIBS}")
 TARGET_LINK_LIBRARIES(gccxml_cc1plus
-  ${LIBS} ${BACKEND_LIBS} ${PLUGIN_LIBRARIES}
+  ${GCCXML_CC1PLUS_LIBS}
   common  common-target
   backend cpp decnumber iberty
   )

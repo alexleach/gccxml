@@ -21,29 +21,38 @@ along with this program; if not, write to the
 */
 
 /* Organization of this source:
-   The entry point is do_xml_output(), which is called from the end of
-   finish_translation_unit() in semantics.c.
-
-   xml_output_* functions are called to actually write the XML output.
-
-   xml_print_*_attribute functions are used to write out the XML attributes
-   for common attribute name/pair values.
+ *
+ * GCC-XML plugin:-
+ *
+ *  This plugin can be loaded by gcc on any platform supporting the
+ *  `-rdynamic` and `-ldl` compiler flags[1]. `gcc` calls this module's
+ *  `plugin_init` function, which registers all callbacks needed to
+ *  perform the XML dump. 
+ *
+ *  GCC-XML's normal procedure is called after the Abstract Syntax Tree
+ *  has been created, by registering the callback at the appropriate GCC
+ *  runtime hook.
+ *
+ *  [1]: http://gcc.gnu.org/onlinedocs/gccint/Plugins-loading.html#Plugins-loading
+ *
+ * GCC-XML docs:
+ *
+ *  The entry point is do_xml_output(), which is called from the end of
+ *  finish_translation_unit() in semantics.c.
+ *                                                                           
+ *  xml_output_* functions are called to actually write the XML output.
+ *                                                                           
+ *  xml_print_*_attribute functions are used to write out the XML attributes
+ *  for common attribute name/pair values.
+ *
+ *
 */
 
-/* Use GCC_XML_GCC_VERSION to modify code based on the version of GCC
-   in which we are being built.  This is set in the patched version of
-   cp-tree.h.  The format is 0xMMmmpp, where MM is the major version
-   number, mm is the minor version number, and pp is the patch level.
-   Examples:  gcc 3.0.4 = 0x030004
-              gcc 3.2.0 = 0x030200  */
-
-/* Start GCC 4.7.2 upgrade mods */
+/* Start GCC-XML plugin upgrade mods */
 #include "gcc-plugin.h"
 #include "plugin-version.h"
 #include "tree-pass.h"
-#include "cgraph.h"
-//#include "gimple.h"
-/* END GCC 4.7.2 upgrade mods */
+/* END GCC-XML plugin upgrade mods */
 
 #include "config.h"
 #include "system.h"
@@ -56,17 +65,19 @@ along with this program; if not, write to the
    we don't need these headers anyway.  */
 //#if defined(GCC_XML_GCC_VERSION) && (GCC_XML_GCC_VERSION >= 0x030400)
 // Don't even think plugin's existed back then, so macro prob unnecessary.
-#if GCC_PLUGIN_VERSION >= 3004
+#if GCC_VERSION >= 3004
 # include "coretypes.h"
 # include "tm.h"
 #endif
 
 #include "tree.h"
 #include "cp-tree.h"
-/* Start GCC 4.7.2 upgrade edit - Change decl.h for decl2.h*/
+/* Start GCC 4.7.2 upgrade edit - Remove decl.h */
 //#include "decl.h"
 /* End GCC 4.7.2 upgrade edit */
+
 #include "rtl.h"
+
 /* Start GCC 4.7.2 upgrade edit - Change varray.h for vec.h*/
 #include "vec.h"
 /* End GCC 4.7.2 upgrade edit */
@@ -79,7 +90,9 @@ along with this program; if not, write to the
 
 #include "toplev.h" /* ident_hash */
 
-#define GCC_XML_C_VERSION "$Revision: 1.135 $"
+// GCC-XML plugin upgrade. Replace VERSION info.
+//#define GCC_XML_C_VERSION "$Revision: 1.135 $"
+#define GCC_XML_C_VERSION "GCC-XML Plugin Version " GCCXML_PLUGIN_VERSION_FULL
 
 #ifdef __cplusplus
     extern "C" {
@@ -317,8 +330,7 @@ static tree xml_get_encoded_identifier_from_string PARAMS ((const char*));
 static const char* xml_escape_string PARAMS ((const char* in_str));
 static int xml_fill_all_decls(struct cpp_reader*, hashnode, const void*);
 
-//#if defined(GCC_XML_GCC_VERSION) && (GCC_XML_GCC_VERSION >= 0x030100)
-#if defined(GCCPLUGIN_VERSION) && (GCCPLUGIN_VERSION >= 3001)
+#if defined(GCC_VERSION) && (GCC_VERSION >= 3001)
 # include "diagnostic.h"
 #else
 extern int errorcount;
@@ -488,7 +500,7 @@ collect_plugin_args(struct plugin_name_args *plugin_info)
 // Plugin info Structs
 static plugin_info
 xml_plugin_info = {
-  GCCXML_VERSION_FULL,
+  GCCXML_PLUGIN_VERSION_FULL,
   "Generate XML representation of a C++ Abstract Syntax Tree."
 };
 
@@ -509,7 +521,7 @@ int
 plugin_init(struct plugin_name_args   *plugin_info,
 	        struct plugin_gcc_version *version)
 {
-  plugin_info->version = GCCXML_VERSION_FULL;
+  plugin_info->version = GCCXML_PLUGIN_VERSION_FULL;
   printf("Initialising gccxml_plugin\n");
 
 
@@ -611,8 +623,8 @@ do_xml_output (const char* filename)
   /* Start dump.  */
   fprintf (file, "<?xml version=\"1.0\"?>\n");
   fprintf (file, "<GCC_XML");
-#if defined(GCCXML_VERSION_FULL)
-  fprintf (file, " version=\"" GCCXML_VERSION_FULL "\"");
+#if defined(GCCXML_PLUGIN_VERSION_FULL)
+  fprintf (file, " version=\"" GCCXML_PLUGIN_VERSION_FULL "\"");
 #endif
   fprintf (file, " cvs_revision=\"%s\"", xml_get_xml_c_version());
   fprintf (file, ">\n");
@@ -4093,18 +4105,27 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
     {
       /* We try to synthesize this function but suppress error messages.  */
 
+      int n_errors = errorcount;
       /* Taken from cp_write_global_declarations.  */
       push_to_top_level ();
       input_location = DECL_SOURCE_LOCATION (n);
       synthesize_method (n);
       pop_from_top_level ();
+      n_errors -= errorcount;
+      if (n_errors != 0)
+      {
+          // GCCXML_DECL_ERROR() surrogate.
+          // suppress errors from locally synthesized_method.
+          errorcount += n_errors;
+          n_gccxml_decl_errors_missed += 1;
+          return 0;
+      }
 
     }
     /* Skip synthesized invalid compiler-generated functions.  */
     // if (GCCXML_DECL_ERROR(n))
     if (!decl_needed_p(n))
     {
-      //errorcount = 0; //< without this, 1/11 GCC-XML tests fails
       n_gccxml_decl_errors_missed += 1;
       return 0;
     }

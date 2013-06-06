@@ -48,33 +48,20 @@ along with this program; if not, write to the
  *
 */
 
-/* Start GCC-XML plugin upgrade mods */
-#include "gcc-plugin.h"
-#include "plugin-version.h"
+#include "gccxml_plugin.h"
+
 #include "tree-pass.h"
-/* END GCC-XML plugin upgrade mods */
 
 #include "config.h"
 #include "system.h"
 #include "sys/stat.h"
 
-/* GCC 3.4 and above need these headers here.  The GCC-XML patches for
-   these versions define GCC_XML_GCC_VERSION in config.h instead of
-   cp-tree.h, so the macro is available here.  The patches for older
-   versions may provide the macro in cp-tree.h, but in that case
-   we don't need these headers anyway.  */
-//#if defined(GCC_XML_GCC_VERSION) && (GCC_XML_GCC_VERSION >= 0x030400)
-// Don't even think plugin's existed back then, so macro prob unnecessary.
-#if GCC_VERSION >= 3004
-# include "coretypes.h"
-# include "tm.h"
-#endif
+#include "coretypes.h"
+#include "tm.h"
 
 #include "tree.h"
+
 #include "cp-tree.h"
-/* Start GCC 4.7.2 upgrade edit - Remove decl.h */
-//#include "decl.h"
-/* End GCC 4.7.2 upgrade edit */
 
 #include "rtl.h"
 
@@ -89,10 +76,6 @@ along with this program; if not, write to the
 #include "tree-iterator.h"
 
 #include "toplev.h" /* ident_hash */
-
-// GCC-XML plugin upgrade. Replace VERSION info.
-//#define GCC_XML_C_VERSION "$Revision: 1.135 $"
-#define GCC_XML_C_VERSION "GCC-XML Plugin Version " GCCXML_PLUGIN_VERSION_FULL
 
 #ifdef __cplusplus
     extern "C" {
@@ -281,6 +264,28 @@ struct xml_document_info_s
   FILE* file;
 };
 
+/*--------------------------------------------------------------------------*/
+/* Dump utility declarations.  */
+
+void do_xml_output PARAMS ((const char*));
+void do_xml_document PARAMS ((const char*, const char*));
+
+static int xml_add_node PARAMS((xml_dump_info_p, tree, int));
+static void xml_dump PARAMS((xml_dump_info_p));
+static int xml_queue_incomplete_dump_nodes PARAMS((splay_tree_node, void*));
+static void xml_dump_tree_node PARAMS((xml_dump_info_p, tree, xml_dump_node_p));
+static void xml_dump_files PARAMS((xml_dump_info_p));
+
+static void xml_add_start_nodes PARAMS((xml_dump_info_p, const char*));
+
+static const char* xml_get_encoded_string PARAMS ((tree));
+static const char* xml_get_encoded_string_from_string PARAMS ((const char*));
+static tree xml_get_encoded_identifier_from_string PARAMS ((const char*));
+static const char* xml_escape_string PARAMS ((const char* in_str));
+static int xml_fill_all_decls(struct cpp_reader*, hashnode, const void*);
+
+
+
 static void
 xml_document_add_attribute(xml_document_element_p element,
                            const char* name,
@@ -310,30 +315,21 @@ xml_document_add_subelement(xml_document_info_p xdi,
   return element;
 }
 
+#ifdef __cplusplus
+}
+#endif
+
 /*--------------------------------------------------------------------------*/
 /* Dump utility declarations.  */
-
-void do_xml_output PARAMS ((const char*));
-void do_xml_document PARAMS ((const char*, const char*));
-
-static int xml_add_node PARAMS((xml_dump_info_p, tree, int));
-static void xml_dump PARAMS((xml_dump_info_p));
-static int xml_queue_incomplete_dump_nodes PARAMS((splay_tree_node, void*));
-static void xml_dump_tree_node PARAMS((xml_dump_info_p, tree, xml_dump_node_p));
-static void xml_dump_files PARAMS((xml_dump_info_p));
-
-static void xml_add_start_nodes PARAMS((xml_dump_info_p, const char*));
-
-static const char* xml_get_encoded_string PARAMS ((tree));
-static const char* xml_get_encoded_string_from_string PARAMS ((const char*));
-static tree xml_get_encoded_identifier_from_string PARAMS ((const char*));
-static const char* xml_escape_string PARAMS ((const char* in_str));
-static int xml_fill_all_decls(struct cpp_reader*, hashnode, const void*);
 
 #if defined(GCC_VERSION) && (GCC_VERSION >= 3001)
 # include "diagnostic.h"
 #else
-extern int errorcount;
+  extern int errorcount;
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 int _node_count = 1;
@@ -343,7 +339,6 @@ int _node_count = 1;
    (fprintf(stderr, "Adding node %i (%s) at line %d\n",_node_count++, tree_code_name[TREE_CODE(node)], __LINE__),                    \
     xml_add_node(xdi, node, complete))
 #endif
-
 /* Get the revision number of this source file.  */
 const char* xml_get_xml_c_version()
 {
@@ -361,204 +356,6 @@ const char* xml_get_xml_c_version()
   *out = 0;
   return version;
 }
-
-//////////////////////////////////////////////////////////////////////////////
-//
-//@{
-/// Plugin routines
-
-/* Declare GPL compatible license. */
-int plugin_is_GPL_compatible;
-
-/* Declare plugin_init to be have external linkage */
-extern int
-plugin_init(struct plugin_name_args *plugin_info,
-            struct plugin_gcc_version *version) __attribute__((nonnull));
-
-/* These were hacked in to GCC's c-common/c.opt file, so don't exist for
- * the plugin. We populate them in the callback routine,
- * `collect_callback_args`, below.   */
-char *flag_xml_start;
-char *flag_xml;
-
-//static int synth_test_error = 0;
-
-
-#define GCCXML_DECL_ERROR(NODE) DECL_COMMON_CHECK(NODE)->decl_common.decl_flag_3
-/* Counter for number of missed GCCXML_DECL_ERROR checks */
-static int n_gccxml_decl_errors_missed = 0;
-
-// forward decl.
-static void plugin_print_warnings(void);
-
-static void
-plugin_dump_xml(void *gcc_data, void *user_data)
-{
-  printf("Starting GCC-XML. Dumping XML to %s\n", flag_xml);
-  do_xml_output(flag_xml);
-  printf("XML dump has finished!\n");
-
-  // print GCCXML-plugin warning messages
-  plugin_print_warnings();
-
-  // exit early? Saved about 0.01 seconds in tests, and doesn't
-  // seem to cause a mem-leak.. But does affect the return code!
-  //exit(0);
-}
-
-void print_gccxml_plugin_version(struct plugin_name_args *plugin_info)
-{
-  printf("gccxml plugin info:\n"
-         "\tVersion:  %s\n"
-         "\tbase_name: %s\n"
-         "\tfull_name: %s\n",
-          plugin_info->version,
-          plugin_info->base_name,
-          plugin_info->full_name);
-
-  printf("GCC info:\n"
-         "\tVersion: %s\n",
-          gcc_version.basever);
-}
-
-
-/** Collect command-line arguments from `plugin_init(..)`
- *
- * If more options are needed, do a couple of things:-
- *   1. Add the option to `allowed_args`, making sure to increase
- *      its size by one.
- *   2. Add a new `else if` clause, to deal with the option.
- *
- * Not very elegant cf. GCC, but does the job.
- */
-int
-collect_plugin_args(struct plugin_name_args *plugin_info)
-{
-  struct plugin_argument *arg;
-  const char *key;
-  const char* const allowed_args[3] = 
-  {
-    "xml_start",
-    "xml",
-    "version",
-  };
-
-  int i;
-  for (i=0; i < plugin_info->argc; i++)
-  {
-    arg = &plugin_info->argv[i];
-    key = arg->key;
-    if (strncmp(key, allowed_args[0], strlen(allowed_args[0])) == 0)
-    {
-      // -fxml_start arg.
-      flag_xml_start = arg->value;
-    }
-    else if (strncmp(key, allowed_args[1], strlen(allowed_args[1])) == 0)
-    {
-      // -fxml arg.
-      flag_xml = arg->value;
-    }
-    else if (strncmp(key, allowed_args[2], strlen(allowed_args[2])) == 0)
-    {
-      // -version
-      print_gccxml_plugin_version(plugin_info);
-    }
-    else
-    {
-      // Print a pretty error message, showing in bold where the option
-      // went wrong.
-      fprintf(stderr, "Unrecognised xml plugin argument: ");
-      fprintf(stderr, "%c[1m", 0x1B); // Go Bold.
-      fprintf(stderr, "%s\n", arg->key);         // The problem option key
-      fprintf(stderr, "%c[0m", 0x1B); // Turn bold off
-      fprintf(stderr, "Allowed arguments:\n");
-      fprintf(stderr, "\t'-fplugin-arg-%s-", plugin_info->base_name);
-      fprintf(stderr, "%c[1m", 0x1B); // Go Bold.
-      fprintf(stderr, "%s", allowed_args[0]);    // An option, in bold
-      fprintf(stderr, "%c[0m", 0x1B); // Turn bold off
-      fprintf(stderr, "=<val>'");
-      int j = 1;
-      const int n_allowed_args = sizeof(allowed_args) / sizeof(allowed_args[0]);
-
-      // loop through options, printing them prettily.
-      for ( ; j < n_allowed_args ; j++)
-      {
-        fprintf(stderr, ", or\n");
-        fprintf(stderr, "\t'-fplugin-arg-%s-", plugin_info->base_name);
-        fprintf(stderr, "%c[1m", 0x1B); // Go Bold
-        fprintf(stderr, "%s", allowed_args[j]);    // An option, in bold 
-        fprintf(stderr, "%c[0m", 0x1B); // Turn bold off
-        fprintf(stderr, "=<val>'");
-      }
-      fprintf(stderr, "\n");
-      return 1;
-    }
-  }
-  return 0;
-}
-
-// Plugin info Structs
-static plugin_info
-xml_plugin_info = {
-  GCCXML_PLUGIN_VERSION_FULL,
-  "Generate XML representation of a C++ Abstract Syntax Tree."
-};
-
-static void
-plugin_print_warnings(void)
-{
-  if (n_gccxml_decl_errors_missed > 0)
-    printf("\nPlease note.\n"
-        "The plugin is missing the GCCXML_DECL_ERROR macro, so the test \n"
-        "on about line %i is missing from this implementation of GCCXML.\n"
-        "I'm not sure what repercussions there are, but I can tell you  \n"
-        "that the test was encountered %i times...\n",
-        4095,
-        n_gccxml_decl_errors_missed);
-}
-
-int
-plugin_init(struct plugin_name_args   *plugin_info,
-	        struct plugin_gcc_version *version)
-{
-  plugin_info->version = GCCXML_PLUGIN_VERSION_FULL;
-  printf("Initialising gccxml_plugin\n");
-
-
- // Complain if built for a different major, or minor version.
- // Ignore patchlevel and other `plugin_gcc_version` attributes.
-  if (strncmp(version->basever, gcc_version.basever, 3))
-  {
-    fprintf(stderr, "Incompatible version (%s). Compiled for %s\n",
-        version->basever, gcc_version.basever);
-    return 1;
-  }
-
-  if (collect_plugin_args(plugin_info)!=0)
-      return 1;
-
-  /* Disable assembler output */
-  asm_file_name = HOST_BIT_BUCKET;
-
-  /* Populate the plugin_info struct */
-  register_callback(plugin_info->base_name, PLUGIN_INFO,
-          NULL, &xml_plugin_info);
-
-  /* Register callback to dump XML */
-  register_callback(plugin_info->base_name, PLUGIN_FINISH_UNIT,
-         plugin_dump_xml, NULL);
-
-  // Register callback to check we should convert function declaration.
-  // Go here, to see what GCC-XML does (haven't figured how to replicate 
-  // this in a plugin):-
-  //    https://github.com/gccxml/gccxml/blob/master/GCC/gcc/cp/method.c#L739
-  //register_callback(plugin_info->base_name, PLUGIN_FINISH_DECL,
-  //        plugin_gccxml_error, NULL);
-
-  return 0;
-}
-// end plugin callback group.
-//@}
 
 /* Main XML output function.  Called by parser at the end of a translation
    unit.  Walk the entire translation unit starting at the global
@@ -2120,6 +1917,10 @@ get_namespace_decls(tree *node)
 }
 */
 
+#ifdef __cplusplus
+}
+#endif
+
 /* Dump a NAMESPACE_DECL.  */
 static void
 xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
@@ -2243,6 +2044,10 @@ xml_document_add_element_namespace_decl (xml_document_info_p xdi,
   xml_document_add_attribute_demangled(e);
   }
 }
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*--------------------------------------------------------------------------*/
 /* Output for a typedef.  The name and associated type are output.  */
@@ -3003,6 +2808,11 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
   fprintf (xdi->file, "  </%s>\n", tag);
 }
 
+
+#ifdef __cplusplus
+    extern "C" {
+#endif
+
 static void
 xml_document_add_element_record_type_base (xml_document_info_p xdi,
                                            xml_document_element_p parent)
@@ -3018,11 +2828,6 @@ xml_document_add_element_record_type_base (xml_document_info_p xdi,
                              xml_document_attribute_type_integer,
                              xml_document_attribute_use_optional, "0");
 }
-
-#ifdef __cplusplus
-    extern "C" {
-#endif
-
 static void
 xml_document_add_element_record_type_helper (xml_document_info_p xdi,
                                              xml_document_element_p parent,

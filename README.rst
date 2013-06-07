@@ -96,7 +96,7 @@ can be run like:-
 Use ``gccxml_plugin --help`` for a full list of options and configuration help.
 
 N.B. Environment variables supported by the original GCCXML have not been
-     implemented in the new front end script (yet?).
+implemented in the new front end script (yet?).
 
 -------
 Testing

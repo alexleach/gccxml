@@ -89,14 +89,13 @@ this::
 
 A front-end script, written in Python, has been written to provide the same
 command line options as the original ``gccxml`` driver. ``gccxml_plugin``
-can be run like:-
+can be run like this::
 
  $ gccxml_plugin input.cxx -fxml=output.xml
 
 Use ``gccxml_plugin --help`` for a full list of options and configuration help.
 
-N.B. Environment variables supported by the original GCCXML have not been
-implemented in the new front end script (yet?).
+N.B. Environment variables supported by the original GCCXML have not been implemented in the new front end script (yet?).
 
 -------
 Testing

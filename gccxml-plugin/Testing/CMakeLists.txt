@@ -1,21 +1,11 @@
-#SET(EXE_DIR ".")
-#IF(EXECUTABLE_OUTPUT_PATH)
-#  SET(EXE_DIR "${EXECUTABLE_OUTPUT_PATH}")
-#ENDIF(EXECUTABLE_OUTPUT_PATH)
-
-
 
 # Inlucde gcc plugin directories
-#SET(GCCXML_PLUGIN_TEST_INCLUDES
 SET(PLUGIN_INCLUDE_DIRECTORIES
   ${GCCXML_PLUGIN_INCLUDE_DIR}/include
   ${GCCXML_PLUGIN_INCLUDE_DIR}/include/cp
 )
 
-#GET_DIRECTORY_PROPERTY(GCCXML_PLUGIN_TEST_INCLUDES INCLUDE_DIRECTORIES)
-#SET(INCLUDE_DIRECTORIES ${GCCXML_PLUGIN_TEST_INCLUDES})
-#MESSAGE("Test includes: ${GCCXML_PLUGIN_TEST_INCLUDES}")
-
+# Path to null device (so no object output)
 IF (WIN32)
   SET(NUL NUL)
 ELSE(WIN32)
@@ -32,11 +22,10 @@ SET(PLUGIN_TESTS
   # GCC plugin headers. These are mostly C99 I think..
   "${GCCXML_PLUGIN_INCLUDE_DIR}/include/ansidecl.h"
   "${GCCXML_PLUGIN_INCLUDE_DIR}/include/auto-host.h"
-
-  #"${GCCXML_PLUGIN_INCLUDE_DIR}/Testing/TestFullPathInclude.cxx"
-  #"${GCCXML_PLUGIN_INCLUDE_DIR}/Testing/TestUsualInclude.cxx"
 )
 
+# C++ standard library template headers. Can use them to both
+# test the code and to generate an XML schema of the C++ standard.
 SET(STDLIB_HEADERS
   algorithm
   array
@@ -56,7 +45,7 @@ SET(STDLIB_HEADERS
   cmath
   complex
   complex.h
-  #condition_
+  condition_variable
   csetjmp
   csignal
   cstdalign
@@ -75,11 +64,11 @@ SET(STDLIB_HEADERS
   deque
   exception
   fenv.h
-  #forward_li
+  forward_list
   fstream
   functional
   future
-  #initialize
+  initializer_list
   iomanip
   ios
   iosfwd
@@ -99,32 +88,34 @@ SET(STDLIB_HEADERS
   random
   ratio
   regex
-  #scoped_all
+  scoped_allocator
   set
   sstream
   stack
   stdexcept
   streambuf
   string
-  #system_err
+  system_error
   tgmath.h
   thread
   tuple
-  #type_trait
+  type_traits
   typeindex
   typeinfo
-  #unordered_
+  unordered_map
+  unordered_set
   utility
   valarray
   vector
 )
 
-#FOREACH(header ${STDLIB_HEADERS})
+# find C++ stdlib include directory
 FIND_PATH(HEADER_PATH
   NAMES cstdlib
   HINTS /usr/include/c++/${GCC_VERSION_FULL}
 )
 
+# can't run tests without std library headers
 IF(${HEADER_PATH} MATCHES "NOTFOUND$")
   MESSAGE("can't find GCC's C++ headers!")
 ELSE()
@@ -137,16 +128,17 @@ FOREACH(header ${STDLIB_HEADERS})
 ENDFOREACH(header)
 MESSAGE("PLUGIN_TESTS ${PLUGIN_TESTS}")
 
+SET(PLUGIN_PATH
+  ${GCCXML_PLUGIN_OUTPUT_PATH}/gccxml_plugin${CMAKE_SHARED_LIBRARY_SUFFIX})
+
+# run each test.
 FOREACH(test ${PLUGIN_TESTS})
   GET_FILENAME_COMPONENT(name "${test}" NAME)
-  #GET_FILENAME_COMPONENT(name_we "${test}" NAME_WE)
-
   ADD_TEST(NAME gccxml-plugin_${name}
-           WORKING_DIRECTORY ${GCCXML_PLUGIN_OUTPUT_PATH}
-           COMMAND ${CMAKE_CXX_COMPILER}
-                   -fplugin=./gccxml_plugin${CMAKE_SHARED_LIBRARY_SUFFIX}
-                   -fplugin-arg-gccxml_plugin-xml=${name}.gcc.xml
-                   ${GCCXML_PLUGIN_TEST_INCLUDES}
-                   -c  ${test} -o ${NUL})
+    COMMAND ${CMAKE_CXX_COMPILER}
+      -fplugin=${PLUGIN_PATH}
+      -fplugin-arg-gccxml_plugin-xml=${name}.gcc.xml
+      ${GCCXML_PLUGIN_TEST_INCLUDES}
+      -c ${test} -o ${NUL})
 ENDFOREACH(test)
 

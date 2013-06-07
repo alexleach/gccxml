@@ -28,7 +28,6 @@ along with this program; if not, write to the
  */
 
 #include "gcc-plugin.h"
-#include "plugin-version.h"
 
 #define GCC_XML_C_VERSION "GCC-XML Plugin Version " GCCXML_PLUGIN_VERSION_FULL
 
@@ -39,7 +38,7 @@ int plugin_is_GPL_compatible;
  * the plugin. We populate them in the callback routine,
  * `collect_callback_args`, below.   */
 static char *flag_xml_start;
-static char *flag_xml;
+//static char *flag_xml;
 
 //#define GCCXML_DECL_ERROR(NODE) DECL_COMMON_CHECK(NODE)->decl_common.decl_flag_3
 /* Counter for number of missed GCCXML_DECL_ERROR checks */

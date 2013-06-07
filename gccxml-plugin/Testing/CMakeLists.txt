@@ -1,10 +1,4 @@
 
-# Inlucde gcc plugin directories
-SET(PLUGIN_INCLUDE_DIRECTORIES
-  ${GCCXML_PLUGIN_INCLUDE_DIR}/include
-  ${GCCXML_PLUGIN_INCLUDE_DIR}/include/cp
-)
-
 # Path to null device (so no object output)
 IF (WIN32)
   SET(NUL NUL)
@@ -15,48 +9,80 @@ ENDIF(WIN32)
 FOREACH(inc ${PLUGIN_INCLUDE_DIRECTORIES})
   SET(GCCXML_PLUGIN_TEST_INCLUDES "${GCCXML_PLUGIN_TEST_INCLUDES}" "-I${inc}")
 ENDFOREACH(inc)
- 
+
+# Include gcc plugin directories
+SET(PLUGIN_INCLUDE_DIRECTORIES
+  ${GCCXML_PLUGIN_INCLUDE_DIR}/include
+  ${GCCXML_PLUGIN_INCLUDE_DIR}/include/cp
+)
+
 # Don't need GXFront headers with the Plugin. But do need the GCC
 # headers, so lets test them instead :)
 SET(PLUGIN_TESTS
-  # GCC plugin headers. These are mostly C99 I think..
+  # These are mostly C99 I think...
   "${GCCXML_PLUGIN_INCLUDE_DIR}/include/ansidecl.h"
   "${GCCXML_PLUGIN_INCLUDE_DIR}/include/auto-host.h"
+  # ...
 )
+
+
+SET(PLUGIN_PATH
+  ${GCCXML_PLUGIN_OUTPUT_PATH}/gccxml_plugin${CMAKE_SHARED_LIBRARY_SUFFIX})
+
+# Test GCC plugin headers
+FOREACH(test ${PLUGIN_TESTS})
+  GET_FILENAME_COMPONENT(name "${test}" NAME)
+  ADD_TEST(NAME gccxml-plugin_${name}
+    COMMAND ${CMAKE_CXX_COMPILER}
+      -fplugin=${PLUGIN_PATH}
+      -fplugin-arg-gccxml_plugin-xml=plugin-${name}.xml
+      ${GCCXML_PLUGIN_TEST_INCLUDES}
+      -c ${test} -o ${NUL})
+ENDFOREACH(test)
+
+#### Find GCC's libstdc++ headers  ####
+#######################################
+
+# C++ stdlib include directory
+FILE(TO_CMAKE_PATH ${GCC_PREFIX}/include/c++/${GCC_VERSION_FULL} GCC_HEADER_PATH)
+# Ensure it's got at least the cstdlib header in there.
+FIND_PATH(HEADER_PATH
+  NAMES cstdlib
+  HINTS ${GCC_HEADER_PATH}
+)
+
+# can't run tests without std library headers
+IF(${HEADER_PATH} MATCHES "NOTFOUND$")
+  MESSAGE("can't find GCC's C++ headers!")
+ELSE()
+  MESSAGE("Found C++ headers in ${HEADER_PATH}")
+ENDIF()
+
+# Convert STD C++98 headers #
+#############################
 
 # C++ standard library template headers. Can use them to both
 # test the code and to generate an XML schema of the C++ standard.
-SET(STDLIB_HEADERS
+SET(STDLIB98_HEADERS
   algorithm
-  array
-  atomic
   bitset
   cassert
-  ccomplex
   cctype
   cerrno
-  cfenv
   cfloat
-  chrono
-  cinttypes
   ciso646
   climits
   clocale
   cmath
   complex
   complex.h
-  condition_variable
   csetjmp
   csignal
-  cstdalign
   cstdarg
-  cstdbool
   cstddef
-  cstdint
   cstdio
   cstdlib
   cstring
-  ctgmath
   ctime
   cwchar
   cwctype
@@ -64,11 +90,8 @@ SET(STDLIB_HEADERS
   deque
   exception
   fenv.h
-  forward_list
   fstream
   functional
-  future
-  initializer_list
   iomanip
   ios
   iosfwd
@@ -80,65 +103,79 @@ SET(STDLIB_HEADERS
   locale
   map
   memory
-  mutex
   new
   numeric
   ostream
   queue
-  random
-  ratio
-  regex
-  scoped_allocator
   set
   sstream
   stack
   stdexcept
   streambuf
   string
-  system_error
   tgmath.h
-  thread
-  tuple
-  type_traits
-  typeindex
   typeinfo
-  unordered_map
-  unordered_set
   utility
   valarray
   vector
 )
 
-# find C++ stdlib include directory
-FIND_PATH(HEADER_PATH
-  NAMES cstdlib
-  HINTS /usr/include/c++/${GCC_VERSION_FULL}
-)
-
-# can't run tests without std library headers
-IF(${HEADER_PATH} MATCHES "NOTFOUND$")
-  MESSAGE("can't find GCC's C++ headers!")
-ELSE()
-  MESSAGE("Found C++ headers in ${HEADER_PATH}")
-ENDIF()
-
-# Try and find full path to ${header}, storing full path in ${_HEADER}
-FOREACH(header ${STDLIB_HEADERS})
-  SET(PLUGIN_TESTS ${PLUGIN_TESTS} ${HEADER_PATH}/${header})
-ENDFOREACH(header)
-MESSAGE("PLUGIN_TESTS ${PLUGIN_TESTS}")
-
-SET(PLUGIN_PATH
-  ${GCCXML_PLUGIN_OUTPUT_PATH}/gccxml_plugin${CMAKE_SHARED_LIBRARY_SUFFIX})
-
-# run each test.
-FOREACH(test ${PLUGIN_TESTS})
-  GET_FILENAME_COMPONENT(name "${test}" NAME)
-  ADD_TEST(NAME gccxml-plugin_${name}
+# Add tests for C++98 Standard library headers.
+# As these have no file-name suffix, need to specify the language.
+FOREACH(header ${STDLIB98_HEADERS})
+  GET_FILENAME_COMPONENT(name "${header}" NAME)
+  ADD_TEST(NAME stdc++98_${header}
     COMMAND ${CMAKE_CXX_COMPILER}
       -fplugin=${PLUGIN_PATH}
-      -fplugin-arg-gccxml_plugin-xml=${name}.gcc.xml
-      ${GCCXML_PLUGIN_TEST_INCLUDES}
-      -c ${test} -o ${NUL})
-ENDFOREACH(test)
+      -fplugin-arg-gccxml_plugin-xml=stdc++98-${header}.xml
+      -std=c++98
+      -x c++-header
+      -c ${HEADER_PATH}/${header} -o ${NUL})
+ENDFOREACH(header)
+
+# Tests on C++11 headers #
+##########################
+
+SET(STDLIB11_HEADERS
+  array
+  atomic
+  ccomplex
+  cfenv
+  chrono
+  cinttypes
+  condition_variable
+  cstdalign
+  cstdbool
+  cstdint
+  ctgmath
+  forward_list
+  future
+  initializer_list
+  mutex
+  random
+  ratio
+  regex
+  scoped_allocator
+  system_error
+  thread
+  tuple
+  type_traits
+  typeindex
+  unordered_map
+  unordered_set
+)
+
+# Tests on C++11 Standard library headers.
+# As these have no file-name suffix, need to specify the language as
+# well as the -std=c++11 flag
+FOREACH(header ${STDLIB11_HEADERS})
+  GET_FILENAME_COMPONENT(name "${header}" NAME)
+  ADD_TEST(NAME stdc++11_${header}
+    COMMAND ${CMAKE_CXX_COMPILER}
+      -fplugin=${PLUGIN_PATH}
+      -fplugin-arg-gccxml_plugin-xml=stdc++11-${header}.xml
+      -std=gnu++11
+      -x c++-header
+      -c ${HEADER_PATH}/${header} -o ${NUL})
+ENDFOREACH(header)
 

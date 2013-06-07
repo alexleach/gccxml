@@ -366,6 +366,7 @@ do_xml_output (const char* filename)
   FILE* file;
   struct xml_dump_info xdi;
 
+  printf("got filename: %s\n", filename);
   /* Do not dump if errors occurred during parsing.  */
   if(errorcount)
     {
@@ -380,10 +381,10 @@ do_xml_output (const char* filename)
   /* Open the XML output file.  */
   file = fopen (filename, "w");
   if (!file)
-    {
+  {
     error ("could not open xml-dump file `%s'", filename);
     return;
-    }
+  }
 
   /* Prepare dump.  */
   xdi.file = file;
@@ -401,21 +402,21 @@ do_xml_output (const char* filename)
 
   /* Add the starting nodes for the dump.  */
   if (flag_xml_start)
-    {
+  {
     /* Use the specified starting locations.  */
     xml_add_start_nodes (&xdi, flag_xml_start);
-    }
+  }
   else
-    {
+  {
     /* No start specified.  Use global namespace.  */
     xml_add_node (&xdi, global_namespace, 1);
 
     /* Also add std namespace because it is not always referenced.  */
     if(std_node)
-      {
+    {
       xml_add_node (&xdi, std_node, 1);
-      }
     }
+  }
 
   /* Start dump.  */
   fprintf (file, "<?xml version=\"1.0\"?>\n");
@@ -445,12 +446,12 @@ do_xml_output (const char* filename)
 
   /* Clean up.  */
   {
-  xml_dump_queue_p dq = xdi.queue_free;
-  while(dq)
+    xml_dump_queue_p dq = xdi.queue_free;
+    while(dq)
     {
-    xml_dump_queue_p nq = dq->next;
-    free(dq);
-    dq = nq;
+      xml_dump_queue_p nq = dq->next;
+      free(dq);
+      dq = nq;
     }
   }
   splay_tree_delete (xdi.dump_nodes);
@@ -584,9 +585,9 @@ xml_dump (xml_dump_info_p xdi)
     /* Remove the entry from the queue.  */
     xdi->queue = dq->next;
     if(!xdi->queue)
-      {
+    {
       xdi->queue_end = 0;
-      }
+    }
 
     /* Put the entry on the free list.  */
     dq->next = xdi->queue_free;
@@ -2327,9 +2328,13 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
   arg = DECL_ARGUMENTS (fd);
   arg_type = TYPE_ARG_TYPES (TREE_TYPE (fd));
   if (DECL_NONSTATIC_MEMBER_FUNCTION_P (fd))
+    {
     /* Skip "this" argument.  */
-    if(arg) arg = TREE_CHAIN (arg);
-      arg_type = TREE_CHAIN (arg_type);
+    if (arg)
+      arg = TREE_CHAIN (arg);
+    arg_type = TREE_CHAIN (arg_type);
+    }
+
 
   /* If there are no arguments, finish the element.  */
   if (arg_type == void_list_node)
@@ -2426,91 +2431,116 @@ xml_document_add_element_function (xml_document_info_p xdi,
 {
   xml_document_add_element_function_helper(
     xdi, parent, "Constructor",
-    /*do_returns*/  0,  /*do_access*/   1,
-    /*do_const*/    0,  /*do_virtual*/  0, 
-    /*do_static*/   0,
+    /*do_returns*/      0,
+    /*do_access*/       1,
+    /*do_const*/        0,
+    /*do_virtual*/      0, 
+    /*do_static*/       0,
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
     /*do_template*/     0,
-    /*do_artificial*/   1,  /*do_explicit*/ 1,
+    /*do_artificial*/   1,
+    /*do_explicit*/     1,
     /*do_type_scoped*/  0,
 /* END GCC 4.7.2 upgrade mods  */
-    /*allow_arguments*/ 1,  /*allow_ellipsis*/ 1);
+    /*allow_arguments*/ 1,
+    /*allow_ellipsis*/  1
+    );
 
   xml_document_add_element_function_helper(
     xdi, parent, "Destructor",
-    /*do_returns*/  0,  /*do_access*/   1,
-    /*do_const*/    0,  /*do_virtual*/  1,
-    /*do_static*/   0,    
+    /*do_returns*/      0,
+    /*do_access*/       1,
+    /*do_const*/        0,
+    /*do_virtual*/      1,
+    /*do_static*/       0,    
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
     /*do_template*/     0,
-    /*do_artificial*/   1,  /*do_explicit*/ 0,
+    /*do_artificial*/   1,
+    /*do_explicit*/     0,
     /*do_type_scoped*/  0,
 /* END GCC 4.7.2 upgrade mods  */
-    /*allow_arguments*/ 0,  /*allow_ellipsis*/ 0);
+    /*allow_arguments*/ 0,
+    /*allow_ellipsis*/  0
+    );
 
   xml_document_add_element_function_helper(
     xdi, parent, "Converter",
-    /*do_returns*/  1,  /*do_access*/   1,
-    /*do_const*/    1,  /*do_virtual*/  1,
-    /*do_static*/   0,
+    /*do_returns*/      1,
+    /*do_access*/       1,
+    /*do_const*/        1,
+    /*do_virtual*/      1,
+    /*do_static*/       0,
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
     /*do_template*/    0,
     /*do_artificial*/  0,
     /*do_type_scoped*/ 0,
 /* END GCC 4.7.2 upgrade mods  */
-    /*do_explicit*/     0,  /*allow_arguments*/ 0,
+    /*do_explicit*/     0,
+    /*allow_arguments*/ 0,
     /*allow_ellipsis*/  0);
 
   xml_document_add_element_function_helper(
     xdi, parent, "OperatorMethod",
-    /*do_returns*/  1,  /*do_access*/   1,
-    /*do_const*/    1,  /*do_virtual*/  1,
-    /*do_static*/   1,
+    /*do_returns*/      1,
+    /*do_access*/       1,
+    /*do_const*/        1,
+    /*do_virtual*/      1,
+    /*do_static*/       1,
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
     /*do_template*/     1,
     /*do_artificial*/   0,
     /*do_type_scoped*/  0,
 /* END GCC 4.7.2 upgrade mods  */
-    /*do_explicit*/     0,  /*allow_arguments*/ 1,
+    /*do_explicit*/     0,
+    /*allow_arguments*/ 1,
     /*allow_ellipsis*/  0);
 
   xml_document_add_element_function_helper(
     xdi, parent, "OperatorFunction",
-    /*do_returns*/  1,  /*do_access*/   0,
-    /*do_const*/    0,  /*do_virtual*/  0,
-    /*do_static*/   1,
+    /*do_returns*/      1,
+    /*do_access*/       0,
+    /*do_const*/        0,
+    /*do_virtual*/      0,
+    /*do_static*/       1,
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
     /*do_template*/     1,
     /*do_artificial*/   0,
     /*do_type_scoped*/  0,
 /* END GCC 4.7.2 upgrade mods  */
-    /*do_explicit*/     0,  /*allow_arguments*/ 1,
+    /*do_explicit*/     0,
+    /*allow_arguments*/ 1,
     /*allow_ellipsis*/  0);
 
   xml_document_add_element_function_helper(
     xdi, parent, "Method",
-    /*do_returns*/  1,  /*do_access*/   1,
-    /*do_const*/    1,  /*do_virtual*/  1,
-    /*do_static*/   1,
+    /*do_returns*/      1,
+    /*do_access*/       1,
+    /*do_const*/        1,
+    /*do_virtual*/      1,
+    /*do_static*/       1,
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
     /*do_template*/     1,
     /*do_artificial*/   0,
     /*do_type_scoped*/  0,
 /* END GCC 4.7.2 upgrade mods  */
-    /*do_explicit*/     0,  /*allow_arguments*/ 1,
+    /*do_explicit*/     0,
+    /*allow_arguments*/ 1,
     /*allow_ellipsis*/  1);
 
   xml_document_add_element_function_helper(
     xdi, parent, "Function",
-    /*do_returns*/  1,  /*do_access*/   0,
-    /*do_const*/    0,  /*do_virtual*/  0,
-    /*do_static*/   1,
+    /*do_returns*/      1,
+    /*do_access*/       0,
+    /*do_const*/        0,
+    /*do_virtual*/      0,
+    /*do_static*/       1,
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
     /*do_template*/     1,
     /*do_artificial*/   0,
     /*do_type_scoped*/  1,
 /* END GCC 4.7.2 upgrade mods  */
-    /*do_explicit*/     0,  /*allow_arguments*/ 1,
+    /*do_explicit*/     0,
+    /*allow_arguments*/ 1,
     /*allow_ellipsis*/  1);
 
 }
@@ -3996,13 +4026,19 @@ void xml_dump_files (xml_dump_info_p xdi)
   xml_file_queue_p fq;
   xml_file_queue_p next_fq;
   for(fq = xdi->file_queue; fq ; fq = next_fq)
-    {
+  {
     fprintf (xdi->file, "  <File id=\"f%d\" name=\"%s\"/>\n",
              (unsigned int) fq->tree_node->value,
-             IDENTIFIER_POINTER ((tree) fq->tree_node->key));
+             // ---- Start GCCXML_plugin patch. ---- //
+             // tree_node->key typedef'd as a uintptr_t,
+             // so that it's type can be safely changed, somehow. So we need
+             // to cast the value to char*, in case it's a wider char type.
+              (char*)fq->tree_node->key);
+             //IDENTIFIER_POINTER ((tree) fq->tree_node->key));
+             // ---- END GCCXML_plugin patch. ---- //
     next_fq = fq->next;
     free (fq);
-    }
+  }
 }
 
 /*--------------------------------------------------------------------------*/

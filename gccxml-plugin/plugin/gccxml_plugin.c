@@ -23,6 +23,8 @@ along with this program; if not, write to the
 
 #include "gccxml_plugin.h"
 
+#include "plugin-version.h"
+
 #include "options.h"
 
 //////////////////////////////////////////////////////////////////////////////
@@ -35,6 +37,7 @@ along with this program; if not, write to the
 #endif
 
 //static int n_gccxml_decl_errors_missed = 0;
+static const char *flag_xml;
 
 // forward decl.
 static void plugin_print_warnings(void);

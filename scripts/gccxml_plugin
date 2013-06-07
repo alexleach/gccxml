@@ -1,0 +1,262 @@
+#!/usr/bin/python
+
+#from pyplusplus.module_builder import module_builder_t
+import os, subprocess, sys
+
+class GccXmlOptions:
+    """GCC-XML plugin command line options.
+
+    GCC-XML parses a C++ source file as it is seen by the compiler when it is
+    built.  An easy-to-parse XML representation of the class, function, and
+    namespace declarations is dumped to a specified file.  Full C preprocessing
+    transforms the file into a C++ translation unit as seen by the compiler.
+    This means that GCC-XML should make use of the same standard library and
+    other header files as the compiler.  GCC-XML can be configured to simulate
+    any of several popular compilers.
+    """
+
+    usage = "gccxml [options] <input_file> -fxml=<output_file>"
+
+    epilog = "Arguments not explicitly specified here are passed directly to gcc."
+
+    def __init__(self):
+        from argparse import ArgumentParser
+        self.parser = parser = ArgumentParser(description=self.__doc__,
+                usage=self.usage, epilog=self.epilog)
+        parser.add_argument('--copyright', dest='copyright',
+            help="Print the GCC-XML copyright and exit.")
+
+        parser.add_argument('--debug', dest='debug', help="""
+            Print extra debugging information. This option causes
+            GCC-XML to print the executable name and command-line arguments used
+            to execute the patched GCC C++ parser. This is useful when attempting
+            to simulate an unsupported compiler.""")
+
+        parser.add_argument('-fxml-start', dest='xml_start', nargs='*',
+            help="""
+           Specify a list of starting declarations.
+           This option is passed directly on to the patched GCC C++ parser.  It
+           is meaningful only if -fxml= is also specified.  This specifies a
+           comma-separated list of named starting declarations.  GCC-XML will
+           dump only the subset of the declarations in the translation unit that
+           is reachable through a sequence of source references from one of the
+           specified starting declarations.""")
+
+        parser.add_argument('--gccxml-compiler', dest='compiler', default='gcc',
+            help="Use specific compiler driver (Default: gcc)", nargs='?')
+
+        parser.add_argument('--gccxml-cxxflags', dest='cxxflags', default=None,
+            help="Set CXXFLAGS (Default: None)", nargs='*')
+
+        parser.add_argument('--gccxml-cpp', dest='preprocessor', default='cpp',
+            help="Use specific preprocessor (Default: cpp)")
+
+        parser.add_argument('--gccxml-root', dest='root', default=None,
+            help="Set GCCXML_ROOT")
+
+        parser.add_argument('--gccxml-gcc-options', dest='gcc_opts', nargs='*',
+            help="""
+               Read GCC options from file "xxx".
+               This option specifies a file from which to read options to pass to the
+               patched GCC C++ parser.  This is useful for specifying a long list of
+               include directories.  Each line in the file becomes one option.  Empty
+               lines and lines beginning in '#' are ignored.""")
+
+        parser.add_argument('--man', dest='man', default=False,
+                action="store_true", help="""
+               Print a UNIX man page and exit.
+               This option is used by GCC-XML authors to generate the UNIX man page.
+                """)
+
+        parser.add_argument('--print', dest='print', default=False,
+                action="store_true", help="""
+               Print configuration settings and exit.
+               GCC-XML has many configuration options to help it simulate another
+               compiler.  Using this option will cause GCC-XML to configure itself as
+               if it were going to parse the C++ source, but stop and print the
+               configuration found.  This is useful for checking the configuration.
+                """)
+
+        parser.add_argument('-E', '--preprocess', dest='preprocess', default=False,
+                action="store_true", help="""
+               Preprocess the input and exit.
+               GCC-XML simulates the proprocessor of another compiler.  Using this
+               option will cause GCC-XML to configure itself as if it were going to
+               parse the C++ source, but stop after preprocessing.  This is useful
+               for debugging problems related to simulation of the other compiler.
+                """)
+
+        parser.add_argument('--help-gcc', dest='help_gcc', default=False,
+                action="store_true",
+                help="Print GCC's --help output, with plugin loaded")
+
+        parser.add_argument('--help-html', dest='help_html', default=False,
+                action="store_true",
+                help="""Print full help in HTML format.
+                This option is used by GCC-XML authors to help produce web pages.
+                """)
+        parser.add_argument('--version', dest='version', default=False,
+                action="store_true",
+                help="Print GCCXML-plugin version")
+
+        parser.add_argument('input_file', nargs='+', help="input file")
+
+        parser.add_argument('-fxml', dest='output', nargs='?', help ="""
+            Specify the XML output file.
+            This option is passed directly on to the patched GCC C++ parser.  It
+            enables the XML dump and specifies the output file name.""")
+
+    def __call__(self):
+        our_opts, gcc_opts = self.parser.parse_known_args(sys.argv[1:])
+        setattr( our_opts, 'gcc_opts', gcc_opts )
+        return our_opts
+
+class GccXml:
+    """This manages execution of gcc, with the gccxml_plugin loaded"""
+    # path resolvable by the dynamic linker.
+    gccxml_plugin = os.path.join('.', 'gccxml_plugin')
+    if sys.platform == 'win32':
+        gccxml_plugin += '.dll'
+    else:
+        gccxml_plugin += '.so'
+
+    # recognised file name suffixes. Any more?
+    cpp_suffixes = ['cpp', 'hpp', 'cc', 'hh', 'cxx']
+    c_suffixes   = ['c', 'h']
+    suffixes = cpp_suffixes + c_suffixes
+
+    # attributes populated by __init__, directly or indirectly
+    compiler     = 'gcc'
+    preprocessor = 'cpp'
+    sources      = []
+    flags        = []
+    print_help   = False
+    xml_files    = []
+    xml_start    = None
+
+    def __init__(self, options):
+        """Prepare for calling PyPlusPlus, by finding an approprirate compiler
+        driver, and parsing appropriate flags from the environment, depending
+        on whether the source file has a C or C++ file extension"""
+        if len(options.input_file) == 1:
+            input_file = options.input_file = options.input_file[0]
+            self._check_dir(input_file, options)
+        else:
+            for f in options.input_file:
+                self._check_dir(f, options)
+
+        self._get_compiler_flags(options)
+
+        # Add plugin specific options
+        plugin_options = self.add_plugin_options(xml_start=options.xml_start)
+
+        for tool in [ 'compiler', 'preprocessor' ]:
+            if not os.path.exists(getattr(options, tool)):
+                _tool = find_path(options.compiler)
+                if _tool != False:
+                    setattr(self, tool, _tool)
+
+        if options.help_gcc:
+            self.print_help = True
+        if options.version:
+            plugin_options.append("-fplugin-arg-gccxml_plugin-version")
+        self._cflags = plugin_options + options.gcc_opts
+
+    def _check_dir(self, f_name, options):
+        # If given a directory, try and compile everything in it (non-recursively)
+        sources = self.sources
+        if os.path.isdir(f_name):
+            c_or_cplusplus = re.compile( r'\.(' + r'|'.join(self.suffixes) +  ')$' )
+            src = f_name
+            del(options.input_file)
+            for f in os.listdir(sources):
+                if c_or_cplusplus.match(f):
+                    # compile it, if the file name matches one of the above extensions:
+                    sources.append(os.path.join(src, f))
+        else:
+            sources.append(f_name)
+            if options.output is None:
+                options.output = os.path.basename(f_name) + '.xml'
+            self.xml_files.append(options.output)
+
+    def _get_compiler_flags(self, options):
+        """Get CFLAGS or CXXFLAGS from environment, based on what we can
+        observe in options. If options.compiler is not set, then check the
+        file name suffix of the first file in the `options.sources`"""
+        # figure out which compiler to use, and get appropriate env. vars.
+        if options.compiler is None:
+            # check the first source files suffix, and guess compiler from that
+            example_src = options.sources[0]
+            suffix = example_src.rsplit('.', 1)[1]
+            if suffix in self.c_suffixes:
+                compiler = 'gcc'
+                flags = os.environ.get("CFLAGS", "")
+            else:
+                compiler = 'g++'
+                flags = os.environ.get("CXXFLAGS", "")
+        else:
+            compiler = options.compiler
+            if compiler.endswith('++'):
+                flags = os.environ.get("CXXFLAGS", "")
+            else:
+                flags = os.environ.get("CFLAGS", "")
+        self.compiler = compiler
+        from shlex import split
+        # split environment flags into a list
+        flags = split(flags)
+        if options.cxxflags is not None:
+            flags += options.cxxflags
+        self.flags = flags
+
+    def add_plugin_options(self, xml_start=None):
+        """Add gccxml_plugin-specific flags to the command line options"""
+        flags = self.flags
+        flags.insert(0, '-fplugin={0}'.format(self.gccxml_plugin))
+        if xml_start is not None:
+            flags.append('-fplugin-arg-{0}-xml_start={1}'\
+                         .format(self.gccxml_plugin, xml_start))
+        return flags
+
+    def __call__(self):
+        """Execute GCC with the gccxml plugin loaded, dumping output in XML
+        format, only."""
+        cflags = self._set_gcc_flags()
+        out_files = self.xml_files
+        cc = self.compiler
+        for i, source in enumerate(self.sources):
+            xml_arg = '-fplugin-arg-gccxml_plugin-xml={0}'.format(out_files[i])
+            args = [cc] +  cflags + [source, xml_arg]
+            print 'Executing:\n  {0}'.format( ' '.join(args) )
+            sys.stdout.flush()
+            subprocess.call(args)
+
+    def _set_gcc_flags(self):
+        """Adds some default flags to the GCC driver command line options"""
+        # Don't create object code file
+        cflags = self._cflags + ['-o', os.path.devnull]
+        # Don't invoke the linker.
+        cflags.append('-c')
+        if self.print_help:
+            cflags.append('--help')
+        return cflags
+
+def find_path(executable):
+    """Checks PATH environment variable for location to `executable`.
+    If found, return full path to `executable`, else False."""
+    path = os.environ.get('PATH', None).split(os.pathsep)
+    if path is None:
+        return False
+    path.append(os.getcwd())
+    exists, join = os.path.exists, os.path.join
+    for folder in path:
+        exec_path = join(folder, executable)
+        if exists( exec_path ):
+            return exec_path
+    return False
+
+if __name__ == "__main__":
+    opts = GccXmlOptions()
+    all_opts = opts()
+    gccxml = GccXml(all_opts)
+    gccxml()
+

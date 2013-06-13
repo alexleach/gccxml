@@ -48,6 +48,9 @@ along with this program; if not, write to the
  *
 */
 
+// for cross-platform printf format string specifiers (e.g. PRIu64)
+#define __STDC_FORMAT_MACROS
+
 #include "gccxml_plugin.h"
 
 #include "tree-pass.h"
@@ -61,7 +64,7 @@ along with this program; if not, write to the
 
 #include "tree.h"
 
-#include "cp-tree.h"
+#include "cp/cp-tree.h"
 
 #include "rtl.h"
 
@@ -71,7 +74,8 @@ along with this program; if not, write to the
 
 #include "splay-tree.h"
 
-#include "demangle.h"
+#include <cxxabi.h>
+
 
 #include "tree-iterator.h"
 
@@ -787,8 +791,8 @@ xml_print_demangled_attribute (xml_dump_info_p xdi, tree n)
       DECL_ASSEMBLER_NAME (n) != DECL_NAME (n))
     {
     const char* INTERNAL = " *INTERNAL* ";
-    const int demangle_opt =
-      (DMGL_STYLE_MASK | DMGL_PARAMS | DMGL_TYPES | DMGL_ANSI) & ~DMGL_JAVA;
+    //const int demangle_opt =
+    //  (DMGL_STYLE_MASK | DMGL_PARAMS | DMGL_TYPES | DMGL_ANSI) & ~DMGL_JAVA;
 
     const char* name = xml_get_encoded_string (DECL_ASSEMBLER_NAME (n));
     /*demangled name*/
@@ -807,8 +811,12 @@ xml_print_demangled_attribute (xml_dump_info_p xdi, tree n)
       *internal_found = '\0';
       }
 
-    dename = cplus_demangle(dupl_name, demangle_opt);
-    if(dename)
+    //dename = cplus_demangle(dupl_name, demangle_opt);
+
+    int status =0;
+    dename = abi::__cxa_demangle(dupl_name, 0, 0, &status);
+    //if(dename)
+    if (status==0)
       {
       const char* encoded_dename = xml_escape_string(dename);
       fprintf (xdi->file, " demangled=\"%s\"", encoded_dename);
@@ -1888,6 +1896,38 @@ xml_document_add_element_unimplemented (xml_document_info_p xdi,
 
 /*--------------------------------------------------------------------------*/
 
+// traverse all declarations.
+// Modified slightly, from:
+// http://www.codesynthesis.com/~boris/blog/2010/05/10/parsing-cxx-with-gcc-plugin-part-2/
+void
+traverse(tree ns, vec<tree, va_gc>** decls)
+{
+  //binding_table_foreach(xml_binding_table, push_binding, (void*)decls);
+  tree decl;
+  cp_binding_level * level (NAMESPACE_LEVEL(ns));
+
+  // Traverse declarations
+  for (decl = level->names;
+       decl;
+       decl = TREE_CHAIN(decl))
+  {
+    if (DECL_IS_BUILTIN(decl))
+      continue;
+    vec_safe_push(*decls, decl);
+  }
+
+  // Traverse namespaces
+  for (decl = level->namespaces;
+       decl;
+       decl = TREE_CHAIN(decl))
+  {
+    if (DECL_IS_BUILTIN(decl))
+      continue;
+    traverse(decl, decls);
+  }
+}
+
+
 /* Return all bindings to the given namespace in a VEC */
 /*
 static void 
@@ -1938,32 +1978,28 @@ xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
 /* START GCC-4.7.2 upgrades - from Andrej Mitrovic */
     xml_print_anon_attribute(xdi, ns);
     xml_print_context_attribute (xdi, ns);
-//    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(ns), 0);
+    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(ns), 0);
 /* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
 
     /* If complete dump, walk the namespace.  */
     if(dn->complete)
       {
       /* Get the vector of all declarations in the namespace.  */
-      int i;
 /* START GCC-4.7.2 upgrades - from Andrej Mitrovic */
-      //get_namespace_decls(dn, &decls);
       vec<tree, va_gc> * decls = NAMESPACE_LEVEL(ns)->static_decls;
-      //VEC(tree,gc) *decls = NAMESPACE_LEVEL (ns)->all_decls ;
+      traverse(ns, &decls);
 
-      //tree * decls = NAMESPACE_LEVEL(ns)->names;
-      //tree vec = NAMESPACE_LEVEL(ns)->names;
 /* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
-      //tree *vec = VEC_address (tree, decls);
       tree * t_vec = decls->address();
       int len = decls->length();
       //int len = VEC_length (tree, decls);
 
       /* Output all the declarations.  */
       fprintf (xdi->file, " members=\"");
+      int i, id;
       for (i=0; i < len; ++i)
         {
-        int id = xml_add_node (xdi, t_vec[i], 1);
+        id = xml_add_node (xdi, t_vec[i], 1);
         if (id)
           {
           fprintf (xdi->file, "_%d ", id);
@@ -3935,7 +3971,7 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
 /* GCC-XML 4.7.2 update  2013-02-03 */
   if (TREE_CODE (n) == FUNCTION_DECL)
   {
-    if (DECL_ARTIFICIAL (n) && !DECL_INITIAL (n) &&
+    if (DECL_ARTIFICIAL (n) && !DECL_INITIAL (n) && DECL_ANTICIPATED(n) &&
       (!DECL_REALLY_EXTERN (n) || possibly_inlined_p (n)))
     {
       /* We try to synthesize this function but suppress error messages.  */
@@ -4033,9 +4069,10 @@ void xml_dump_files (xml_dump_info_p xdi)
              // tree_node->key typedef'd as a uintptr_t,
              // so that it's type can be safely changed, somehow. So we need
              // to cast the value to char*, in case it's a wider char type.
-              (char*)fq->tree_node->key);
-             //IDENTIFIER_POINTER ((tree) fq->tree_node->key));
+              //(const char*)fq->tree_node->key); //< empty string...
+             IDENTIFIER_POINTER ((tree) fq->tree_node->key)
              // ---- END GCCXML_plugin patch. ---- //
+             );
     next_fq = fq->next;
     free (fq);
   }

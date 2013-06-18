@@ -69,26 +69,27 @@ along with this program; if not, write to the
 #include "rtl.h"
 
 /* Start GCC 4.7.2 upgrade edit - Change varray.h for vec.h*/
-#if GCC_VERSION >= 4008
-# include "vec.h"
-#else
-# include "VEC.h"
-#endif
-
+# include "vec.h" //< In gcc-4.6, the lowest GCC version supporting plugins
 /* End GCC 4.7.2 upgrade edit */
 
 #include "splay-tree.h"
 
-#include <cxxabi.h>
-
+// For gcc / g++ to find this header and its dependencies,
+// need to compile this file as C++.
+//#include <cxxabi.h>
+#include "demangle.h"
 
 #include "tree-iterator.h"
 
 #include "toplev.h" /* ident_hash */
 
 #ifdef __cplusplus
-    extern "C" {
+  extern "C" {
 #endif
+
+# if GCC_VERSION < 4008
+//extern tree look_for_overrides_here ( tree, tree );
+# endif
 
 /*--------------------------------------------------------------------------*/
 /* Data structures for the actual XML dump.  */
@@ -791,12 +792,11 @@ xml_print_demangled_attribute (xml_dump_info_p xdi, tree n)
   if (DECL_ASSEMBLER_NAME_SET_P(n) &&
 /* End GCC 4.7.2 upgrade edit */
       DECL_NAME (n) &&
-//      DECL_ASSEMBLER_NAME (n) &&
       DECL_ASSEMBLER_NAME (n) != DECL_NAME (n))
     {
     const char* INTERNAL = " *INTERNAL* ";
-    //const int demangle_opt =
-    //  (DMGL_STYLE_MASK | DMGL_PARAMS | DMGL_TYPES | DMGL_ANSI) & ~DMGL_JAVA;
+    const int demangle_opt =
+      (DMGL_STYLE_MASK | DMGL_PARAMS | DMGL_TYPES | DMGL_ANSI) & ~DMGL_JAVA;
 
     const char* name = xml_get_encoded_string (DECL_ASSEMBLER_NAME (n));
     /*demangled name*/
@@ -815,13 +815,15 @@ xml_print_demangled_attribute (xml_dump_info_p xdi, tree n)
       *internal_found = '\0';
       }
 
-    int status =0;
-    dename = abi::__cxa_demangle(dupl_name, 0, 0, &status);
-    if (status==0)
+    //int status =0;
+    //dename = abi::__cxa_demangle(dupl_name, 0, 0, &status);
+    dename = cplus_demangle(dupl_name, demangle_opt);
+    if (dename)
+    //if (status==0)
       {
-      const char* encoded_dename = xml_escape_string(dename);
-      fprintf (xdi->file, " demangled=\"%s\"", encoded_dename);
-      XDELETE(encoded_dename);
+      const char* decoded_dename = xml_escape_string(dename);
+      fprintf (xdi->file, " demangled=\"%s\"", decoded_dename);
+      XDELETE(decoded_dename);
       }
     free(dupl_name);
     }
@@ -1324,6 +1326,11 @@ xml_print_overrides (xml_dump_info_p xdi, tree type, tree fndecl)
   return found;
 }
 
+// look_for_overrides here declared w
+//# ifdef __cplusplus
+//   }
+//# endif
+
 /* Look in TYPE for virtual functions overrides by FNDECL.  Check both
    TYPE itself and its bases.  */
 static int
@@ -1346,6 +1353,10 @@ xml_print_overrides_r (xml_dump_info_p xdi, tree type, tree fndecl)
   /* We failed to find one declared in this class. Look in its bases.  */
   return xml_print_overrides (xdi, type, fndecl);
 }
+
+//# ifdef __cplusplus
+//    extern "C" {
+//# endif
 
 static void
 xml_print_overrides_method_attribute (xml_dump_info_p xdi, tree d)
@@ -1663,7 +1674,7 @@ xml_document_add_attribute_throw(xml_document_element_p element)
 /* Given an attribute node, set "arg" to the string value of the first
    argument, and return the first argument node.  */
 
-/* START GCC 4.7.2 upgrade mods  */
+/* START GCC_XML plugin upgrade mods  */
 tree
 xml_get_attrib_arg_helper(tree arg_node, char** arg)
 {
@@ -1677,13 +1688,17 @@ xml_get_attrib_arg_helper(tree arg_node, char** arg)
       size_t val_len = strlen(val);
       if (strlen(*arg) < val_len)
       {
-        delete[] *arg;
-        *arg = new char[val_len+1];
+        XDELETE(*arg);
+        *arg = XCNEWVAR(char, val_len+1);
       }
       snprintf(*arg, val_len, val);
     }
     else if (code == INTEGER_CST)
+# if GCC_VERSION >= 4008
       snprintf(*arg, 1, "%ld", TREE_INT_CST(cst).to_shwi());
+# else
+      snprintf(*arg, 1, "%d", TREE_INT_CST(cst));
+# endif
     else if (code == IDENTIFIER_NODE)
       sprintf(*arg, xml_get_encoded_string(cst));
     else
@@ -1720,9 +1735,8 @@ xml_print_attributes_attribute_helper(xml_dump_info_p xdi, tree attributes)
   const char* space = "";
   tree attribute;
   tree arg_node;
-  //char * arg = XNEWVAR(char, sizeof(char));
-  char * arg = new char[1];
-  *arg = '\0';
+  char * arg = XCNEWVAR(char, sizeof(" "));
+  arg[0] = '\0';
   for(attribute = attributes; attribute;
       attribute = TREE_CHAIN(attribute))
     {
@@ -1742,7 +1756,7 @@ xml_print_attributes_attribute_helper(xml_dump_info_p xdi, tree attributes)
       fprintf(xdi->file, ")");
       }
     }
-  delete[] arg;
+  XDELETE(arg);
 }
 
 /* Print XML attribute listing the contents of the __attribute__ node
@@ -1767,7 +1781,6 @@ xml_document_add_attribute_attributes(xml_document_element_p element)
                              xml_document_attribute_type_string,
                              xml_document_attribute_use_optional, 0);
 }
-/* END GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
 
 /*--------------------------------------------------------------------------*/
 /* Print XML attribute artificial="1" for compiler generated methods.  */
@@ -1903,10 +1916,17 @@ xml_document_add_element_unimplemented (xml_document_info_p xdi,
 /// Modified slightly, from:
 /// http://www.codesynthesis.com/~boris/blog/2010/05/10/parsing-cxx-with-gcc-plugin-part-2/
 void
-xml_traverse_decls(tree ns, vec<tree, va_gc>** decls)
+xml_traverse_decls(
+        tree ns,
+# if GCC_VERSION >= 4008
+        vec<tree, va_gc>** decls
+# else
+        VEC(tree, gc)** decls
+# endif
+        )
 {
   tree decl;
-  cp_binding_level * level (NAMESPACE_LEVEL(ns));
+  struct cp_binding_level * level = NAMESPACE_LEVEL(ns);
 
   // cp_binding_level->names is reversed. Re-reverse it
   tree rnames = nreverse(level->names);
@@ -1918,7 +1938,11 @@ xml_traverse_decls(tree ns, vec<tree, va_gc>** decls)
   {
     if (DECL_IS_BUILTIN(decl))
       continue;
+# if GCC_VERSION >= 4008
     vec_safe_push(*decls, decl);
+# else
+    VEC_safe_push(tree, gc, *decls, decl);
+# endif
   }
 
   // Recurse through namespaces
@@ -1962,15 +1986,18 @@ xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
       {
       /* Get the vector of all declarations in the namespace.  */
 /* START GCCXML_plugin upgrades  */
+# if GCC_VERSION >= 4008
       vec<tree, va_gc> * decls = NAMESPACE_LEVEL(ns)->static_decls;
-      xml_traverse_decls(ns, &decls);
-
-/* END GCC-4.7.2 upgrades */
-/* START GCC-4.8 upgrades */
       tree * t_vec = decls->address();
       int len = decls->length();
-      //int len = VEC_length (tree, decls);
-/* END GCC-4.8 upgrades */
+# else
+      VEC(tree, gc) * decls = NAMESPACE_LEVEL(ns)->static_decls;
+      tree * t_vec = VEC_address(tree, decls);
+      int len = VEC_length (tree, decls);
+# endif
+      xml_traverse_decls(ns, &decls);
+
+/* END GCCXML plugin upgrades */
 
       /* Output all the declarations.  */
       fprintf (xdi->file, " members=\"");

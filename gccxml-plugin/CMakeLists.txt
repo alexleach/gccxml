@@ -16,7 +16,19 @@ EXEC_PROGRAM(${CMAKE_C_COMPILER}
   ARGS "-dumpversion"
   OUTPUT_VARIABLE GCC_VERSION_FULL)
 
-MESSAGE("GCC VERSION ${GCC_VERSION_FULL}")
+MESSAGE(STATUS "Found ${CMAKE_C_COMPILER},  version ${GCC_VERSION_FULL}")
+
+# GET GCC_MINOR and MAJOR VERSIONs
+STRING(REGEX REPLACE
+  "^([0-9])\\.[0-9]\\.[0-9]$"
+  "\\1" GCC_VERSION_MAJOR
+  ${GCC_VERSION_FULL})
+
+STRING(REGEX REPLACE
+  "^[0-9]\\.([0-9])\\.[0-9]$"
+  "\\1" GCC_VERSION_MINOR
+  ${GCC_VERSION_FULL})
+
 
 # ----------------------------------------------------
 # Find the directory containing your compiler (ie. gcc)
@@ -27,11 +39,6 @@ GET_FILENAME_COMPONENT(
   PATH
 )
 
-# -------------------------
-# Compiler's install prefix
-
-FILE(TO_CMAKE_PATH "${GCC_BINDIR}/.." GCC_PREFIX)
-
 #----------------------------
 # Set some useful Debug flags
 
@@ -39,18 +46,11 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${MAKE_CXX_FLAGS_DEBUG} -g3 -gdwarf-3 -O0 -Wall")
 SET(CMAKE_CXX_FLAGS_RELEASE "${MAKE_CXX_FLAGS_DEBUG} -fomit-frame-pointer -mtune=generic -Os")
 
 #-----------------------------------------------------------------------------
-# Set GCCXML plugin install name
-
-SET(GCCXML_PLUGIN_PATH "${CMAKE_INSTALL_DIR}/gccxml${CMAKE_SHARED_LIBRARY_SUFFIX}")
-
-#-----------------------------------------------------------------------------
 # Place gccxml-plugin in lib directory
 
 SET(GCCXML_PLUGIN_OUTPUT_PATH "${CMAKE_BINARY_DIR}" CACHE PATH
   "Output directory for gccxml-plugin.${CMAKE_SHARED_LIBRARY_SUFFIX}")
-MARK_AS_ADVANCED(GCCXML_PLUGIN_OUTPUT_PATH)
-
-MESSAGE("GCCXML PLUGIN OUTPUT PATH ${GCCXML_PLUGIN_OUTPUT_PATH}")
+#MARK_AS_ADVANCED(GCCXML_PLUGIN_OUTPUT_PATH)
 
 # `make build`
 #############

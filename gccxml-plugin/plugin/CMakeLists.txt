@@ -7,15 +7,13 @@ ADD_DEFINITIONS(
 INCLUDE_DIRECTORIES(BEFORE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${GCCXML_PLUGIN_INCLUDE_DIR}/include
-  ${GCCXML_PLUGIN_INCLUDE_DIR}/include/cp
+  #${GCCXML_PLUGIN_INCLUDE_DIR}/include/cp
 )
 
 IF(GCCXML_INSTALL_COMPONENT_NAME_PLUGIN)
   SET(GCCXML_INSTALL_COMPONENT_PLUGIN
     COMPONENT ${GCCXML_INSTALL_COMPONENT_NAME_PLUGIN})
 ENDIF(GCCXML_INSTALL_COMPONENT_NAME_PLUGIN)
-
-#SET(GCCXML_PLUGIN_OUTPUT_PATH ${PLUGIN_OUTPUT_PATH})
 
 # Do not inherit library building rules from the parent project.
 SET(BUILD_SHARED_LIBS 1)
@@ -37,6 +35,21 @@ SET_TARGET_PROPERTIES(gccxml_plugin PROPERTIES
 # install in standard library directory. Better place to be?
 INSTALL_TARGETS(/lib gccxml_plugin)
 
-# GCC started writing parts of the compiler in C++, so we need to use a
-# C++ compiler!
-SET_SOURCE_FILES_PROPERTIES( xml.c PROPERTIES LANGUAGE CXX )
+# Version checks and warnings
+IF(${GCC_VERSION_MAJOR} GREATER 3)
+  # gcc-4.6 warnings
+  IF(${GCC_VERSION_MINOR} EQUAL 6)
+    MESSAGE(WARNING
+      "GCC 4.6.4 was found - during testing on Arch Linux - to be missing "
+      "c-family/c-common.h from its plugin directory. If it's missing from "
+      "your installation, please copy it from your GCC 4.6 source tree."
+    )
+  ENDIF()
+
+  # haven't yet tested 4.7...
+
+  # gcc-4.8 needs is compiled as C++, so xml.c needs to be, too.
+  IF(${GCC_VERSION_MINOR} GREATER 7)
+    SET_SOURCE_FILES_PROPERTIES( xml.c PROPERTIES LANGUAGE CXX )
+  ENDIF()
+ENDIF()

@@ -40,23 +40,27 @@ FOREACH(test ${PLUGIN_TESTS})
       -c ${test} -o ${NUL})
 ENDFOREACH(test)
 
+# create an empty test file
+
+FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/empty_file.cpp
+  "int main(int argc, char*argv[]){return 0;}")
+
 #### Find GCC's libstdc++ headers  ####
 #######################################
 
 # C++ stdlib include directory
-FILE(TO_CMAKE_PATH ${GCC_PREFIX}/include/c++/${GCC_VERSION_FULL} GCC_HEADER_PATH)
+#FILE(TO_CMAKE_PATH ${GCC_PREFIX}/include/c++/${GCC_VERSION_FULL} GCC_HEADER_PATH)
 # Ensure it's got at least the cstdlib header in there.
-FIND_PATH(HEADER_PATH
-  NAMES cstdlib
-  HINTS ${GCC_HEADER_PATH}
-)
+#FIND_PATH(CXX_HEADER_PATH
+#  NAMES cstdlib
+#  HINTS ${GCC_HEADER_PATH}
+#)
 
-# can't run tests without std library headers
-IF(${HEADER_PATH} MATCHES "NOTFOUND$")
-  MESSAGE("can't find GCC's C++ headers!")
-ELSE()
-  MESSAGE("Found C++ headers in ${HEADER_PATH}")
-ENDIF()
+## can't run tests without std library headers
+#IF(${CXX_HEADER_PATH} MATCHES "NOTFOUND$")
+#  MESSAGE(WARNING "Can't find GCC's C++ headers. Tests won't work without them.")
+#ELSE()
+#  MESSAGE(STATUS "Found C++ headers in ${CXX_HEADER_PATH}") ENDIF()
 
 # Convert STD C++98 headers #
 #############################
@@ -126,56 +130,64 @@ FOREACH(header ${STDLIB98_HEADERS})
   GET_FILENAME_COMPONENT(name "${header}" NAME)
   ADD_TEST(NAME stdc++98_${header}
     COMMAND ${CMAKE_CXX_COMPILER}
+      -x c++
+      -std=c++98
       -fplugin=${PLUGIN_PATH}
       -fplugin-arg-gccxml_plugin-xml=stdc++98-${header}.xml
-      -std=c++98
-      -x c++-header
-      -c ${HEADER_PATH}/${header} -o ${NUL})
+      -include ${header}
+      -c empty_file.cpp
+      -o ${NUL}
+      )
 ENDFOREACH(header)
 
 # Tests on C++11 headers #
 ##########################
 
-SET(STDLIB11_HEADERS
-  array
-  atomic
-  ccomplex
-  cfenv
-  chrono
-  cinttypes
-  condition_variable
-  cstdalign
-  cstdbool
-  cstdint
-  ctgmath
-  forward_list
-  future
-  initializer_list
-  mutex
-  random
-  ratio
-  regex
-  scoped_allocator
-  system_error
-  thread
-  tuple
-  type_traits
-  typeindex
-  unordered_map
-  unordered_set
-)
+IF(${GCC_VERSION_MINOR} GREATER 6)
+  SET(STDLIB11_HEADERS
+    array
+    atomic
+    ccomplex
+    cfenv
+    chrono
+    cinttypes
+    condition_variable
+    cstdalign
+    cstdbool
+    cstdint
+    ctgmath
+    forward_list
+    future
+    initializer_list
+    mutex
+    random
+    ratio
+    regex
+    scoped_allocator
+    system_error
+    thread
+    tuple
+    type_traits
+    typeindex
+    unordered_map
+    unordered_set
+  )
 
-# Tests on C++11 Standard library headers.
-# As these have no file-name suffix, need to specify the language as
-# well as the -std=c++11 flag
-FOREACH(header ${STDLIB11_HEADERS})
-  GET_FILENAME_COMPONENT(name "${header}" NAME)
-  ADD_TEST(NAME stdc++11_${header}
-    COMMAND ${CMAKE_CXX_COMPILER}
-      -fplugin=${PLUGIN_PATH}
-      -fplugin-arg-gccxml_plugin-xml=stdc++11-${header}.xml
-      -std=gnu++11
-      -x c++-header
-      -c ${HEADER_PATH}/${header} -o ${NUL})
-ENDFOREACH(header)
+  # Tests on C++11 Standard library headers.
+  # As these have no file-name suffix, need to specify the language as
+  # well as the -std=c++11 flag
+  FOREACH(header ${STDLIB11_HEADERS})
+    GET_FILENAME_COMPONENT(name "${header}" NAME)
+    ADD_TEST(NAME stdc++11_${header}
+      COMMAND ${CMAKE_CXX_COMPILER}
+        -fplugin=${PLUGIN_PATH}
+        -fplugin-arg-gccxml_plugin-xml=stdc++11-${header}.xml
+        -std=c++11
+        -x c++
+        -include ${header}
+        -c empty_file.cpp
+        -o ${NUL}
+        )
+  ENDFOREACH(header)
+ENDIF()
 

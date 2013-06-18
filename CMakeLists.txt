@@ -1,9 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6.3 FATAL_ERROR)
 PROJECT(gccxml)
 
-MESSAGE("gccxml_plugin_path ${CMAKE_INSTALL_DIR}/gccxml${CMAKE_SHARED_LIBRARY_SUFFIX}")
-SET(GCCXML_PLUGIN_PATH "${CMAKE_INSTALL_DIR}/gccxml${CMAKE_SHARED_LIBRARY_SUFFIX}")
-
 # Place both gccxml_cc1plus and the GCC_XML executables next to each
 # other.
 SET(EXECUTABLE_OUTPUT_PATH "${gccxml_BINARY_DIR}/bin" CACHE PATH

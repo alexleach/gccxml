@@ -42,13 +42,13 @@ class GccXmlOptions:
            is reachable through a sequence of source references from one of the
            specified starting declarations.""")
 
-        parser.add_argument('--gccxml-compiler', dest='compiler', default='gcc',
+        parser.add_argument('--gccxml-compiler', dest='compiler', default=None,
             help="Use specific compiler driver (Default: gcc)", nargs='?')
 
         parser.add_argument('--gccxml-cxxflags', dest='cxxflags', default=None,
             help="Set CXXFLAGS (Default: None)", nargs='*')
 
-        parser.add_argument('--gccxml-cpp', dest='preprocessor', default='cpp',
+        parser.add_argument('--gccxml-cpp', dest='preprocessor', default=None,
             help="Use specific preprocessor (Default: cpp)")
 
         parser.add_argument('--gccxml-root', dest='root', default=None,
@@ -99,17 +99,71 @@ class GccXmlOptions:
                 action="store_true",
                 help="Print GCCXML-plugin version")
 
-        parser.add_argument('input_file', nargs='+', help="input file")
-
         parser.add_argument('-fxml', dest='output', nargs='?', help ="""
             Specify the XML output file.
             This option is passed directly on to the patched GCC C++ parser.  It
             enables the XML dump and specifies the output file name.""")
 
+        parser.add_argument('input_files', nargs='+',
+                help="input C++ files")
+
     def __call__(self):
+        args = sys.argv[1:]
         our_opts, gcc_opts = self.parser.parse_known_args(sys.argv[1:])
+        # make sure gcc_opts haven't been added to input_files
         setattr( our_opts, 'gcc_opts', gcc_opts )
+        self._clean_opts(our_opts, args)
         return our_opts
+    
+    def _clean_opts(self, opts, args):
+        """Remove any arguments that may have been added to input_files, when
+        they should be in gcc_opts.
+        And vice-versa: if any existing files are listed in gcc_opts, and don't
+        follow the '-o' option, put them in input_files"""
+        gcc_opts = opts.gcc_opts
+        input_files = opts.input_files
+        n_inputs = len(input_files)
+        to_del = []
+        for i in xrange(n_inputs):
+            arg = input_files[i]
+            # If option was put into the input file list.
+            if not os.path.exists(arg) and arg not in gcc_opts:
+                to_del.append(i)
+                # Find the preceding option flag in sys.argv
+                ind = args.index(arg) - 1
+                # Do any gcc options support multiple arguments?
+                # Loop is pointless if not.
+                while not args[ind].startswith('-') and ind >= 0:
+                    ind -= 1
+                if ind < 0:
+                    gcc_opts.append(arg)
+                    continue
+                option = args[ind]
+                # Find where the unrecognised option was put in to gcc_opts
+                opt_ind = gcc_opts.index(option)
+                # put the option back in to gcc_opts, in the right place
+                gcc_opts.insert(opt_ind + 1, arg)
+
+        # clean up input_files, in reverse order.
+        for i in sorted(to_del, reverse=True):
+            del(input_files[i])
+
+        # put files in the right list.
+        n_gcc_opts = len(gcc_opts)
+        i = 0
+        while i < n_gcc_opts:
+            opt = gcc_opts[i]
+            if opt in ('-o'):
+                # skip the next file too
+                i += 2
+            elif os.path.exists(opt):
+                # remove file from gcc_opts and put into input_files
+                input_files.append(gcc_opts.pop(i))
+                n_gcc_opts -= 1
+            else:
+                i += 1
+        opts.input_files = input_files
+        opts.gcc_opts = gcc_opts
 
 class GccXml:
     """This manages execution of gcc, with the gccxml_plugin loaded"""
@@ -126,8 +180,8 @@ class GccXml:
     suffixes = cpp_suffixes + c_suffixes
 
     # attributes populated by __init__, directly or indirectly
-    compiler     = 'gcc'
-    preprocessor = 'cpp'
+    compiler     = None
+    preprocessor = None
     sources      = []
     flags        = []
     print_help   = False
@@ -138,23 +192,18 @@ class GccXml:
         """Prepare for calling PyPlusPlus, by finding an approprirate compiler
         driver, and parsing appropriate flags from the environment, depending
         on whether the source file has a C or C++ file extension"""
-        if len(options.input_file) == 1:
-            input_file = options.input_file = options.input_file[0]
-            self._check_dir(input_file, options)
+        if len(options.input_files) == 1:
+            input_files = options.input_files = options.input_files[0]
+            self._check_dir(input_files, options)
         else:
-            for f in options.input_file:
+            for f in options.input_files:
                 self._check_dir(f, options)
 
+        self._get_compiler(options)
         self._get_compiler_flags(options)
 
         # Add plugin specific options
         plugin_options = self.add_plugin_options(xml_start=options.xml_start)
-
-        for tool in [ 'compiler', 'preprocessor' ]:
-            if not os.path.exists(getattr(options, tool)):
-                _tool = find_path(options.compiler)
-                if _tool != False:
-                    setattr(self, tool, _tool)
 
         if options.help_gcc:
             self.print_help = True
@@ -173,11 +222,47 @@ class GccXml:
                 if c_or_cplusplus.match(f):
                     # compile it, if the file name matches one of the above extensions:
                     sources.append(os.path.join(src, f))
+                elif len(f.split('.')) == 1:
+                    # no file name suffix
+                    sources.append(os.path.join(src, f))
         else:
-            sources.append(f_name)
-            if options.output is None:
-                options.output = os.path.basename(f_name) + '.xml'
-            self.xml_files.append(options.output)
+            if os.path.exists(f_name):
+                sources.append(f_name)
+                if options.output is None:
+                    options.output = os.path.basename(f_name) + '.xml'
+                self.xml_files.append(options.output)
+            else:
+                # just a flag
+                self.flags.append(f_name)
+
+    def _get_compiler(self, options):
+        """Figure out what compiler to use, from either options or environment
+        variables. Command line options take precedence over env. vars.
+        """
+        for tool in [ 'compiler', 'preprocessor' ]:
+            tool_spec = getattr(options, tool)
+            if tool_spec is not None and not os.path.exists(tool_spec):
+                _tool = find_path(options.compiler)
+                if _tool != False:
+                    setattr(self, tool, _tool)
+
+        if self.compiler is None:
+            # then, get from environment
+            cc = os.environ.get('CC', None)
+            cxx = os.environ.get('CXX', None)
+            if cc is None:
+                if cxx is None:
+                    compiler = 'g++'
+                else:
+                    compiler = cxx
+            else:
+                # prefer CXX over CC
+                if cxx is None:
+                    compiler = cc
+                else:
+                    compiler = cxx
+            self.compiler = compiler
+
 
     def _get_compiler_flags(self, options):
         """Get CFLAGS or CXXFLAGS from environment, based on what we can
@@ -186,21 +271,22 @@ class GccXml:
         # figure out which compiler to use, and get appropriate env. vars.
         if options.compiler is None:
             # check the first source files suffix, and guess compiler from that
-            example_src = options.sources[0]
-            suffix = example_src.rsplit('.', 1)[1]
-            if suffix in self.c_suffixes:
-                compiler = 'gcc'
-                flags = os.environ.get("CFLAGS", "")
+            example_src = options.input_files[0]
+            suffix = example_src.rsplit('.', 1)
+            if len(suffix) > 1:
+                suffix = suffix[1]
+                if suffix in self.c_suffixes:
+                    flags = os.environ.get("CFLAGS", "")
+                else:
+                    flags = os.environ.get("CXXFLAGS", "")
             else:
-                compiler = 'g++'
+                # no file name suffix. Assume C++ header
                 flags = os.environ.get("CXXFLAGS", "")
         else:
-            compiler = options.compiler
-            if compiler.endswith('++'):
+            if options.compiler.endswith('++'):
                 flags = os.environ.get("CXXFLAGS", "")
             else:
                 flags = os.environ.get("CFLAGS", "")
-        self.compiler = compiler
         from shlex import split
         # split environment flags into a list
         flags = split(flags)
@@ -226,16 +312,19 @@ class GccXml:
         for i, source in enumerate(self.sources):
             xml_arg = '-fplugin-arg-gccxml_plugin-xml={0}'.format(out_files[i])
             args = [cc] +  cflags + [source, xml_arg]
-            print 'Executing:\n  {0}'.format( ' '.join(args) )
+            print 'gccxml_plugin. Executing:\n  {0}'.format( ' '.join(args) )
             sys.stdout.flush()
             subprocess.call(args)
 
     def _set_gcc_flags(self):
         """Adds some default flags to the GCC driver command line options"""
         # Don't create object code file
-        cflags = self._cflags + ['-o', os.path.devnull]
+        cflags = self._cflags
+        if '-o' not in cflags:
+            cflags = ['-o', os.path.devnull] + cflags
         # Don't invoke the linker.
-        cflags.append('-c')
+        if '-c' not in cflags:
+            cflags.append('-c')
         if self.print_help:
             cflags.append('--help')
         return cflags
@@ -255,8 +344,10 @@ def find_path(executable):
     return False
 
 if __name__ == "__main__":
+    import sys
     opts = GccXmlOptions()
     all_opts = opts()
     gccxml = GccXml(all_opts)
     gccxml()
+
 

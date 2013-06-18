@@ -169,7 +169,6 @@ plugin_init(struct plugin_name_args   *plugin_info,
 	        struct plugin_gcc_version *version)
 {
   plugin_info->version = GCCXML_PLUGIN_VERSION_FULL;
-  printf("Initialising gccxml_plugin\n");
 
 
  // Complain if built for a different major, or minor version.

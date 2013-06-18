@@ -29,17 +29,15 @@ along with this program; if not, write to the
 
 #include "gcc-plugin.h"
 
-#define GCC_XML_C_VERSION "GCC-XML Plugin Version " GCCXML_PLUGIN_VERSION_FULL
+#define GCC_XML_C_VERSION "GCC-XML Plugin Version: " GCCXML_PLUGIN_VERSION
 
 /* Declare GPL compatible license. */
 int plugin_is_GPL_compatible;
 
 /* These were hacked in to GCC's c-common/c.opt file, so don't exist for
  * the plugin. We populate them in the callback routine,
- * `collect_callback_args`, below.   */
+ * `collect_callback_args`.   */
 static char *flag_xml_start;
-//static char *flag_xml;
 
-//#define GCCXML_DECL_ERROR(NODE) DECL_COMMON_CHECK(NODE)->decl_common.decl_flag_3
 /* Counter for number of missed GCCXML_DECL_ERROR checks */
 static int n_gccxml_decl_errors_missed;

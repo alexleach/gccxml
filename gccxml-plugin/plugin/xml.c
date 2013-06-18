@@ -69,7 +69,12 @@ along with this program; if not, write to the
 #include "rtl.h"
 
 /* Start GCC 4.7.2 upgrade edit - Change varray.h for vec.h*/
-#include "vec.h"
+#if GCC_VERSION >= 4008
+# include "vec.h"
+#else
+# include "VEC.h"
+#endif
+
 /* End GCC 4.7.2 upgrade edit */
 
 #include "splay-tree.h"
@@ -286,7 +291,7 @@ static const char* xml_get_encoded_string PARAMS ((tree));
 static const char* xml_get_encoded_string_from_string PARAMS ((const char*));
 static tree xml_get_encoded_identifier_from_string PARAMS ((const char*));
 static const char* xml_escape_string PARAMS ((const char* in_str));
-static int xml_fill_all_decls(struct cpp_reader*, hashnode, const void*);
+//static int xml_fill_all_decls(struct cpp_reader*, hashnode, const void*);
 
 
 
@@ -370,7 +375,6 @@ do_xml_output (const char* filename)
   FILE* file;
   struct xml_dump_info xdi;
 
-  printf("got filename: %s\n", filename);
   /* Do not dump if errors occurred during parsing.  */
   if(errorcount)
     {
@@ -380,7 +384,7 @@ do_xml_output (const char* filename)
     }
 
   /* Fill in the all_decls member we added to each scope.  */
-  ht_forall(ident_hash, xml_fill_all_decls, 0);
+  //ht_forall(ident_hash, xml_fill_all_decls, 0);
 
   /* Open the XML output file.  */
   file = fopen (filename, "w");
@@ -811,15 +815,13 @@ xml_print_demangled_attribute (xml_dump_info_p xdi, tree n)
       *internal_found = '\0';
       }
 
-    //dename = cplus_demangle(dupl_name, demangle_opt);
-
     int status =0;
     dename = abi::__cxa_demangle(dupl_name, 0, 0, &status);
-    //if(dename)
     if (status==0)
       {
       const char* encoded_dename = xml_escape_string(dename);
       fprintf (xdi->file, " demangled=\"%s\"", encoded_dename);
+      XDELETE(encoded_dename);
       }
     free(dupl_name);
     }
@@ -1661,7 +1663,7 @@ xml_document_add_attribute_throw(xml_document_element_p element)
 /* Given an attribute node, set "arg" to the string value of the first
    argument, and return the first argument node.  */
 
-/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
+/* START GCC 4.7.2 upgrade mods  */
 tree
 xml_get_attrib_arg_helper(tree arg_node, char** arg)
 {
@@ -1676,7 +1678,7 @@ xml_get_attrib_arg_helper(tree arg_node, char** arg)
       if (strlen(*arg) < val_len)
       {
         delete[] *arg;
-        *arg = new char[val_len];
+        *arg = new char[val_len+1];
       }
       snprintf(*arg, val_len, val);
     }
@@ -1713,36 +1715,33 @@ xml_get_next_attrib_arg(tree arg_node, char** arg)
 }
 
 static void
-xml_print_attributes_attribute_helper (xml_dump_info_p xdi, tree attributes)
+xml_print_attributes_attribute_helper(xml_dump_info_p xdi, tree attributes)
 {
-  //const char* space = "";
-  tree arg_node;
+  const char* space = "";
   tree attribute;
-  bool values;
-  char * arg = new char[2];
+  tree arg_node;
+  //char * arg = XNEWVAR(char, sizeof(char));
+  char * arg = new char[1];
+  *arg = '\0';
   for(attribute = attributes; attribute;
       attribute = TREE_CHAIN(attribute))
-  {
-    values = false;
-    fprintf(xdi->file, "    <Attribute name=\"%s\"",
-            xml_get_encoded_string(TREE_PURPOSE(attribute)));
-    for(arg_node = xml_get_first_attrib_arg(attribute, &arg);
-	    arg_node != 0 ;
-        arg_node = xml_get_next_attrib_arg(arg_node, &arg))
     {
-	if (!values)
-	{
-	  values = true;
-	  fprintf(xdi->file, ">\n");
-	}
-	fprintf(xdi->file, "      <Value value=\"%s\" />\n",
-                xml_get_encoded_string_from_string(arg));
+    fprintf(xdi->file, "%s%s", space,
+            xml_get_encoded_string(TREE_PURPOSE (attribute)));
+    space = " ";
+
+    /* Format and print the string arguments to the attribute
+       (contributed by Steven Kilthau - May 2004).  */
+    if ((arg_node = xml_get_first_attrib_arg(attribute, &arg)) != 0)
+      {
+      fprintf(xdi->file, "(%s", xml_get_encoded_string_from_string(arg));
+      while((arg_node = xml_get_next_attrib_arg(arg_node, &arg)) != 0)
+        {
+        fprintf(xdi->file, ",%s", xml_get_encoded_string_from_string(arg));
+        }
+      fprintf(xdi->file, ")");
+      }
     }
-    if (values)
-      fprintf(xdi->file, "    </Attribute>\n");
-    else
-      fprintf(xdi->file, "/>\n");
-  }
   delete[] arg;
 }
 
@@ -1752,10 +1751,13 @@ static void
 xml_print_attributes_attribute (xml_dump_info_p xdi, tree attributes1,
                                 tree attributes2)
 {
-  if (attributes1)
+  if (attributes1 || attributes2)
+  {
+    fprintf(xdi->file, " attributes=\"");
     xml_print_attributes_attribute_helper(xdi, attributes1);
-  if (attributes2)
     xml_print_attributes_attribute_helper(xdi, attributes2);
+    fprintf(xdi->file, "\"");
+  }
 }
 
 static void
@@ -1896,18 +1898,21 @@ xml_document_add_element_unimplemented (xml_document_info_p xdi,
 
 /*--------------------------------------------------------------------------*/
 
-// traverse all declarations.
-// Modified slightly, from:
-// http://www.codesynthesis.com/~boris/blog/2010/05/10/parsing-cxx-with-gcc-plugin-part-2/
+/// traverse_decls
+/// Return all bindings to the given namespace in a VEC
+/// Modified slightly, from:
+/// http://www.codesynthesis.com/~boris/blog/2010/05/10/parsing-cxx-with-gcc-plugin-part-2/
 void
-traverse(tree ns, vec<tree, va_gc>** decls)
+xml_traverse_decls(tree ns, vec<tree, va_gc>** decls)
 {
-  //binding_table_foreach(xml_binding_table, push_binding, (void*)decls);
   tree decl;
   cp_binding_level * level (NAMESPACE_LEVEL(ns));
 
+  // cp_binding_level->names is reversed. Re-reverse it
+  tree rnames = nreverse(level->names);
+
   // Traverse declarations
-  for (decl = level->names;
+  for (decl = rnames;
        decl;
        decl = TREE_CHAIN(decl))
   {
@@ -1916,47 +1921,18 @@ traverse(tree ns, vec<tree, va_gc>** decls)
     vec_safe_push(*decls, decl);
   }
 
-  // Traverse namespaces
+  // Recurse through namespaces
   for (decl = level->namespaces;
        decl;
        decl = TREE_CHAIN(decl))
   {
-    if (DECL_IS_BUILTIN(decl))
-      continue;
-    traverse(decl, decls);
+    // Builtin namespaces? Don't think so...
+    //if (DECL_IS_BUILTIN(decl))
+    //  continue;
+    xml_traverse_decls(decl, decls);
   }
 }
 
-
-/* Return all bindings to the given namespace in a VEC */
-/*
-static void 
-get_namespace_decls(tree *node)
-{
-  /// Get the bindings for the current namespace.
-  //tree id = HT_IDENT_TO_GCC_IDENT(node);
-  tree id = IDENTIFIER_NAMESPACE_VALUE(*node);
-  cxx_binding* binding = IDENTIFIER_NAMESPACE_BINDINGS(id);
-
-  // Pointer to an array of bindings in this namespace.
-  vec<tree, gc> decls;
-  //VEC(tree,gc) *decls;
-
-  // For each binding of this symbol add the declaration to the vector
-  //   of all declarations in the corresponding scope.
-  for(;binding; binding = binding->previous)
-    {
-    if(VEC_length(tree,binding->value) != NULL)
-      VEC_safe_push (tree, gc, *decls, binding->value);
-
-    if(VEC_length(tree,binding->type) != NULL)
-      VEC_safe_push (tree, gc, *decls, binding->type);
-
-    }
-  return decls;
-
-}
-*/
 
 #ifdef __cplusplus
 }
@@ -1979,20 +1955,22 @@ xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
     xml_print_anon_attribute(xdi, ns);
     xml_print_context_attribute (xdi, ns);
     xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(ns), 0);
-/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+/* END GCC-4.7.2 upgrades  */
 
     /* If complete dump, walk the namespace.  */
     if(dn->complete)
       {
       /* Get the vector of all declarations in the namespace.  */
-/* START GCC-4.7.2 upgrades - from Andrej Mitrovic */
+/* START GCCXML_plugin upgrades  */
       vec<tree, va_gc> * decls = NAMESPACE_LEVEL(ns)->static_decls;
-      traverse(ns, &decls);
+      xml_traverse_decls(ns, &decls);
 
-/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+/* END GCC-4.7.2 upgrades */
+/* START GCC-4.8 upgrades */
       tree * t_vec = decls->address();
       int len = decls->length();
       //int len = VEC_length (tree, decls);
+/* END GCC-4.8 upgrades */
 
       /* Output all the declarations.  */
       fprintf (xdi->file, " members=\"");
@@ -2025,7 +2003,7 @@ xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
     fprintf (xdi->file, "  <NamespaceAlias");
     xml_print_id_attribute (xdi, dn);
     xml_print_name_attribute (xdi, DECL_NAME (ns));
-/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+/* START GCC-4.7.2 upgrades - from Andrej Mitrovic */
     xml_print_anon_attribute(xdi, ns);
 /* END GCC 4.7.2 upgrade mods */
     xml_print_context_attribute (xdi, ns);
@@ -2083,7 +2061,7 @@ xml_document_add_element_namespace_decl (xml_document_info_p xdi,
 }
 
 #ifdef __cplusplus
-extern "C" {
+    extern "C" {
 #endif
 
 /*--------------------------------------------------------------------------*/
@@ -2117,7 +2095,7 @@ xml_output_typedef (xml_dump_info_p xdi, tree td, xml_dump_node_p dn)
   /* Output typedef attributes (contributed by Steven Kilthau - May 2004).  */
   if (td)
     {
-    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(td), 0);
+      xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(td), 0);
     }
 
   fprintf (xdi->file, "/>\n");
@@ -2181,13 +2159,13 @@ xml_output_argument (xml_dump_info_p xdi, tree pd, tree tl, int complete)
     xml_print_default_argument_attribute (xdi, TREE_PURPOSE (tl));
     }
 
-  fprintf (xdi->file, "/>\n");
-
   /* Output argument attributes (contributed by Steven Kilthau - May 2004).  */
   if (pd)
     {
     xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(pd), 0);
     }
+
+  fprintf (xdi->file, "/>\n");
 }
 
 static void
@@ -2355,9 +2333,8 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
   if(body)  xml_print_endline_attribute (xdi, body);
   xml_print_function_extern_attribute (xdi, fd);
   xml_print_inline_attribute (xdi, fd);
-/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
-  /*  Move xml_print_attributes_attribute down below */
-/* END GCC 4.7.2 upgrade mods */
+  xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(fd),
+                                  TYPE_ATTRIBUTES(TREE_TYPE(fd)));
   xml_print_befriending_attribute (xdi, DECL_BEFRIENDING_CLASSES (fd));
 
   /* Prepare to iterator through argument list.  */
@@ -2371,16 +2348,10 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
     arg_type = TREE_CHAIN (arg_type);
     }
 
-
   /* If there are no arguments, finish the element.  */
   if (arg_type == void_list_node)
     {
-/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
-    fprintf (xdi->file, ">\n");
-    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(fd),
-                                  TYPE_ATTRIBUTES(TREE_TYPE(fd)));
-    fprintf (xdi->file, "  </%s>\n", tag);
-/* END GCC 4.7.2 upgrade mods */
+    fprintf (xdi->file, "/>\n");
     return;
     }
   else
@@ -2401,10 +2372,6 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
     /* Function has variable number of arguments.  Print ellipsis.  */
     xml_output_ellipsis (xdi);
     }
-/* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
-    xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(fd),
-                                  TYPE_ATTRIBUTES(TREE_TYPE(fd)));
-/* END GCC 4.7.2 upgrade mods */
 
   fprintf (xdi->file, "  </%s>\n", tag);
 }
@@ -2804,13 +2771,18 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
     {
     tree binfo = TYPE_BINFO (rt);
     int n_baselinks = BINFO_N_BASE_BINFOS (binfo);
+# if GCC_VERSION >= 4008
     vec<tree_node*, va_gc>* accesses = BINFO_BASE_ACCESSES (binfo);
-    //tree accesses = BINFO_BASE_ACCESSES (binfo);
-    int i;
+# elif GCC_VERSION >= 4006
+    VEC_tree_gc* accesses = BINFO_BASE_ACCESSES (binfo);
+# else
+    tree accesses = BINFO_BASE_ACCESSES (binfo);
+# endif
+    int i = 0;
 
-    has_bases = (n_baselinks > 0)? 1:0;
+    has_bases = (n_baselinks > 0) ? 1 : 0;
     fprintf (xdi->file, " bases=\"");
-    for (i = 0; i < n_baselinks; i++)
+    for (; i < n_baselinks; i++)
       {
       tree base_binfo = BINFO_BASE_BINFO(binfo, i);
       if (base_binfo)
@@ -2826,7 +2798,7 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
                  xml_add_node (xdi, BINFO_TYPE (base_binfo), 1));
         }
       }
-    fprintf (xdi->file, "\"");
+    fprintf (xdi->file, "\" ");
     }
 
   /* If there were no base classes, end the element now.  */
@@ -2844,8 +2816,13 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
     {
     tree binfo = TYPE_BINFO (rt);
     int n_baselinks = BINFO_N_BASE_BINFOS (binfo);
-    //tree accesses = BINFO_BASE_ACCESSES (binfo);
+# if GCC_VERSION >= 4008
     vec<tree_node*, va_gc>* accesses = BINFO_BASE_ACCESSES (binfo);
+# elif GCC_VERSION >= 4006
+    VEC_tree_gc* accesses = BINFO_BASE_ACCESSES (binfo);
+# else
+    tree accesses = BINFO_BASE_ACCESSES (binfo);
+# endif 
     int i;
 
     for (i = 0; i < n_baselinks; i++)
@@ -2863,7 +2840,7 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
 
         fprintf (xdi->file,
                  "    <Base type=\"_%d\" access=\"%s\" virtual=\"%d\""
-                 " offset=\"%li\"/>\n",
+                 " offset=\"%" PRIi64 "\"/>\n",
                  xml_add_node (xdi, BINFO_TYPE (base_binfo), 1),
                  access, is_virtual,
                  tree_low_cst (BINFO_OFFSET (base_binfo), 0));
@@ -2894,6 +2871,7 @@ xml_document_add_element_record_type_base (xml_document_info_p xdi,
                              xml_document_attribute_type_integer,
                              xml_document_attribute_use_optional, "0");
 }
+
 static void
 xml_document_add_element_record_type_helper (xml_document_info_p xdi,
                                              xml_document_element_p parent,
@@ -3033,7 +3011,6 @@ xml_output_method_type (xml_dump_info_p xdi, tree t, xml_dump_node_p dn)
   xml_print_id_attribute (xdi, dn);
   xml_print_base_type_attribute (xdi, TYPE_METHOD_BASETYPE (t), dn->complete);
   xml_print_returns_attribute (xdi, TREE_TYPE (t), dn->complete);
-  xml_print_attributes_attribute (xdi, TYPE_ATTRIBUTES(t), 0);
 
   /* Prepare to iterator through argument list.  */
   arg_type = TYPE_ARG_TYPES (t);
@@ -3330,7 +3307,6 @@ xml_output_cv_qualified_type (xml_dump_info_p xdi, tree t, xml_dump_node_p dn)
         xml_output_fundamental_type (xdi, t, dn);
         break;
       default:
-        //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(t)]);
         break;
       }
     }
@@ -3549,7 +3525,7 @@ xml_add_type_decl (xml_dump_info_p xdi, tree td, int complete)
       break;
     default:
       {
-      //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(t)]);
+      /* Add the node even though it is unimplemented.  */
       return xml_add_node_real (xdi, td, complete);
       }
     }
@@ -3798,7 +3774,6 @@ xml_find_template_parm (tree t)
     case INTEGER_CST: return 0;
     case STATIC_CAST_EXPR: return 0;
     default:
-      //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(t)]);
       fprintf(stderr, "xml_find_template_parm encountered unsupported type %s\n",
               tree_code_name[TREE_CODE (t)]);
     }
@@ -3835,27 +3810,23 @@ xml_add_template_decl (xml_dump_info_p xdi, tree td, int complete)
   /* Dump the template instantiations.  */
   for (tl = DECL_TEMPLATE_INSTANTIATIONS (td);
        tl ; tl = TREE_CHAIN (tl))
-    {
+  {
 /* START GCC 4.7.2 upgrade mods */
-    /*tree ts = TYPE_NAME (TREE_VALUE (tl));*/
     tree ts = TREE_VALUE (tl);
 /* END GCC 4.7.2 upgrade mods */
-    switch (TREE_CODE (ts))
-      {
-      case TYPE_DECL:
-        /* Add the instantiation only if it is real.  */
-        if (!xml_find_template_parm (TYPE_TI_ARGS(TREE_TYPE(ts))))
-          {
-          xml_add_node (xdi, ts, complete);
-          }
-        break;
-      default:
-        //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(ts)]);
-        /* xml_output_unimplemented (xdi, ts, 0,
-           "xml_dump_template_decl INSTANTIATIONS");  */
-        break;
-      }
+    if (TREE_CODE(ts) == TYPE_DECL)
+    {
+      /* Add the instantiation only if it is real.  */
+      if (!xml_find_template_parm (TYPE_TI_ARGS(TREE_TYPE(ts))))
+        xml_add_node (xdi, ts, complete);
     }
+    else
+    {
+      /* xml_output_unimplemented (xdi, ts, 0,
+         "xml_dump_template_decl INSTANTIATIONS");  */
+      break;
+    }
+  }
 
   /* Dump any member template instantiations.  */
   if (complete)
@@ -3883,9 +3854,9 @@ xml_dump_tree_node (xml_dump_info_p xdi, tree n, xml_dump_node_p dn)
 {
   switch (TREE_CODE (n))
     {
-    case TRANSLATION_UNIT_DECL:
-        printf("Translation Unit Declaration %i, %s\n", __LINE__, tree_code_name[TREE_CODE(n)]);
-        break;
+    //case TRANSLATION_UNIT_DECL:
+    //    printf("Translation Unit Declaration %i, %s\n", __LINE__, tree_code_name[TREE_CODE(n)]);
+    //    break;
     case NAMESPACE_DECL:
       xml_output_namespace_decl (xdi, n, dn);
       break;
@@ -3932,7 +3903,6 @@ xml_dump_tree_node (xml_dump_info_p xdi, tree n, xml_dump_node_p dn)
     case TYPENAME_TYPE:
     case TEMPLATE_TYPE_PARM:
     default:
-      //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(n)]);
       xml_output_unimplemented (xdi, n, dn, 0);
     }
 }
@@ -3968,11 +3938,11 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
      when the GCC parser produces the declaration but reports an error
      if the definition is actually needed.  */
 
-/* GCC-XML 4.7.2 update  2013-02-03 */
+/* GCC-XML PLUGIN update  2013-02-03 */
   if (TREE_CODE (n) == FUNCTION_DECL)
   {
     if (DECL_ARTIFICIAL (n) && !DECL_INITIAL (n) && DECL_ANTICIPATED(n) &&
-      (!DECL_REALLY_EXTERN (n) || possibly_inlined_p (n)))
+      (!DECL_REALLY_EXTERN (n) || DECL_DECLARED_INLINE_P (n)))
     {
       /* We try to synthesize this function but suppress error messages.  */
 
@@ -3995,11 +3965,14 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
     }
     /* Skip synthesized invalid compiler-generated functions.  */
     // if (GCCXML_DECL_ERROR(n))
+    /*
     if (!decl_needed_p(n))
     {
+      printf("returning from decl_needed-p...\n");
       n_gccxml_decl_errors_missed += 1;
       return 0;
     }
+    */
   }
 /* END GCC-XML 4.7.2 update  2013-02-03 */
 
@@ -4040,7 +4013,6 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
       else
         {
         /* This is a class template.  We don't want to dump it.  */
-      	//printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(n)]);
         return 0;
         }
       break;
@@ -4216,41 +4188,75 @@ xml_escape_string(const char* in_str)
   const char* inCh;
   char* outCh;
   char* newStr;
-
+  register char ch;
   /* Count special characters and calculate extra length needed for encoded
      form of string.  */
-  for(inCh = in_str; *inCh != '\0' ; ++inCh)
+  for(inCh = in_str; *inCh != '\0' ; inCh++)
     {
-    switch (*inCh)
+      ch = *inCh;
+      if (ch == '&')
       {
-      case '&': length_increase += strlen(XML_AMPERSAND)-1; break;
-      case '<': length_increase += strlen(XML_LESS_THAN)-1; break;
-      case '>': length_increase += strlen(XML_GREATER_THAN)-1; break;
-      case '\'': length_increase += strlen(XML_SINGLE_QUOTE)-1; break;
-      case '"': length_increase += strlen(XML_DOUBLE_QUOTE)-1; break;
+        length_increase += strlen(XML_AMPERSAND);
+      }
+      else if (ch == '<')
+      {
+        length_increase += strlen(XML_LESS_THAN);
+      }
+      else if (ch == '>')
+      {
+        length_increase += strlen(XML_GREATER_THAN);
+      }
+      else if (ch == '\'')
+      {
+        length_increase += strlen(XML_SINGLE_QUOTE);
+      }
+      else if (ch == '"')
+      {
+        length_increase += strlen(XML_DOUBLE_QUOTE);
       }
     }
 
-  newStr = (char*) xmalloc (strlen (in_str) + length_increase + 1);
+  newStr = XNEWVAR(char, sizeof(char) * (strlen(in_str) + length_increase + 1));
+
   outCh = newStr;
 
   /* Create encoded form of string.  */
-  for(inCh = in_str ; *inCh != '\0' ; ++inCh)
+  for(inCh = in_str ; *inCh != '\0' ; inCh++)
     {
-    switch (*inCh)
+      ch = *inCh;
+      if (ch == '&')
       {
-      case '&': strcpy (outCh, XML_AMPERSAND); outCh += strlen(XML_AMPERSAND); break;
-      case '<': strcpy (outCh, XML_LESS_THAN);  outCh += strlen(XML_LESS_THAN); break;
-      case '>': strcpy (outCh, XML_GREATER_THAN);  outCh += strlen(XML_GREATER_THAN); break;
-      case '\'': strcpy (outCh, XML_SINGLE_QUOTE);  outCh += strlen(XML_SINGLE_QUOTE); break;
-      case '"': strcpy (outCh, XML_DOUBLE_QUOTE);  outCh += strlen(XML_DOUBLE_QUOTE); break;
-      default: *outCh++ = *inCh;
+        strcpy(outCh, XML_AMPERSAND);
+        outCh += strlen(XML_AMPERSAND);
+      }
+      else if (ch == '<')
+      {
+        strcpy (outCh, XML_LESS_THAN);
+        outCh += strlen(XML_LESS_THAN);
+      }
+      else if (ch == '>')
+      {
+        strcpy (outCh, XML_GREATER_THAN);
+        outCh += strlen(XML_GREATER_THAN);
+      }
+      else if (ch == '\'')
+      {
+        strcpy (outCh, XML_SINGLE_QUOTE);
+        outCh += strlen(XML_SINGLE_QUOTE);
+      }
+      else if (ch == '"')
+      {
+        strcpy (outCh, XML_DOUBLE_QUOTE);
+        outCh += strlen(XML_DOUBLE_QUOTE);
+      }
+      else
+      {
+        *outCh++ = *inCh;
       }
     }
 
   *outCh = '\0';
-
-  return newStr;
+  return (const char*) newStr;
 }
 
 /* Convert the name IN_STR to an XML encoded form.
@@ -4259,13 +4265,13 @@ xml_escape_string(const char* in_str)
 tree
 xml_get_encoded_identifier_from_string (const char* in_str)
 {
-  char* newStr = (char*)xml_escape_string( in_str );
+  const char* str = xml_escape_string( in_str );
   tree id;
 
   /* Ask for "identifier" of this string and free our own copy of the
      memory.  */
-  id = get_identifier(newStr);
-  free(newStr);
+  id = get_identifier(str);
+  XDELETE(str);
   return id;
 }
 
@@ -4277,32 +4283,32 @@ xml_get_encoded_identifier_from_string (const char* in_str)
 
 /*--------------------------------------------------------------------------*/
 /* Called for all identifiers in the symbol table.  */
-static int xml_fill_all_decls(struct cpp_reader* reader, hashnode node,
-                              const void* user_data)
-{
-  /* Get the bindings for the current identifier.  */
-  tree id = HT_IDENT_TO_GCC_IDENT(node);
-  cxx_binding* binding = IDENTIFIER_NAMESPACE_BINDINGS(id);
-
-  /* Avoid unused parameter warnings.  */
-  (void)reader;
-  (void)user_data;
-
-  /* For each binding of this symbol add the declaration to the vector
-     of all declarations in the corresponding scope.  */
-  for(;binding; binding = binding->previous)
-    {
-    if(binding->value)
-      {
-        vec_safe_push(binding->scope->static_decls, binding->value);
-      }
-    if(binding->type)
-      {
-        vec_safe_push(binding->scope->static_decls, binding->type);
-      }
-    }
-  return 1;
-}
+//static int xml_fill_all_decls(struct cpp_reader* reader, hashnode node,
+//                              const void* user_data)
+//{
+//  /* Get the bindings for the current identifier.  */
+//  tree id = HT_IDENT_TO_GCC_IDENT(node);
+//  cxx_binding* binding = IDENTIFIER_NAMESPACE_BINDINGS(id);
+//
+//  /* Avoid unused parameter warnings.  */
+//  (void)reader;
+//  (void)user_data;
+//
+//  /* For each binding of this symbol add the declaration to the vector
+//     of all declarations in the corresponding scope.  */
+//  for(;binding; binding = binding->previous)
+//    {
+//    if(binding->value)
+//      {
+//        vec_safe_push(binding->scope->static_decls, binding->value);
+//      }
+//    if(binding->type)
+//      {
+//        vec_safe_push(binding->scope->static_decls, binding->type);
+//      }
+//    }
+//  return 1;
+//}
 
 /*--------------------------------------------------------------------------*/
 /* Check at

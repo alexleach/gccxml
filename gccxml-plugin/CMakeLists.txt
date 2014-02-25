@@ -49,7 +49,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "${MAKE_CXX_FLAGS_DEBUG} -fomit-frame-pointer -mtune
 # Place gccxml-plugin in lib directory
 
 SET(GCCXML_PLUGIN_OUTPUT_PATH "${CMAKE_BINARY_DIR}" CACHE PATH
-  "Output directory for gccxml-plugin.${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  "Output directory for gccxml-plugin.${CMAKE_SHARED_MODULE_SUFFIX}")
 #MARK_AS_ADVANCED(GCCXML_PLUGIN_OUTPUT_PATH)
 
 # `make build`

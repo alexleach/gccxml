@@ -21,16 +21,20 @@ SET(LIBRARY_OUTPUT_PATH "${GCCXML_PLUGIN_OUTPUT_PATH}")
 
 ADD_DEFINITIONS(-DALMOST_STDC)
 
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PLUGIN_FLAGS}")
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${PLUGIN_FLAGS}")
-
 ADD_LIBRARY(gccxml_plugin MODULE xml.c gccxml_plugin.c)
 SET_TARGET_PROPERTIES(gccxml_plugin PROPERTIES
   PREFIX     ""     #< don't add 'lib' prefix.
-  LINK_FLAGS "${FPIC_FLAG} ${CMAKE_SHARED_FLAGS}"
-  VERSION    "${GCCXML_PLUGIN_VERSION_FULL}"
-  SOVERSION  "${GCCXML_PLUGIN_VERSION_FULL}"
+  LINK_FLAGS "${FPIC_FLAG} ${CMAKE_SHARED_LINKER_FLAGS}"
   )
+
+IF(APPLE)
+  SET(CMAKE_MODULE_LINKER_FLAGS "-undefined dynamic_lookup")
+ELSE(APPLE)
+  SET_TARGET_PROPERTIES(gccxml_plugin PROPERTIES
+    VERSION    "${GCCXML_PLUGIN_VERSION_FULL}"
+    SOVERSION  "${GCCXML_PLUGIN_VERSION_FULL}"
+    )
+ENDIF(APPLE)
 
 # install in standard library directory. Better place to be?
 INSTALL_TARGETS(/lib gccxml_plugin)
@@ -48,7 +52,7 @@ IF(${GCC_VERSION_MAJOR} GREATER 3)
 
   # haven't yet tested 4.7...
 
-  # gcc-4.8 needs is compiled as C++, so xml.c needs to be, too.
+  # gcc-4.8 is compiled as C++, so xml.c needs to be, too.
   IF(${GCC_VERSION_MINOR} GREATER 7)
     SET_SOURCE_FILES_PROPERTIES( xml.c PROPERTIES LANGUAGE CXX )
   ENDIF()

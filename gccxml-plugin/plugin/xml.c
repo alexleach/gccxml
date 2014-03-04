@@ -48,10 +48,9 @@ along with this program; if not, write to the
  *
 */
 
-// for cross-platform printf format string specifiers (e.g. PRIu64)
-#define __STDC_FORMAT_MACROS
-
 #include "gccxml_plugin.h"
+
+#include "gcc-plugin.h"
 
 #include "tree-pass.h"
 
@@ -68,20 +67,21 @@ along with this program; if not, write to the
 
 #include "rtl.h"
 
-/* Start GCC 4.7.2 upgrade edit - Change varray.h for vec.h*/
-# include "vec.h" //< In gcc-4.6, the lowest GCC version supporting plugins
-/* End GCC 4.7.2 upgrade edit */
+#include "vec.h"
 
 #include "splay-tree.h"
 
-// For gcc / g++ to find this header and its dependencies,
-// need to compile this file as C++.
-//#include <cxxabi.h>
-#include "demangle.h"
+#if GCC_VERSION >= 4007
+#  include "cxxabi.h"
+#else
+#  include "demangle.h"
+#endif
 
 #include "tree-iterator.h"
 
 #include "toplev.h" /* ident_hash */
+
+#define GCC_XML_C_VERSION "GCC-XML Plugin Version: " GCCXML_PLUGIN_VERSION
 
 #ifdef __cplusplus
   extern "C" {
@@ -164,6 +164,17 @@ typedef struct xml_dump_info
   /* All files that have been queued.  */
   splay_tree file_nodes;
 } *xml_dump_info_p;
+
+/* Passed as (void*)user_data to GCC callback functions */
+typedef struct xml_plugin_data
+{
+  /* Output file name */
+  const char* filename;
+
+  /* Top level xml_dump_info instance */
+  xml_dump_info_p xdi;
+
+} *xml_plugin_data_p;
 
 /*--------------------------------------------------------------------------*/
 /* Data structures for generating documentation.  */
@@ -277,7 +288,6 @@ struct xml_document_info_s
 /*--------------------------------------------------------------------------*/
 /* Dump utility declarations.  */
 
-void do_xml_output PARAMS ((const char*));
 void do_xml_document PARAMS ((const char*, const char*));
 
 static int xml_add_node PARAMS((xml_dump_info_p, tree, int));
@@ -292,9 +302,6 @@ static const char* xml_get_encoded_string PARAMS ((tree));
 static const char* xml_get_encoded_string_from_string PARAMS ((const char*));
 static tree xml_get_encoded_identifier_from_string PARAMS ((const char*));
 static const char* xml_escape_string PARAMS ((const char* in_str));
-//static int xml_fill_all_decls(struct cpp_reader*, hashnode, const void*);
-
-
 
 static void
 xml_document_add_attribute(xml_document_element_p element,
@@ -349,8 +356,10 @@ int _node_count = 1;
    (fprintf(stderr, "Adding node %i (%s) at line %d\n",_node_count++, tree_code_name[TREE_CODE(node)], __LINE__),                    \
     xml_add_node(xdi, node, complete))
 #endif
+
 /* Get the revision number of this source file.  */
-const char* xml_get_xml_c_version()
+const char*
+xml_get_xml_c_version()
 {
   const char* revision = GCC_XML_C_VERSION;
   char* version = (char*)xmalloc(strlen(revision)+1);
@@ -367,67 +376,33 @@ const char* xml_get_xml_c_version()
   return version;
 }
 
-/* Main XML output function.  Called by parser at the end of a translation
-   unit.  Walk the entire translation unit starting at the global
-   namespace.  Output all declarations.  */
+/* Initialise data shared between plugin passes */
 void
-do_xml_output (const char* filename)
+xml_init_plugin_data(const char* filename, void** plugin_data)
 {
-  FILE* file;
-  struct xml_dump_info xdi;
+  xml_plugin_data_p data =
+        (xml_plugin_data_p) xmalloc(sizeof (struct xml_plugin_data) );
 
-  /* Do not dump if errors occurred during parsing.  */
-  if(errorcount)
-    {
-    /* Delete any existing output file.  */
-    unlink(filename);
-    return;
-    }
+  xml_dump_info_p xdi =
+        (xml_dump_info_p) xmalloc(sizeof (struct xml_dump_info));
 
-  /* Fill in the all_decls member we added to each scope.  */
-  //ht_forall(ident_hash, xml_fill_all_decls, 0);
+  data->filename = filename;
+  data->xdi = xdi;
 
-  /* Open the XML output file.  */
-  file = fopen (filename, "w");
-  if (!file)
+  if (!(xdi->file = fopen(filename, "w")))
   {
-    error ("could not open xml-dump file `%s'", filename);
-    return;
+    error ("could not open xml-dump file '%s'\n", filename);
   }
 
-  /* Prepare dump.  */
-  xdi.file = file;
-  xdi.queue = 0;
-  xdi.queue_end = 0;
-  xdi.queue_free = 0;
-  xdi.next_index = 1;
-  xdi.dump_nodes = splay_tree_new (splay_tree_compare_pointers, 0,
-                                   (splay_tree_delete_value_fn) &free);
-  xdi.file_queue = 0;
-  xdi.file_queue_end = 0;
-  xdi.file_index = 0;
-  xdi.file_nodes = splay_tree_new (splay_tree_compare_pointers, 0, 0);
-  xdi.require_complete = 1;
+  (*plugin_data) = (void*)data;
+}
 
-  /* Add the starting nodes for the dump.  */
-  if (flag_xml_start)
-  {
-    /* Use the specified starting locations.  */
-    xml_add_start_nodes (&xdi, flag_xml_start);
-  }
-  else
-  {
-    /* No start specified.  Use global namespace.  */
-    xml_add_node (&xdi, global_namespace, 1);
-
-    /* Also add std namespace because it is not always referenced.  */
-    if(std_node)
-    {
-      xml_add_node (&xdi, std_node, 1);
-    }
-  }
-
-  /* Start dump.  */
+/* Write XML opening tags to file. */
+void
+xml_start_dump(void* data)
+{
+  xml_plugin_data_p plugin_data = (xml_plugin_data_p) data;
+  FILE* file = plugin_data->xdi->file;
   fprintf (file, "<?xml version=\"1.0\"?>\n");
   fprintf (file, "<GCC_XML");
 #if defined(GCCXML_PLUGIN_VERSION_FULL)
@@ -435,27 +410,85 @@ do_xml_output (const char* filename)
 #endif
   fprintf (file, " cvs_revision=\"%s\"", xml_get_xml_c_version());
   fprintf (file, ">\n");
+}
+
+/* Main XML output function.  Called by parser at the end of a translation
+   unit.  Walk the entire translation unit starting at the global
+   namespace.  Output all declarations.  */
+void
+do_xml_output (void* data)
+{
+  /* Extract xml_dump_info from data */
+  xml_plugin_data_p plugin_data = (xml_plugin_data_p) data;
+  xml_dump_info_p xdi = plugin_data->xdi;
+
+  /* Prepare dump.  */
+  xdi->queue = 0;
+  xdi->queue_end = 0;
+  xdi->queue_free = 0;
+  xdi->next_index = 1;
+  xdi->dump_nodes = splay_tree_new (splay_tree_compare_pointers, 0,
+                                    (splay_tree_delete_value_fn) &free);
+  xdi->file_queue = 0;
+  xdi->file_queue_end = 0;
+  xdi->file_index = 0;
+  xdi->file_nodes = splay_tree_new (splay_tree_compare_pointers, 0, 0);
+  xdi->require_complete = 1;
+
+
+  /* Fill in the all_decls member we added to each scope.  */
+  // ht_forall(ident_hash, xml_fill_all_decls, 0);
+
+  /* Add the starting nodes for the dump.  */
+  if (flag_xml_start)
+  {
+    /* Use the specified starting locations.  */
+    xml_add_start_nodes (xdi, flag_xml_start);
+  }
+  else
+  {
+    /* No start specified.  Use global namespace.  */
+    xml_add_node (xdi, global_namespace, 1);
+
+    /* Also add std namespace because it is not always referenced.  */
+    if(std_node)
+    {
+      xml_add_node (xdi, std_node, 1);
+    }
+  }
 
   /* Dump the complete nodes.  */
-  xml_dump (&xdi);
+  xml_dump (xdi);
 
   /* Queue all the incomplete nodes.  */
-  splay_tree_foreach (xdi.dump_nodes,
-                      &xml_queue_incomplete_dump_nodes, &xdi);
+  splay_tree_foreach (xdi->dump_nodes,
+                      &xml_queue_incomplete_dump_nodes, xdi);
 
   /* Dump the incomplete nodes.  */
-  xdi.require_complete = 0;
-  xml_dump (&xdi);
+  xdi->require_complete = 0;
+  xml_dump (xdi);
 
   /* Dump the filename queue.  */
-  xml_dump_files (&xdi);
+  xml_dump_files (xdi);
+}
 
+void
+xml_end_dump(void* data)
+{
   /* Finish dump.  */
-  fprintf (file, "</GCC_XML>\n");
+  
+  fprintf (((xml_plugin_data_p)data)->xdi->file, "</GCC_XML>\n");
+}
+
+void
+xml_del_plugin_data(void* data)
+{
+  xml_plugin_data_p plugin_data = (xml_plugin_data_p)data;
+  xml_dump_info_p xdi = plugin_data->xdi;
 
   /* Clean up.  */
   {
-    xml_dump_queue_p dq = xdi.queue_free;
+    xml_dump_queue_p dq = xdi->queue_free;
     while(dq)
     {
       xml_dump_queue_p nq = dq->next;
@@ -463,9 +496,20 @@ do_xml_output (const char* filename)
       dq = nq;
     }
   }
-  splay_tree_delete (xdi.dump_nodes);
-  splay_tree_delete (xdi.file_nodes);
-  fclose (file);
+  splay_tree_delete (xdi->dump_nodes);
+  splay_tree_delete (xdi->file_nodes);
+  fclose (xdi->file);
+
+  /* Do not dump if errors occurred during parsing.  */
+  if(errorcount)
+    {
+    /* Delete any existing output file.  */
+    unlink(plugin_data->filename);
+    return;
+    }
+
+  free(xdi);
+  free(data);
 }
 
 /* Return the xml_dump_node corresponding to tree node T.  If none exists,
@@ -567,7 +611,8 @@ xml_add_node_real (xml_dump_info_p xdi, tree n, int complete)
 
 /* Called for each node in the splay tree of dump nodes.  Queues
    a dump node if it is incomplete.  */
-int xml_queue_incomplete_dump_nodes (splay_tree_node n, void* in_xdi)
+int
+xml_queue_incomplete_dump_nodes (splay_tree_node n, void* in_xdi)
 {
   tree key = (tree)n->key;
   xml_dump_node_p dn = (xml_dump_node_p)n->value;
@@ -745,30 +790,64 @@ xml_document_add_attribute_name(xml_document_element_p element,
 
 /*--------------------------------------------------------------------------*/
 /* Print the XML attribute isAnon="1" if type has no name.  */
-static void xml_print_anon_attribute(xml_dump_info_p xdi, tree n)
+static void
+xml_print_anon_attribute(xml_dump_info_p xdi, tree n)
 {
     if (TYPE_ANONYMOUS_P(n))
         fprintf(xdi->file, " isAnon=\"1\"");
 }
 
-static void xml_document_add_attribute_anon(xml_document_element_p element)
+static void
+xml_document_add_attribute_anon(xml_document_element_p element)
 {
     xml_document_add_attribute(element, "isAnon",
                            xml_document_attribute_type_boolean,
                            xml_document_attribute_use_required, "0");
 }
 
+# if GCC_VERSION >= 4007
+// Test for namespaces who haven't been allocated a mangled, assembler name.
+// Very rarely, these cause seg faults... e.g. regex and ccomplex c++ headers
+inline int
+xml_maybe_broken_ns(tree ns)
+{
+  // A couple of c++ standard library tests seg fault in the
+  // DECL_ASSEMBLER_NAME macro, in gcc 4.7 and 4.8.
+  // Notably, regex and ccomplex headers. Tests can stop the
+  // seg-faults, but cause false-positives where normally, we
+  // can get mangled names.
+  //
+  // Specifically, the call to lang_hooks.set_decl_assembler_name
+  // can cause a seg fault. Unsure why...
+  //
+  // Also, namespace names can be obtained from the context of 
+  // any interesting variable or function decl, so their (de)mangled
+  // names aren't so useful on their own.
+
+  if (TREE_CODE (ns) == NAMESPACE_DECL
+      && ns->decl_with_vis.assembler_name == NULL_TREE) {
+    // This could cause a seg fault, under VERY rare circumstances...
+    return 1;
+  }
+  return 0;
+}
+# endif
+
 /*--------------------------------------------------------------------------*/
 /* Print the XML attribute mangled="..." for the given node.  */
 static void
 xml_print_mangled_attribute (xml_dump_info_p xdi, tree n)
 {
-/* Start GCC 4.7.2 upgrade edit. Change HAS_DECL_ASSEMBLER_NAME_SET Macro */
-  if (DECL_ASSEMBLER_NAME_SET_P(n) &&
-/* End GCC 4.7.2 upgrade edit */
+
+# if GCC_VERSION >= 4007
+  if (xml_maybe_broken_ns(n))
+    return;
+# endif
+
+  if (HAS_DECL_ASSEMBLER_NAME_P(n) &&
       DECL_NAME (n) &&
-//      DECL_ASSEMBLER_NAME (n) &&
-      DECL_ASSEMBLER_NAME (n) != DECL_NAME (n))
+      DECL_ASSEMBLER_NAME(n) &&
+      DECL_ASSEMBLER_NAME(n) != DECL_NAME (n))
     {
     const char* name = xml_get_encoded_string (DECL_ASSEMBLER_NAME (n));
     fprintf (xdi->file, " mangled=\"%s\"", name);
@@ -785,19 +864,22 @@ xml_document_add_attribute_mangled(xml_document_element_p element)
 
 /*--------------------------------------------------------------------------*/
 /* Print the XML attribute demangled="..." for the given node.  */
-static void
+void
 xml_print_demangled_attribute (xml_dump_info_p xdi, tree n)
 {
-/* Start GCC 4.7.2 upgrade edit. Change HAS_DECL_ASSEMBLER_NAME_SET Macro */
-  if (DECL_ASSEMBLER_NAME_SET_P(n) &&
-/* End GCC 4.7.2 upgrade edit */
+
+# if GCC_VERSION >= 4007
+  if (xml_maybe_broken_ns(n))
+    return;
+# endif
+
+  if (HAS_DECL_ASSEMBLER_NAME_P(n) &&
       DECL_NAME (n) &&
+      DECL_ASSEMBLER_NAME (n) &&
       DECL_ASSEMBLER_NAME (n) != DECL_NAME (n))
     {
-    const char* INTERNAL = " *INTERNAL* ";
-    const int demangle_opt =
-      (DMGL_STYLE_MASK | DMGL_PARAMS | DMGL_TYPES | DMGL_ANSI) & ~DMGL_JAVA;
 
+    const char* INTERNAL = " *INTERNAL* ";
     const char* name = xml_get_encoded_string (DECL_ASSEMBLER_NAME (n));
     /*demangled name*/
     char* dename = 0;
@@ -811,15 +893,22 @@ xml_print_demangled_attribute (xml_dump_info_p xdi, tree n)
 
     internal_found = strstr( dupl_name, INTERNAL );
     if(internal_found)
-      {
       *internal_found = '\0';
-      }
 
-    //int status =0;
-    //dename = abi::__cxa_demangle(dupl_name, 0, 0, &status);
+#if GCC_VERSION >= 4007
+    /* Use C++ !!! */
+    int status = 0;
+    dename = abi::__cxa_demangle(dupl_name, 0, 0, &status);
+    if (status == 0)
+
+#else
+
+    const int demangle_opt =
+      (DMGL_STYLE_MASK | DMGL_PARAMS | DMGL_TYPES | DMGL_ANSI) & ~DMGL_JAVA;
     dename = cplus_demangle(dupl_name, demangle_opt);
     if (dename)
-    //if (status==0)
+
+#endif
       {
       const char* decoded_dename = xml_escape_string(dename);
       fprintf (xdi->file, " demangled=\"%s\"", decoded_dename);
@@ -1269,7 +1358,9 @@ xml_print_template_attribute_class_union(xml_dump_info_p xdi, tree fd)
 }
 
 /* Print XML attribute template="1" for templated enums. */
-/* static void xml_print_template_attribute_enum(xml_dump_info_p xdi, tree fd)
+/*
+static void
+xml_print_template_attribute_enum(xml_dump_info_p xdi, tree fd)
 {
     if (ENUM_TEMPLATE_INFO(fd))
         fprintf(xdi->file, " template=\"1\"");
@@ -1688,17 +1779,18 @@ xml_get_attrib_arg_helper(tree arg_node, char** arg)
       size_t val_len = strlen(val);
       if (strlen(*arg) < val_len)
       {
-        XDELETE(*arg);
-        *arg = XCNEWVAR(char, val_len+1);
+        *arg = XRESIZEVAR(char, *arg, val_len);
       }
       snprintf(*arg, val_len, val);
     }
     else if (code == INTEGER_CST)
+      snprintf(*arg, 1, HOST_WIDE_INT_PRINT_UNSIGNED,
 # if GCC_VERSION >= 4008
-      snprintf(*arg, 1, "%ld", TREE_INT_CST(cst).to_shwi());
+              TREE_INT_CST(cst).to_uhwi()
 # else
-      snprintf(*arg, 1, "%d", TREE_INT_CST(cst));
+              double_int_to_uhwi(TREE_INT_CST(cst))
 # endif
+              );
     else if (code == IDENTIFIER_NODE)
       sprintf(*arg, xml_get_encoded_string(cst));
     else
@@ -1735,8 +1827,8 @@ xml_print_attributes_attribute_helper(xml_dump_info_p xdi, tree attributes)
   const char* space = "";
   tree attribute;
   tree arg_node;
-  char * arg = XCNEWVAR(char, sizeof(" "));
-  arg[0] = '\0';
+  char * arg = XCNEW(char);
+  *arg = '\0';
   for(attribute = attributes; attribute;
       attribute = TREE_CHAIN(attribute))
     {
@@ -1917,7 +2009,7 @@ xml_document_add_element_unimplemented (xml_document_info_p xdi,
 /// http://www.codesynthesis.com/~boris/blog/2010/05/10/parsing-cxx-with-gcc-plugin-part-2/
 void
 xml_traverse_decls(
-        tree ns,
+        struct cp_binding_level* ns_level,
 # if GCC_VERSION >= 4008
         vec<tree, va_gc>** decls
 # else
@@ -1926,18 +2018,13 @@ xml_traverse_decls(
         )
 {
   tree decl;
-  struct cp_binding_level * level = NAMESPACE_LEVEL(ns);
-
-  // cp_binding_level->names is reversed. Re-reverse it
-  tree rnames = nreverse(level->names);
-
-  // Traverse declarations
-  for (decl = rnames;
-       decl;
+  // Traverse declarations in re-reversed order
+  for (decl = nreverse(ns_level->names);
+       decl != NULL_TREE;
        decl = TREE_CHAIN(decl))
   {
-    if (DECL_IS_BUILTIN(decl))
-      continue;
+    //if (DECL_IS_BUILTIN(decl))
+    //  continue;
 # if GCC_VERSION >= 4008
     vec_safe_push(*decls, decl);
 # else
@@ -1945,15 +2032,20 @@ xml_traverse_decls(
 # endif
   }
 
-  // Recurse through namespaces
-  for (decl = level->namespaces;
-       decl;
+  for (decl = ns_level->namespaces;
+       decl != NULL_TREE;
        decl = TREE_CHAIN(decl))
   {
     // Builtin namespaces? Don't think so...
     //if (DECL_IS_BUILTIN(decl))
     //  continue;
-    xml_traverse_decls(decl, decls);
+# if GCC_VERSION >= 4008
+    vec_safe_push(*decls, decl);
+# else
+    VEC_safe_push(tree, gc, *decls, decl);
+# endif
+    // Recurse through namespaces
+    xml_traverse_decls(NAMESPACE_LEVEL(decl), decls);
   }
 }
 
@@ -1987,30 +2079,39 @@ xml_output_namespace_decl (xml_dump_info_p xdi, tree ns, xml_dump_node_p dn)
       /* Get the vector of all declarations in the namespace.  */
 /* START GCCXML_plugin upgrades  */
 # if GCC_VERSION >= 4008
-      vec<tree, va_gc> * decls = NAMESPACE_LEVEL(ns)->static_decls;
+      vec<tree, va_gc> *decls;
+      vec_alloc (decls, 256);
+      xml_traverse_decls(NAMESPACE_LEVEL(ns), &decls);
       tree * t_vec = decls->address();
       int len = decls->length();
 # else
-      VEC(tree, gc) * decls = NAMESPACE_LEVEL(ns)->static_decls;
+      VEC(tree, gc) *decls = VEC_alloc (tree, gc, 256);
+      xml_traverse_decls(NAMESPACE_LEVEL(ns), &decls);
       tree * t_vec = VEC_address(tree, decls);
       int len = VEC_length (tree, decls);
 # endif
-      xml_traverse_decls(ns, &decls);
 
 /* END GCCXML plugin upgrades */
 
       /* Output all the declarations.  */
       fprintf (xdi->file, " members=\"");
-      int i, id;
-      for (i=0; i < len; ++i)
+      int i = 0;
+      tree decl = t_vec[i++];
+      for (; i <= len; decl = t_vec[i++])
         {
-        id = xml_add_node (xdi, t_vec[i], 1);
+        int id = xml_add_node (xdi, decl, 1);
         if (id)
           {
           fprintf (xdi->file, "_%d ", id);
           }
         }
       fprintf (xdi->file, "\"");
+
+# if GCC_VERSION >= 4008
+      vec_free(decls);
+#else
+      VEC_free(tree, gc, decls);
+#endif
       }
 
     xml_print_mangled_attribute (xdi, ns);
@@ -2054,7 +2155,7 @@ xml_document_add_element_namespace_decl (xml_document_info_p xdi,
   e->name = "Namespace";
   xml_document_add_attribute_id(e);
   xml_document_add_attribute_name(e, xml_document_attribute_use_required);
-/* END GCC-4.7.2 upgrades - from Andrej Mitrovic */
+/* START GCC-4.7.2 upgrades - from Andrej Mitrovic */
   xml_document_add_attribute_anon(e);
 /* END GCC 4.7.2 upgrade mods */
   xml_document_add_attribute_context(e, xml_document_attribute_use_required,
@@ -2222,7 +2323,7 @@ xml_reverse_opname_lookup (tree name)
   if (!IDENTIFIER_OPNAME_P (name))
     return get_identifier (unknown_operator);
 
-  /* Search the list of internal anmes */
+  /* Search the list of internal names */
   for (i=0; i < MAX_TREE_CODES ; ++i)
     {
     if (ansi_opname(i) == name)
@@ -2317,7 +2418,7 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
   else
     {
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
-    do_template=1;
+    do_template = 1;
 /* END GCC 4.7.2 upgrade mods */
     if (DECL_FUNCTION_MEMBER_P (fd))
       {
@@ -2334,7 +2435,8 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
 
   fprintf (xdi->file, "  <%s", tag);
   xml_print_id_attribute (xdi, dn);
-  if(do_name)   xml_print_name_attribute (xdi, name);
+  if(do_name)
+    xml_print_name_attribute (xdi, name);
 /* START GCC 4.7.2 upgrade mods - From Andrej Mitrovic */
   xml_print_anon_attribute(xdi, fd);
 /* END GCC 4.7.2 upgrade mods */
@@ -2357,7 +2459,8 @@ xml_output_function_decl (xml_dump_info_p xdi, tree fd, xml_dump_node_p dn)
   xml_print_mangled_attribute (xdi, fd);
   xml_print_demangled_attribute (xdi, fd);
   xml_print_location_attribute (xdi, fd);
-  if(body)  xml_print_endline_attribute (xdi, body);
+  if(body)
+    xml_print_endline_attribute (xdi, body);
   xml_print_function_extern_attribute (xdi, fd);
   xml_print_inline_attribute (xdi, fd);
   xml_print_attributes_attribute (xdi, DECL_ATTRIBUTES(fd),
@@ -2867,7 +2970,7 @@ xml_output_record_type (xml_dump_info_p xdi, tree rt, xml_dump_node_p dn)
 
         fprintf (xdi->file,
                  "    <Base type=\"_%d\" access=\"%s\" virtual=\"%d\""
-                 " offset=\"%" PRIi64 "\"/>\n",
+                 " offset=\"" HOST_WIDE_INT_PRINT_DEC "\"/>\n",
                  xml_add_node (xdi, BINFO_TYPE (base_binfo), 1),
                  access, is_virtual,
                  tree_low_cst (BINFO_OFFSET (base_binfo), 0));
@@ -3691,7 +3794,7 @@ xml_find_template_parm (tree t)
 
     /* Unary expressions.  */
     /* START GCC-4.7 C++11 upgrade modifications  */
-    //case CONJ_EXPR:
+    case CONJ_EXPR:
     /* END GCC-4.7 C++11 upgrade modifications  */
     case ALIGNOF_EXPR:
     case SIZEOF_EXPR:
@@ -3825,6 +3928,7 @@ xml_add_template_decl (xml_dump_info_p xdi, tree td, int complete)
         xml_add_node (xdi, ts, complete);
         break;
       case TEMPLATE_DECL:
+        //printf("\nUNIMPLEMENTED %i: %s\n", __LINE__, tree_code_name[TREE_CODE(ts)]);
         break;
       default:
         //printf("\nUNIMPLEMENTED %i: %s", __LINE__, tree_code_name[TREE_CODE(ts)]);
@@ -3851,7 +3955,6 @@ xml_add_template_decl (xml_dump_info_p xdi, tree td, int complete)
     {
       /* xml_output_unimplemented (xdi, ts, 0,
          "xml_dump_template_decl INSTANTIATIONS");  */
-      break;
     }
   }
 
@@ -3972,7 +4075,6 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
       (!DECL_REALLY_EXTERN (n) || DECL_DECLARED_INLINE_P (n)))
     {
       /* We try to synthesize this function but suppress error messages.  */
-
       int n_errors = errorcount;
       /* Taken from cp_write_global_declarations.  */
       push_to_top_level ();
@@ -3982,24 +4084,14 @@ xml_add_node (xml_dump_info_p xdi, tree n, int complete)
       n_errors -= errorcount;
       if (n_errors != 0)
       {
-          // GCCXML_DECL_ERROR() surrogate.
-          // suppress errors from locally synthesized_method.
-          errorcount += n_errors;
-          n_gccxml_decl_errors_missed += 1;
-          return 0;
+        // GCCXML_DECL_ERROR() surrogate.
+        // suppress errors from locally synthesized_method.
+        errorcount += n_errors;
+        n_gccxml_decl_errors_missed += 1;
+        return 0;
       }
 
     }
-    /* Skip synthesized invalid compiler-generated functions.  */
-    // if (GCCXML_DECL_ERROR(n))
-    /*
-    if (!decl_needed_p(n))
-    {
-      printf("returning from decl_needed-p...\n");
-      n_gccxml_decl_errors_missed += 1;
-      return 0;
-    }
-    */
   }
 /* END GCC-XML 4.7.2 update  2013-02-03 */
 
@@ -4068,7 +4160,6 @@ void xml_dump_files (xml_dump_info_p xdi)
              // tree_node->key typedef'd as a uintptr_t,
              // so that it's type can be safely changed, somehow. So we need
              // to cast the value to char*, in case it's a wider char type.
-              //(const char*)fq->tree_node->key); //< empty string...
              IDENTIFIER_POINTER ((tree) fq->tree_node->key)
              // ---- END GCCXML_plugin patch. ---- //
              );
@@ -4278,7 +4369,7 @@ xml_escape_string(const char* in_str)
       }
       else
       {
-        *outCh++ = *inCh;
+        *outCh++ = ch;
       }
     }
 
@@ -4310,8 +4401,9 @@ xml_get_encoded_identifier_from_string (const char* in_str)
 
 /*--------------------------------------------------------------------------*/
 /* Called for all identifiers in the symbol table.  */
-//static int xml_fill_all_decls(struct cpp_reader* reader, hashnode node,
-//                              const void* user_data)
+//int
+//xml_fill_all_decls(struct cpp_reader* reader, hashnode node,
+//                   const void* user_data)
 //{
 //  /* Get the bindings for the current identifier.  */
 //  tree id = HT_IDENT_TO_GCC_IDENT(node);
@@ -4327,11 +4419,19 @@ xml_get_encoded_identifier_from_string (const char* in_str)
 //    {
 //    if(binding->value)
 //      {
+//# if GCC_VERSION >= 4008
 //        vec_safe_push(binding->scope->static_decls, binding->value);
+//# else
+//        VEC_safe_push(tree, gc, binding->scope->static_decls, binding->value);
+//# endif
 //      }
 //    if(binding->type)
 //      {
+//# if GCC_VERSION >= 4008
 //        vec_safe_push(binding->scope->static_decls, binding->type);
+//# else
+//        VEC_safe_push(tree, gc, binding->scope->static_decls, binding->type);
+//# endif
 //      }
 //    }
 //  return 1;
@@ -4476,7 +4576,6 @@ do_xml_document (const char* dtd_name, const char* schema_name)
   /* Record the documentation specification.  */
   xml_document_info xdi;
   xml_document_element_p element;
-  //xml_document_subelement_p subelement;
   memset(&xdi, 0, sizeof(xdi));
 
   element = &xdi.elements[xdi.num_elements++];
